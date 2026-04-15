@@ -4,28 +4,158 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Lottery Lab{% endblock %}</title>
+  <script>
+    // Apply persisted theme before first paint to avoid FOUC.
+    (function () {
+      try {
+        var t = localStorage.getItem('lotterylab-theme');
+        var valid = ['terminal', 'light', 'paper', 'solarized', 'matrix'];
+        if (t && valid.indexOf(t) !== -1) {
+          document.documentElement.setAttribute('data-theme', t);
+        }
+      } catch (e) { /* localStorage blocked */ }
+    })();
+  </script>
   <style>
     /* ── Custom properties ──────────────────────────────── */
     :root {
-      --bg:      #0a0a0a;
-      --bg-alt:  #141414;
-      --bg-2:    #1c1c1c;
-      --fg:      #e8e8e8;
-      --fg-dim:  #888;
-      --fg-faint:#444;
-      --accent:  #ff8c00;
-      --accent-dim: #a85c00;
-      --green:   #4ade80;
-      --red:     #f87171;
-      --blue:    #60a5fa;
-      --border:  #2a2a2a;
-      --border-2:#333;
       --font:    'Berkeley Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
       --fs:      12px;
       --fs-sm:   11px;
       --fs-lg:   14px;
       --fs-xl:   18px;
       --radius:  2px;
+    }
+
+    /* ── Theme: terminal (default dark / Bloomberg) ─────── */
+    :root,
+    :root[data-theme="terminal"] {
+      --bg:         #0a0a0a;
+      --bg-alt:     #141414;
+      --bg-2:       #1c1c1c;
+      --fg:         #e8e8e8;
+      --fg-dim:     #888;
+      --fg-faint:   #444;
+      --accent:     #ff8c00;
+      --accent-dim: #a85c00;
+      --accent-hi:  #ffaa33;
+      --accent-bg:  #1a0f00;
+      --green:      #4ade80;
+      --green-bg:   #001a10;
+      --green-border:#2a6640;
+      --red:        #f87171;
+      --blue:       #60a5fa;
+      --border:     #2a2a2a;
+      --border-2:   #333;
+      --warn-bg:    #1a1200;
+      --warn-border:#3a2a00;
+      --warn-fg:    #ccaa44;
+      --btn-primary-fg: #000;
+      color-scheme: dark;
+    }
+
+    /* ── Theme: light (paper / WSJ) ─────────────────────── */
+    :root[data-theme="light"] {
+      --bg:         #f7f7f5;
+      --bg-alt:     #ececea;
+      --bg-2:       #e2e2df;
+      --fg:         #1a1a1a;
+      --fg-dim:     #555;
+      --fg-faint:   #999;
+      --accent:     #c75a00;
+      --accent-dim: #e59550;
+      --accent-hi:  #a04800;
+      --accent-bg:  #fff0e0;
+      --green:      #108040;
+      --green-bg:   #e0f4e6;
+      --green-border:#5aa070;
+      --red:        #c13030;
+      --blue:       #2060c0;
+      --border:     #d0d0cc;
+      --border-2:   #b8b8b3;
+      --warn-bg:    #fff4d0;
+      --warn-border:#e0c060;
+      --warn-fg:    #7a5a10;
+      --btn-primary-fg: #fff;
+      color-scheme: light;
+    }
+
+    /* ── Theme: paper (warm off-white) ──────────────────── */
+    :root[data-theme="paper"] {
+      --bg:         #f4ecd8;
+      --bg-alt:     #ebe0c2;
+      --bg-2:       #e0d2ae;
+      --fg:         #2c2416;
+      --fg-dim:     #6a5a3c;
+      --fg-faint:   #a08c68;
+      --accent:     #a0521c;
+      --accent-dim: #c89060;
+      --accent-hi:  #7a3a10;
+      --accent-bg:  #f2dcb8;
+      --green:      #406820;
+      --green-bg:   #e4ecc8;
+      --green-border:#80a060;
+      --red:        #982020;
+      --blue:       #2858a0;
+      --border:     #c8b890;
+      --border-2:   #a89870;
+      --warn-bg:    #f4e4b8;
+      --warn-border:#c8a850;
+      --warn-fg:    #6a5010;
+      --btn-primary-fg: #fff;
+      color-scheme: light;
+    }
+
+    /* ── Theme: solarized dark ──────────────────────────── */
+    :root[data-theme="solarized"] {
+      --bg:         #002b36;
+      --bg-alt:     #073642;
+      --bg-2:       #0a4050;
+      --fg:         #eee8d5;
+      --fg-dim:     #93a1a1;
+      --fg-faint:   #586e75;
+      --accent:     #cb4b16;
+      --accent-dim: #8a3510;
+      --accent-hi:  #e5622a;
+      --accent-bg:  #1a1508;
+      --green:      #859900;
+      --green-bg:   #0c3030;
+      --green-border:#3a5a20;
+      --red:        #dc322f;
+      --blue:       #268bd2;
+      --border:     #0e4050;
+      --border-2:   #14556a;
+      --warn-bg:    #1f1a00;
+      --warn-border:#4a3a00;
+      --warn-fg:    #b58900;
+      --btn-primary-fg: #fdf6e3;
+      color-scheme: dark;
+    }
+
+    /* ── Theme: matrix (black / phosphor green) ─────────── */
+    :root[data-theme="matrix"] {
+      --bg:         #000000;
+      --bg-alt:     #060d06;
+      --bg-2:       #0a1a0a;
+      --fg:         #c8ffc8;
+      --fg-dim:     #5a9a5a;
+      --fg-faint:   #2a5a2a;
+      --accent:     #00ff66;
+      --accent-dim: #007a30;
+      --accent-hi:  #60ff90;
+      --accent-bg:  #031a0a;
+      --green:      #00ff66;
+      --green-bg:   #031a0a;
+      --green-border:#007a30;
+      --red:        #ff4040;
+      --blue:       #40e0d0;
+      --border:     #0f2a0f;
+      --border-2:   #1a3a1a;
+      --warn-bg:    #1a1a00;
+      --warn-border:#3a3a00;
+      --warn-fg:    #d0d040;
+      --btn-primary-fg: #000;
+      color-scheme: dark;
     }
 
     /* ── Reset ──────────────────────────────────────────── */
@@ -154,7 +284,7 @@
       margin-top: 2px;
       flex-shrink: 0;
     }
-    .checkbox-item.checked { border-color: var(--accent); background: #1a0f00; }
+    .checkbox-item.checked { border-color: var(--accent); background: var(--accent-bg); }
     .cb-name {
       font-size: var(--fs);
       color: var(--fg);
@@ -182,9 +312,9 @@
     }
     .btn-primary {
       background: var(--accent);
-      color: #000;
+      color: var(--btn-primary-fg);
     }
-    .btn-primary:hover { background: #ffaa33; }
+    .btn-primary:hover { background: var(--accent-hi); }
     .btn-secondary {
       background: var(--bg-alt);
       color: var(--fg);
@@ -326,8 +456,8 @@
       font-weight: 700;
       letter-spacing: 0.05em;
     }
-    .badge-0 { background: #1a0f00; color: var(--accent); border: 1px solid var(--accent-dim); }
-    .badge-1 { background: #001a10; color: var(--green); border: 1px solid #2a6640; }
+    .badge-0 { background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-dim); }
+    .badge-1 { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
 
     /* ── Notices ────────────────────────────────────────── */
     .notice {
@@ -337,9 +467,9 @@
       margin-bottom: 16px;
     }
     .notice-warn {
-      background: #1a1200;
-      border: 1px solid #3a2a00;
-      color: #ccaa44;
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      color: var(--warn-fg);
     }
     .notice-info {
       background: var(--bg-alt);
@@ -366,6 +496,31 @@
       animation: spin 0.7s linear infinite;
     }
 
+    /* ── Theme switcher ─────────────────────────────────── */
+    .theme-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 12px;
+    }
+    .theme-switch label {
+      font-size: 10px;
+      color: var(--fg-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .theme-switch select {
+      background: var(--bg-alt);
+      border: 1px solid var(--border-2);
+      color: var(--fg);
+      font-family: var(--font);
+      font-size: var(--fs-sm);
+      padding: 3px 6px;
+      border-radius: var(--radius);
+      cursor: pointer;
+    }
+    .theme-switch select:focus { outline: none; border-color: var(--accent); }
+
     /* ── Spacers ────────────────────────────────────────── */
     .mt-8  { margin-top: 8px; }
     .mt-16 { margin-top: 16px; }
@@ -383,7 +538,19 @@
       <div class="header-inner">
         <span class="logo">Lottery<span>//</span>Lab</span>
         <span class="tagline">NBA draft lottery scenario simulator</span>
-        <div class="header-right">8 systems · Monte Carlo engine</div>
+        <div class="header-right">
+          8 systems · Monte Carlo engine
+          <span class="theme-switch">
+            <label for="theme-select">Theme</label>
+            <select id="theme-select" aria-label="Color theme">
+              <option value="terminal">Terminal</option>
+              <option value="light">Light</option>
+              <option value="paper">Paper</option>
+              <option value="solarized">Solarized</option>
+              <option value="matrix">Matrix</option>
+            </select>
+          </span>
+        </div>
       </div>
     </div>
   </header>
@@ -392,5 +559,19 @@
       {% block content %}{% endblock %}
     </div>
   </main>
+  <script>
+    // Theme switcher: sync <select> to current theme, persist on change.
+    (function () {
+      var select = document.getElementById('theme-select');
+      if (!select) return;
+      var current = document.documentElement.getAttribute('data-theme') || 'terminal';
+      select.value = current;
+      select.addEventListener('change', function () {
+        var next = select.value;
+        document.documentElement.setAttribute('data-theme', next);
+        try { localStorage.setItem('lotterylab-theme', next); } catch (e) {}
+      });
+    })();
+  </script>
 </body>
 </html>
