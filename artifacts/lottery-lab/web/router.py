@@ -110,6 +110,26 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
         "odds": [5.5, 6.5, 8.0, 9.0, 9.0, 9.0, 8.5, 8.0, 7.5, 6.5, 6.0, 5.5, 5.0, 4.5],
         "odds_note": "Approximate — actual odds depend on when each team is eliminated and post-elimination performance, not record directly.",
     },
+    "Chip Window": {
+        "desc": (
+            "Proposed by Ron Bronson (2026). Activates at game 60 for all non-top-6-seed teams. "
+            "Each team starts with 100 chips and must wager at least 10 per game (options: 10 or 25). "
+            "A win returns the wager; a loss permanently deducts it. Teams with ≥ 100 chips at "
+            "season's end may double once — forfeit 100 chips to double the remainder. "
+            "Final lottery odds are proportional to chip totals, floored at what the Current NBA "
+            "system would give each team. Tanking is structurally impossible: losing depletes chips "
+            "at the same rate regardless of intent, and the floor prevents double punishment for "
+            "genuinely bad teams. Every late-season game carries chip stakes — a public chip "
+            "leaderboard alongside the standings turns garbage time into must-watch TV."
+        ),
+        "odds": [14.0, 14.0, 13.5, 12.0, 10.0, 8.5, 7.0, 5.5, 4.0, 3.0, 2.5, 2.0, 1.5, 2.5],
+        "odds_note": (
+            "Dynamic — odds depend on each team's chip total after the game-60 window, not just "
+            "their record. Worst teams fall to their Current NBA floor when chips are depleted; "
+            "teams that win during the window can exceed their floor and climb the odds board. "
+            "The double mechanic (≥ 100 chips) can further amplify a strong window performance."
+        ),
+    },
 }
 
 

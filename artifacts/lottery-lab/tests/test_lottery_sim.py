@@ -26,7 +26,7 @@ from engine.lottery_sim import (
 
 
 def test_all_systems_present():
-    assert len(ALL_SYSTEMS) == 8
+    assert len(ALL_SYSTEMS) == 9
     names = [s.name for s in ALL_SYSTEMS]
     assert "Current NBA" in names
     assert "Flat Bottom" in names
@@ -36,6 +36,7 @@ def test_all_systems_present():
     assert "Lottery Tournament" in names
     assert "Pure Inversion" in names
     assert "Gold Plan (PWHL)" in names
+    assert "Chip Window" in names
 
 
 def _run_system_smoke(system, seed=42, seasons=3):
@@ -474,7 +475,7 @@ def test_historical_actual_order():
 if __name__ == "__main__":
     print("Running smoke tests...")
     test_all_systems_present()
-    print("✓ All 8 systems present")
+    print("✓ All 9 systems present")
 
     for system in ALL_SYSTEMS:
         _run_system_smoke(system)

@@ -1025,6 +1025,94 @@ def monte_carlo(
 
 
 # ---------------------------------------------------------------------------
+# System 9: Chip Window (Bid Standardization)
+# ---------------------------------------------------------------------------
+
+class ChipWindow:
+    """
+    Bid Standardization / Chip Window — proposed anti-tanking system.
+
+    Activates at game 60 for all teams outside the top-6 seeds. Each team
+    starts with 100 chips and must wager at least 10 chips per remaining game
+    (options: 10 or 25). A win returns the wagered chips; a loss permanently
+    deducts them. Teams with ≥ 100 chips at season end may exercise a one-time
+    double: forfeit 100 chips to double the remaining balance. Final lottery
+    odds are proportional to chip totals, with a floor equal to the odds each
+    team would receive under the Current NBA system. Tanking is structurally
+    impossible — losing depletes chips regardless of intent.
+
+    Reference: "The Chip Window" by Ron Bronson (April 2026).
+    """
+
+    name = "Chip Window"
+
+    GAMES_IN_WINDOW = 22    # games 60–82
+    STARTING_CHIPS = 100.0
+    MIN_BET = 10.0
+    BIG_BET = 25.0
+    DOUBLE_THRESHOLD = 100.0
+
+    def _simulate_chips(self, win_prob: float, rng: random.Random) -> float:
+        chips = self.STARTING_CHIPS
+        for _ in range(self.GAMES_IN_WINDOW):
+            # Bet 25 when chips are healthy enough to aim for the double; else 10
+            bet = self.BIG_BET if chips >= 50.0 else self.MIN_BET
+            if rng.random() >= win_prob:  # loss
+                chips = max(0.0, chips - bet)
+        # One-time double mechanic for teams with ≥ 100 chips
+        if chips >= self.DOUBLE_THRESHOLD:
+            chips = (chips - self.DOUBLE_THRESHOLD) * 2.0
+        return chips
+
+    def draft_order(self, history, constraints, rng):
+        season = history[-1]
+        lottery = _non_playoff_teams(season)  # worst first
+        n = len(lottery)
+
+        # Simulate the chip window for each team
+        raw_chips: dict[int, float] = {}
+        for tid, wins, losses in lottery:
+            total = wins + losses
+            win_prob = wins / total if total > 0 else 0.30
+            raw_chips[tid] = self._simulate_chips(win_prob, rng)
+
+        # Floor: NBA_ODDS for the team's draft-rank position
+        floor_weights = {lottery[i][0]: NBA_ODDS[i] for i in range(n)}
+
+        # Scale raw chips to the same magnitude as NBA_ODDS so they're comparable
+        total_chips = sum(raw_chips.values())
+        total_floor = sum(NBA_ODDS[:n])
+        if total_chips > 0:
+            chip_weights = {tid: c / total_chips * total_floor for tid, c in raw_chips.items()}
+        else:
+            chip_weights = {tid: 0.0 for tid in raw_chips}
+
+        # Effective weight = max(floor, chip-derived) — floor prevents double punishment
+        effective_weights = {
+            tid: max(floor_weights[tid], chip_weights.get(tid, 0.0))
+            for tid in floor_weights
+        }
+
+        lottery_picks = weighted_lottery_draw(effective_weights, min(4, n), rng)
+        remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
+        wins_map = {t[0]: t[1] for t in lottery}
+        remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])
+        return lottery_picks + remaining_sorted
+
+    def tank_incentive(self, team_id, standings, history):
+        # Losing depletes chips at the same rate regardless of intent — structural anti-tank
+        # Worst teams still hold their floor, but chips are the upside; tanking forfeits it
+        if not history:
+            return 0.2
+        rank = _rank_by_wins_asc(history[-1], team_id)
+        if rank <= 3:
+            return 0.2   # floor protects them but chips are destroyed by tanking
+        elif rank <= 7:
+            return 0.12
+        return 0.08
+
+
+# ---------------------------------------------------------------------------
 # All systems registry
 # ---------------------------------------------------------------------------
 
@@ -1037,6 +1125,7 @@ ALL_SYSTEMS: list[LotterySystem] = [
     LotteryTournament(),
     PureInversion(),
     GoldPlan(),
+    ChipWindow(),
 ]
 
 SYSTEM_MAP: dict[str, LotterySystem] = {s.name: s for s in ALL_SYSTEMS}
