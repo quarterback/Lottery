@@ -178,6 +178,28 @@ def test_flat_bottom_uniform_incentive():
     assert flat_metrics.gini_top5 >= 0
 
 
+def test_post_lottery_ordering_by_record():
+    """Picks 5+ (non-lottery-drawn) must be ordered worst record first for NBA-style systems."""
+    from engine.lottery_sim import _non_playoff_teams, LOTTERY_PICKS
+    nba_style = [CurrentNBA(), FlatBottom(), PlayInBoost(), UEFACoefficient(), RCL()]
+    for system in nba_style:
+        run = simulate_run(system, seasons=5, seed=99)
+        for s_idx, draft_order in enumerate(run.draft_orders):
+            season = run.seasons[s_idx]
+            lottery = _non_playoff_teams(season)
+            wins_map = {t[0]: t[1] for t in lottery}
+            # picks after the lottery draws should be in ascending wins order
+            tail = draft_order[LOTTERY_PICKS:]
+            for i in range(len(tail) - 1):
+                w_curr = wins_map.get(tail[i], 0)
+                w_next = wins_map.get(tail[i + 1], 0)
+                assert w_curr <= w_next, (
+                    f"{system.name} season {s_idx}: pick {LOTTERY_PICKS + i + 1} "
+                    f"has {w_curr} wins but pick {LOTTERY_PICKS + i + 2} has {w_next} wins "
+                    f"(should be worst-first)"
+                )
+
+
 def test_draft_order_completeness():
     """Draft order should include all lottery teams exactly once."""
     for system in ALL_SYSTEMS:
@@ -206,6 +228,9 @@ if __name__ == "__main__":
 
     test_monte_carlo_smoke()
     print("✓ Monte Carlo runs")
+
+    test_post_lottery_ordering_by_record()
+    print("✓ Post-lottery picks ordered by record (worst first)")
 
     test_draft_order_completeness()
     print("✓ Draft order completeness")

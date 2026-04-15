@@ -74,7 +74,9 @@ def build_comparison_rows(m0: MetricsBundle, m1: MetricsBundle) -> list[dict]:
     for label, v0, v1, lower_better, fmt in specs:
         diff = v1 - v0
         abs_diff = abs(diff)
-        if abs_diff < 0.001:
+        baseline = max(abs(v0), 0.001)
+        relative_diff = abs_diff / baseline
+        if relative_diff < 0.05:  # < 5% relative change is not significant
             diff_class = "diff-same"
             diff_str = "—"
         elif (lower_better and diff < 0) or (not lower_better and diff > 0):

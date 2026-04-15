@@ -9,6 +9,7 @@ from typing import Protocol, runtime_checkable
 NUM_TEAMS = 30
 PLAYOFF_SPOTS = 16
 LOTTERY_TEAMS = NUM_TEAMS - PLAYOFF_SPOTS  # 14
+LOTTERY_PICKS = 4  # number of picks drawn by weighted lottery (remaining go by record)
 GAMES_PER_SEASON = 82
 WEEKS_PER_SEASON = 26
 PLAY_IN_SLOTS = 4  # teams 13-16 in standings compete in play-in
@@ -158,8 +159,8 @@ class CurrentNBA:
         weights = {lottery[i][0]: NBA_ODDS[i] for i in range(len(lottery))}
         lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
-        # remaining picks in reverse order (best non-playoff team picks first among rest)
-        remaining_sorted = sorted(remaining, key=lambda tid: next(w for w, wins, _ in lottery if w == tid), reverse=True)
+        wins_map = {t[0]: t[1] for t in lottery}
+        remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first (picks 5+)
         return lottery_picks + remaining_sorted
 
     def tank_incentive(self, team_id, standings, history):
@@ -190,7 +191,8 @@ class FlatBottom:
         weights = {t[0]: 1.0 for t in lottery}
         lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
-        remaining_sorted = sorted(remaining, key=lambda tid: next(w for w, wins, _ in lottery if w == tid), reverse=True)
+        wins_map = {t[0]: t[1] for t in lottery}
+        remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first
         return lottery_picks + remaining_sorted
 
     def tank_incentive(self, team_id, standings, history):
@@ -221,7 +223,8 @@ class PlayInBoost:
                 weights[tid] = NBA_ODDS[min(i, len(NBA_ODDS) - 1)]
         lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
-        remaining_sorted = sorted(remaining, key=lambda tid: next(w for w, wins, _ in lottery if w == tid), reverse=True)
+        wins_map = {t[0]: t[1] for t in lottery}
+        remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first
         return lottery_picks + remaining_sorted
 
     def tank_incentive(self, team_id, standings, history):
@@ -288,7 +291,8 @@ class UEFACoefficient:
             weights[tid] = coeff
         lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
-        remaining_sorted = sorted(remaining, key=lambda tid: next(w for w, wins, _ in lottery if w == tid), reverse=True)
+        wins_map = {t[0]: t[1] for t in lottery}
+        remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first
         return lottery_picks + remaining_sorted
 
     def tank_incentive(self, team_id, standings, history):
@@ -406,7 +410,8 @@ class RCL:
             constraints.top3_history.setdefault(pick, []).append(constraints.current_year)
 
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
-        remaining_sorted = sorted(remaining, key=lambda tid: next(w for w, wins, _ in lottery if w == tid), reverse=True)
+        wins_map = {t[0]: t[1] for t in lottery}
+        remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first
         return lottery_picks + remaining_sorted
 
     def tank_incentive(self, team_id, standings, history):

@@ -45,13 +45,15 @@
       <div class="section-title">Simulation Parameters</div>
       <div class="form-grid">
         <div class="field">
-          <label for="runs">Monte Carlo runs</label>
-          <input type="number" id="runs" name="runs" value="50" min="5" max="500" step="5">
+          <label for="runs">Monte Carlo runs — <span id="runs-val">50</span></label>
+          <input type="range" id="runs" name="runs" value="50" min="5" max="500" step="5"
+            oninput="document.getElementById('runs-val').textContent = this.value">
           <span class="field-hint">5–500. More runs = more accurate, slower.</span>
         </div>
         <div class="field">
-          <label for="seasons">Seasons per run</label>
-          <input type="number" id="seasons" name="seasons" value="15" min="3" max="30" step="1">
+          <label for="seasons">Seasons per run — <span id="seasons-val">15</span></label>
+          <input type="range" id="seasons" name="seasons" value="15" min="3" max="30" step="1"
+            oninput="document.getElementById('seasons-val').textContent = this.value">
           <span class="field-hint">3–30. Longer = better long-run stats.</span>
         </div>
         <div class="field">
