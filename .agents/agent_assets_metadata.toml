@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "onvZGbEDZkny_XwnLqawY"
+uri = "file://artifacts/lottery-lab/CHIP_WINDOW_PRD.md"
+type = "text"
+title = "Chip Window PRD"
