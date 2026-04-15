@@ -280,13 +280,9 @@ def build_effort_chart_meta() -> dict:
     }
 
 
-def build_standings_table(metrics: MetricsBundle, color: str) -> list[dict]:
+def build_standings_table(metrics: MetricsBundle) -> list[dict]:
     """Build standings table rows sorted by avg wins descending."""
     rows = []
-    max_pick1 = max(
-        (metrics.pick_distribution.get(tid, [0.0])[0] for tid in range(NUM_TEAMS)),
-        default=1.0,
-    ) or 1.0
     for tid in range(NUM_TEAMS):
         avg_w = metrics.avg_wins_by_team.get(tid, 0.0)
         avg_l = round(GAMES_PER_SEASON - avg_w, 1)
@@ -377,8 +373,8 @@ async def simulate(
 
     # Standings tables
     standings_tables = [
-        build_standings_table(m, CHART_COLORS[i])
-        for i, m in enumerate(results)
+        build_standings_table(m)
+        for m in results
     ]
 
     # Selected system explainers
