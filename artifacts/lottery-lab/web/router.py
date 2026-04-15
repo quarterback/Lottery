@@ -649,8 +649,9 @@ async def historical_run(
     request: Request,
     season_key: str = Form(...),
     systems: list[str] = Form(default=[]),
+    n_runs: int = Form(default=500),
 ):
-    n_runs = 1000  # fixed server-side for convergence
+    n_runs = max(100, min(2000, n_runs))
     season_data = HISTORICAL_SEASONS.get(season_key)
     if not season_data:
         return templates.TemplateResponse(
