@@ -351,6 +351,8 @@ def test_historical_data_integrity():
         top4 = data["lottery_top4"]
         assert isinstance(top4, list) and len(top4) <= 4, \
             f"Season {key}: lottery_top4 must be a list of ≤4 names"
+        assert len(top4) == len(set(top4)), \
+            f"Season {key}: lottery_top4 has duplicate team(s): {top4}"
         for pos, name in enumerate(top4, 1):
             assert name in seen_names, \
                 f"Season {key}: lottery_top4[{pos}]='{name}' not in lottery_teams — " \

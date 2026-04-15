@@ -347,7 +347,7 @@ HISTORICAL_SEASONS: dict[str, dict] = {
         ),
         "games": 82,
         "lottery_pick1": "Cleveland Cavaliers",
-        "lottery_top4": ["Cleveland Cavaliers", "Minnesota Timberwolves", "Utah Jazz", "Cleveland Cavaliers"],
+        "lottery_top4": ["Cleveland Cavaliers", "Minnesota Timberwolves", "Utah Jazz", "LA Clippers"],
         "lottery_teams": [
             ("Minnesota Timberwolves", 17, 65),
             ("Cleveland Cavaliers", 19, 63),
