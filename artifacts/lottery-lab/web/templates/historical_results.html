@@ -207,6 +207,127 @@
   </div>
   {% endfor %}
 
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       CHIP WINDOW LEADERBOARD — only shown when Chip Window system is selected
+       ═══════════════════════════════════════════════════════════════════════ -->
+  {% if chip_lb %}
+  <div class="mb-40" style="margin-top:40px">
+    <div class="section-title" style="margin-bottom:4px">
+      Chip Window Leaderboard — {{ season_key }} Simulation
+    </div>
+    <div style="font-size:var(--fs-sm);color:var(--fg-dim);margin-bottom:16px">
+      600 randomized chip-window scenarios per team · Wins add chips, losses deduct · Double triggers when final chips &gt; 100
+    </div>
+
+    <!-- Leaderboard table -->
+    <div class="table-wrap">
+      <table class="hist-table" style="width:100%">
+        <thead>
+          <tr>
+            <th style="text-align:center;width:32px">#</th>
+            <th style="text-align:left">Team</th>
+            <th style="text-align:center">Win% in<br>Window</th>
+            <th style="text-align:center">Median<br>Chips</th>
+            <th style="text-align:left;min-width:160px">Chip Range (p25–p75)</th>
+            <th style="text-align:center">Peak</th>
+            <th style="text-align:center">Double<br>Chance</th>
+            <th style="text-align:center;min-width:130px">Median Trajectory</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set lb_max = [chip_lb | map(attribute="max_chips") | max, 200] | max %}
+          {% for row in chip_lb %}
+          {% set is_leader = loop.index == 1 %}
+          <tr style="{% if is_leader %}background:var(--accent-bg){% endif %}">
+            <td style="text-align:center;color:{% if is_leader %}var(--accent){% else %}var(--fg-faint){% endif %};font-weight:{% if is_leader %}700{% else %}400{% endif %}">
+              {% if is_leader %}★{% else %}{{ loop.index }}{% endif %}
+            </td>
+            <td style="font-weight:{% if is_leader %}700{% else %}400{% endif %}">
+              {{ row.name }}<br>
+              <span style="font-size:10px;color:var(--fg-faint)">{{ row.wins }}–{{ row.losses }}</span>
+            </td>
+            <td style="text-align:center;color:{% if row.win_pct >= 50 %}var(--green){% elif row.win_pct >= 35 %}var(--fg){% else %}var(--fg-dim){% endif %}">
+              {{ row.win_pct }}%
+            </td>
+            <td style="text-align:center;font-weight:700;color:{% if row.median_chips > 100 %}var(--accent){% else %}var(--fg){% endif %}">
+              {{ row.median_chips | int }}
+            </td>
+            <!-- Range bar: p25 to p75, median tick, scale 0–lb_max -->
+            <td>
+              {% set bar_w = 140 %}
+              {% set scale = lb_max %}
+              {% set p25x = (row.p25_chips / scale * bar_w) | int %}
+              {% set p75x = (row.p75_chips / scale * bar_w) | int %}
+              {% set medx = (row.median_chips / scale * bar_w) | int %}
+              <div style="position:relative;height:14px;width:{{ bar_w }}px;background:var(--bg-2);border-radius:2px;overflow:visible">
+                <!-- IQR fill -->
+                <div style="position:absolute;top:0;left:{{ p25x }}px;width:{{ [p75x - p25x, 2] | max }}px;height:100%;background:var(--accent);opacity:0.4;border-radius:1px"></div>
+                <!-- Median tick -->
+                <div style="position:absolute;top:-2px;left:{{ medx }}px;width:2px;height:18px;background:var(--accent);border-radius:1px"></div>
+                <!-- Labels -->
+                <span style="position:absolute;top:16px;left:0;font-size:9px;color:var(--fg-faint)">0</span>
+                <span style="position:absolute;top:16px;right:0;font-size:9px;color:var(--fg-faint)">{{ lb_max | int }}</span>
+              </div>
+              <div style="font-size:10px;color:var(--fg-faint);margin-top:22px">
+                {{ row.p25_chips | int }}–{{ row.p75_chips | int }} chips
+              </div>
+            </td>
+            <td style="text-align:center;font-size:var(--fs-sm);color:var(--fg-dim)">
+              {{ row.max_chips | int }}
+            </td>
+            <td style="text-align:center;color:{% if row.prob_double > 20 %}var(--green){% elif row.prob_double > 5 %}var(--fg){% else %}var(--fg-faint){% endif %}">
+              {{ row.prob_double }}%
+            </td>
+            <!-- Sparkline SVG of median trajectory -->
+            <td>
+              {% set traj = row.median_traj %}
+              {% set traj_max = [traj | max, 100] | max %}
+              {% set svg_w = 120 %}
+              {% set svg_h = 28 %}
+              {% set n_pts = traj | length %}
+              <svg width="{{ svg_w }}" height="{{ svg_h }}" style="display:block">
+                <!-- Baseline at 100-chip level -->
+                {% set base_y = svg_h - (100 / traj_max * (svg_h - 4) | int) - 2 %}
+                <line x1="0" y1="{{ base_y }}" x2="{{ svg_w }}" y2="{{ base_y }}"
+                      stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>
+                <!-- Trajectory polyline -->
+                <polyline
+                  fill="none"
+                  stroke="{% if row.median_chips > 100 %}var(--accent){% else %}var(--fg-dim){% endif %}"
+                  stroke-width="1.5"
+                  stroke-linejoin="round"
+                  points="{% for i in range(n_pts) %}{{ (i / (n_pts - 1) * svg_w) | int }},{{ (svg_h - (traj[i] / traj_max * (svg_h - 4)) - 2) | int }}{% if not loop.last %} {% endif %}{% endfor %}"
+                />
+                <!-- End-point dot -->
+                {% set last_x = svg_w - 1 %}
+                {% set last_y = (svg_h - (traj[-1] / traj_max * (svg_h - 4)) - 2) | int %}
+                <circle cx="{{ last_x }}" cy="{{ last_y }}" r="2.5"
+                        fill="{% if row.median_chips > 100 %}var(--accent){% else %}var(--fg-dim){% endif %}"/>
+              </svg>
+              <div style="font-size:9px;color:var(--fg-faint);display:flex;justify-content:space-between;width:120px">
+                <span>G60</span><span>G82</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Legend / explainer -->
+    <div style="margin-top:16px;display:flex;gap:20px;flex-wrap:wrap;font-size:var(--fs-sm);color:var(--fg-dim)">
+      <span><span style="display:inline-block;width:12px;height:12px;background:var(--accent);opacity:0.4;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Chip range (p25–p75 across 600 scenarios)</span>
+      <span><span style="display:inline-block;width:2px;height:14px;background:var(--accent);vertical-align:middle;margin-right:4px"></span>Median chips</span>
+      <span>Dashed line in sparkline = 100-chip baseline · Teams above baseline may trigger the double</span>
+    </div>
+    <div style="font-size:var(--fs-sm);color:var(--fg-faint);margin-top:8px">
+      Win% uses the team's full-season record as a proxy for their game 60–82 performance,
+      since game-by-game results are not stored. Each scenario randomizes game outcomes
+      within that win probability, producing the ranges shown above.
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Run another season -->
   <div class="mt-32" style="border-top:1px solid var(--border);padding-top:24px">
     <div class="section-title">Run Another Historical Season</div>

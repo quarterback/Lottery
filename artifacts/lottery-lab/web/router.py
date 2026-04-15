@@ -763,6 +763,17 @@ async def historical_run(
             "color": CHART_COLORS[len(sim_results)] if len(sim_results) < len(CHART_COLORS) else "#ff8c00",
         })
 
+    # Chip Window leaderboard — only computed when Chip Window is selected
+    chip_lb = None
+    if any(s.name == "Chip Window" for s in selected):
+        cw = SYSTEM_MAP["Chip Window"]
+        lb_rng = random.Random(42)
+        chip_lb = cw.chip_leaderboard(
+            season_data["lottery_teams"],
+            n_scenarios=600,
+            rng=lb_rng,
+        )
+
     elapsed = round(time.perf_counter() - t0, 2)
 
     return templates.TemplateResponse(
@@ -780,5 +791,6 @@ async def historical_run(
             "colors": CHART_COLORS,
             "season_keys": SEASON_KEYS,
             "systems": [s.name for s in ALL_SYSTEMS],
+            "chip_lb": chip_lb,
         },
     )

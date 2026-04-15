@@ -1050,19 +1050,93 @@ class ChipWindow:
     STARTING_CHIPS = 100.0
     MIN_BET = 10.0
     BIG_BET = 25.0
-    DOUBLE_THRESHOLD = 100.0
+    DOUBLE_THRESHOLD = 100.0  # finish with > starting chips to unlock double
 
     def _simulate_chips(self, win_prob: float, rng: random.Random) -> float:
+        """
+        One chip-window simulation. Wins add chips (net +bet); losses deduct chips
+        (net -bet). Teams can accumulate above STARTING_CHIPS by winning. Teams that
+        finish with > STARTING_CHIPS may exercise the double (2× their chip total),
+        which further amplifies a strong chip-window performance.
+        """
         chips = self.STARTING_CHIPS
         for _ in range(self.GAMES_IN_WINDOW):
-            # Bet 25 when chips are healthy enough to aim for the double; else 10
+            # Bet 25 when ahead or even; drop to 10 to conserve when depleted
             bet = self.BIG_BET if chips >= 50.0 else self.MIN_BET
-            if rng.random() >= win_prob:  # loss
+            if rng.random() < win_prob:   # win — chips increase
+                chips += bet
+            else:                          # loss — chips decrease
                 chips = max(0.0, chips - bet)
-        # One-time double mechanic for teams with ≥ 100 chips
-        if chips >= self.DOUBLE_THRESHOLD:
-            chips = (chips - self.DOUBLE_THRESHOLD) * 2.0
+        # One-time double: teams that finish strictly above their starting total
+        # may forfeit the base 100 and double what remains. This rewards hot streaks.
+        if chips > self.DOUBLE_THRESHOLD:
+            chips *= 2.0
         return chips
+
+    def chip_leaderboard(
+        self,
+        lottery_teams: list,
+        n_scenarios: int,
+        rng: random.Random,
+    ) -> list[dict]:
+        """
+        Run N chip-window scenarios for each lottery team. Returns a leaderboard
+        (sorted highest median chips first) with per-team statistics and a median
+        chip-count trajectory over the 22-game window.
+        """
+        import statistics as _stats
+
+        results = []
+        for name, wins, losses in lottery_teams:
+            total = wins + losses
+            win_prob = wins / total if total > 0 else 0.30
+
+            trajectories: list[list[float]] = []
+            pre_double: list[float] = []
+            final_all: list[float] = []
+
+            for _ in range(n_scenarios):
+                chips = self.STARTING_CHIPS
+                traj: list[float] = [chips]
+                for _ in range(self.GAMES_IN_WINDOW):
+                    bet = self.BIG_BET if chips >= 50.0 else self.MIN_BET
+                    if rng.random() < win_prob:
+                        chips += bet
+                    else:
+                        chips = max(0.0, chips - bet)
+                    traj.append(chips)
+                trajectories.append(traj)
+                pre_double.append(chips)
+                if chips > self.DOUBLE_THRESHOLD:
+                    chips *= 2.0
+                final_all.append(chips)
+
+            sorted_final = sorted(final_all)
+            n = len(sorted_final)
+            prob_double = sum(1 for c in pre_double if c > self.DOUBLE_THRESHOLD) / n
+
+            # Median trajectory: chip count at each game step across all scenarios
+            median_traj = [
+                round(_stats.median(t[g] for t in trajectories), 1)
+                for g in range(self.GAMES_IN_WINDOW + 1)
+            ]
+
+            results.append({
+                "name": name,
+                "wins": wins,
+                "losses": losses,
+                "win_prob": win_prob,
+                "win_pct": round(win_prob * 100, 1),
+                "median_chips": round(_stats.median(sorted_final), 1),
+                "p25_chips":    round(sorted_final[n // 4], 1),
+                "p75_chips":    round(sorted_final[3 * n // 4], 1),
+                "max_chips":    round(sorted_final[-1], 1),
+                "prob_double":  round(prob_double * 100, 1),
+                "median_traj":  median_traj,
+            })
+
+        results.sort(key=lambda r: r["median_chips"], reverse=True)
+        return results
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
