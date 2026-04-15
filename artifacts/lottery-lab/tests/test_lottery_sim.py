@@ -1,4 +1,4 @@
-"""Smoke tests for the lottery simulation engine."""
+"""Smoke tests for the lottery simulation engine and historical data."""
 import sys
 import os
 
@@ -298,6 +298,70 @@ def test_two_system_comparison_rendering():
         assert len(bars) == NUM_TEAMS, f"Wrong bar count: {len(bars)}"
 
 
+def test_historical_data_integrity():
+    """All historical seasons have required keys and 14 lottery teams."""
+    from data.historical_seasons import HISTORICAL_SEASONS, SEASON_KEYS
+    assert len(HISTORICAL_SEASONS) == 26, f"Expected 26 seasons, got {len(HISTORICAL_SEASONS)}"
+    assert len(SEASON_KEYS) == 26
+    required_keys = {"context", "games", "lottery_pick1", "lottery_top4", "lottery_teams"}
+    for key, data in HISTORICAL_SEASONS.items():
+        missing = required_keys - set(data.keys())
+        assert not missing, f"Season {key} missing keys: {missing}"
+        teams = data["lottery_teams"]
+        assert len(teams) == 14, f"Season {key} has {len(teams)} lottery teams, expected 14"
+        for entry in teams:
+            assert len(entry) == 3, f"Season {key} team entry should be (name, wins, losses)"
+            name, wins, losses = entry
+            assert isinstance(name, str) and len(name) > 0
+            assert isinstance(wins, int) and 0 <= wins <= 82
+            assert isinstance(losses, int) and 0 <= losses <= 82
+        pick1 = data["lottery_pick1"]
+        if pick1 != "TBD":
+            team_names = [t[0] for t in teams]
+            assert pick1 in team_names, f"Season {key}: lottery_pick1 '{pick1}' not in lottery_teams"
+
+
+def test_historical_simulation_smoke():
+    """Historical simulation: pick distributions sum correctly."""
+    from data.historical_seasons import HISTORICAL_SEASONS
+    from web.router import _make_historical_season_result, _run_historical_lottery
+
+    system = CurrentNBA()
+    season_data = dict(HISTORICAL_SEASONS["2007-08"])
+    season_data["lottery_teams"] = sorted(season_data["lottery_teams"], key=lambda t: t[1])
+
+    dist = _run_historical_lottery(season_data, system, n_runs=200)
+    n_lottery = len(season_data["lottery_teams"])
+
+    assert len(dist) == n_lottery, f"Expected {n_lottery} teams in dist"
+    for name, probs in dist.items():
+        assert len(probs) == n_lottery
+        # Each slot sums to 100% across all teams (with some rounding)
+    slot_sums = [sum(dist[name][slot] for name in dist) for slot in range(n_lottery)]
+    for slot, s in enumerate(slot_sums[:4]):
+        assert abs(s - 100.0) < 5.0, f"Slot {slot+1} probabilities sum to {s:.1f}%, expected ~100%"
+
+    # Under Current NBA, Miami Heat (worst team) should have highest pick-1 odds
+    assert dist["Miami Heat"][0] > dist["Chicago Bulls"][0], \
+        "Miami (worst) should have higher #1 pick odds than Chicago (9th worst)"
+
+
+def test_historical_actual_order():
+    """_compute_actual_order always places the lottery pick 1 team first."""
+    from data.historical_seasons import HISTORICAL_SEASONS
+    from web.router import _compute_actual_order
+
+    for season_key, data in HISTORICAL_SEASONS.items():
+        if data.get("season_pending"):
+            continue
+        order = _compute_actual_order(data)
+        assert len(order) == 14, f"Season {season_key}: expected 14 teams in order, got {len(order)}"
+        top4 = data.get("lottery_top4", [data["lottery_pick1"]])
+        if top4:
+            assert order[0] == top4[0], \
+                f"Season {season_key}: expected {top4[0]} at #1, got {order[0]}"
+
+
 if __name__ == "__main__":
     print("Running smoke tests...")
     test_all_systems_present()
@@ -330,5 +394,14 @@ if __name__ == "__main__":
 
     test_two_system_comparison_rendering()
     print("✓ Two-system comparison table + SVG polylines render correctly")
+
+    test_historical_data_integrity()
+    print("✓ Historical data file: all 26 seasons have valid structure")
+
+    test_historical_simulation_smoke()
+    print("✓ Historical simulation: pick distribution sums to 100 per slot")
+
+    test_historical_actual_order()
+    print("✓ Historical actual order: lottery_pick1 always in position 1")
 
     print("\nAll tests passed!")

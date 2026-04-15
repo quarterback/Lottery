@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import time
 from pathlib import Path
 from fastapi import APIRouter, Request, Form
@@ -12,12 +13,15 @@ from engine.lottery_sim import (
     SYSTEM_MAP,
     monte_carlo,
     MetricsBundle,
+    SeasonResult,
+    DraftConstraints,
     NBA_TEAM_NAMES,
     NUM_TEAMS,
     WEEKS_PER_SEASON,
     GAMES_PER_SEASON,
     PLAYOFF_SPOTS,
 )
+from data.historical_seasons import HISTORICAL_SEASONS, SEASON_KEYS
 
 router = APIRouter()
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
@@ -312,6 +316,8 @@ async def index(request: Request):
         {
             "systems": system_names,
             "explainers": explainers,
+            "season_keys": SEASON_KEYS,
+            "show_historical": False,
         },
     )
 
@@ -486,6 +492,232 @@ async def simulate(
             "seasons": seasons,
             "selected_systems": [s.name for s in selected],
             "colors": CHART_COLORS,
+            "systems": [s.name for s in ALL_SYSTEMS],
+        },
+    )
+
+
+# ── Historical helpers ──────────────────────────────────────────────────────
+
+def _make_historical_season_result(season_data: dict) -> tuple[SeasonResult, dict[int, str], dict[str, int]]:
+    """
+    Build a 30-team SeasonResult from historical season data.
+    Returns (season_result, id_to_name, name_to_id).
+    Lottery teams get IDs 0-13 (sorted worst-to-best by wins).
+    Fake playoff teams get IDs 14-29.
+    """
+    lottery_teams = season_data["lottery_teams"]  # already sorted worst-to-best
+    n_lottery = len(lottery_teams)
+
+    name_to_id: dict[str, int] = {}
+    id_to_name: dict[int, str] = {}
+    standings: list[tuple[int, int, int]] = []
+
+    for i, (name, wins, losses) in enumerate(lottery_teams):
+        name_to_id[name] = i
+        id_to_name[i] = name
+        standings.append((i, wins, losses))
+
+    # Add 16 fake playoff teams with win totals safely above any real lottery team.
+    # We use 60-75 range to ensure even a ~50W borderline lottery team stays in the lottery.
+    # (Historical max for a lottery team is ~48W; using 60 as minimum guarantees separation.)
+    fake_wins = [75, 73, 71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 60, 60]
+    for j in range(16):
+        tid = n_lottery + j
+        w = fake_wins[j] if j < len(fake_wins) else 60
+        actual_losses = season_data["games"] - w
+        # Clamp so losses are non-negative (for shortened seasons)
+        actual_losses = max(0, actual_losses)
+        standings.append((tid, w, actual_losses))
+        id_to_name[tid] = f"Playoff Team {j + 1}"
+
+    # Fill to exactly 30 teams if fewer than 14 lottery teams
+    while len(standings) < 30:
+        tid = len(standings)
+        standings.append((tid, 30, 52))
+        id_to_name[tid] = f"Team {tid}"
+
+    season_result = SeasonResult(
+        standings=standings,
+        head_to_head={},
+        eliminated_week={},
+    )
+    return season_result, id_to_name, name_to_id
+
+
+def _compute_actual_order(season_data: dict) -> list[str]:
+    """Actual draft order: actual_top4 first (deduplicated), remaining by record (worst first)."""
+    lottery_teams = season_data["lottery_teams"]  # sorted worst-to-best (ascending wins)
+    top4_raw = season_data.get("lottery_top4", [])
+    if not top4_raw and season_data.get("lottery_pick1"):
+        top4_raw = [season_data["lottery_pick1"]]
+
+    # Deduplicate while preserving order (a team can only appear once)
+    seen: set[str] = set()
+    top4_unique: list[str] = []
+    for name in top4_raw:
+        if name not in seen:
+            top4_unique.append(name)
+            seen.add(name)
+
+    # Only include teams that are actually in lottery_teams (handle name mismatches gracefully)
+    valid_names = {t[0] for t in lottery_teams}
+    top4_valid = [n for n in top4_unique if n in valid_names]
+    top4_set = set(top4_valid)
+    remaining = [name for name, _w, _l in lottery_teams if name not in top4_set]
+    return top4_valid + remaining
+
+
+def _run_historical_lottery(season_data: dict, system, n_runs: int = 500) -> dict[str, list[float]]:
+    """
+    Run a lottery system against historical standings n_runs times.
+    Returns {team_name: [pick1_pct, pick2_pct, ..., pick14_pct]}.
+    """
+    season_result, id_to_name, name_to_id = _make_historical_season_result(season_data)
+    n_lottery = len(season_data["lottery_teams"])
+
+    pick_counts: dict[str, list[int]] = {
+        name: [0] * n_lottery
+        for name, _, _ in season_data["lottery_teams"]
+    }
+
+    rng = random.Random(42)
+    for _ in range(n_runs):
+        constraints = DraftConstraints()
+        order = system.draft_order([season_result], constraints, rng)
+        for slot_idx, team_id in enumerate(order[:n_lottery]):
+            if team_id in id_to_name and id_to_name[team_id] in pick_counts:
+                team_name = id_to_name[team_id]
+                pick_counts[team_name][slot_idx] += 1
+
+    result: dict[str, list[float]] = {}
+    for name, counts in pick_counts.items():
+        result[name] = [round(c / n_runs * 100, 1) for c in counts]
+    return result
+
+
+def _most_likely_pick(dist: list[float]) -> int:
+    """Return the 1-indexed pick slot with the highest probability."""
+    return dist.index(max(dist)) + 1
+
+
+# ── Historical routes ───────────────────────────────────────────────────────
+
+@router.get("/historical", response_class=HTMLResponse)
+async def historical_form(request: Request):
+    system_names = [s.name for s in ALL_SYSTEMS]
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "systems": system_names,
+            "explainers": {name: SYSTEM_EXPLAINERS.get(name, {}) for name in system_names},
+            "show_historical": True,
+            "season_keys": SEASON_KEYS,
+        },
+    )
+
+
+@router.post("/historical", response_class=HTMLResponse)
+async def historical_run(
+    request: Request,
+    season_key: str = Form(...),
+    systems: list[str] = Form(default=[]),
+    n_runs: int = Form(default=500),
+):
+    n_runs = max(100, min(2000, n_runs))
+    season_data = HISTORICAL_SEASONS.get(season_key)
+    if not season_data:
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            {
+                "systems": [s.name for s in ALL_SYSTEMS],
+                "explainers": {s.name: SYSTEM_EXPLAINERS.get(s.name, {}) for s in ALL_SYSTEMS},
+                "show_historical": True,
+                "season_keys": SEASON_KEYS,
+                "error": f"Unknown season: {season_key}",
+            },
+        )
+
+    selected = [SYSTEM_MAP[s] for s in systems if s in SYSTEM_MAP][:2]
+    if not selected:
+        selected = [ALL_SYSTEMS[0]]
+
+    # Ensure lottery teams are sorted worst-to-best for consistent display
+    season_data = dict(season_data)
+    season_data["lottery_teams"] = sorted(season_data["lottery_teams"], key=lambda t: t[1])
+
+    is_pending = season_data.get("season_pending", False)
+    actual_order = _compute_actual_order(season_data) if not is_pending else []
+
+    t0 = time.perf_counter()
+    sim_results = []
+    for system in selected:
+        dist = _run_historical_lottery(season_data, system, n_runs=n_runs)
+        most_likely = sorted(dist.keys(), key=lambda name: dist[name].index(max(dist[name])))
+
+        rows = []
+        lottery_teams = season_data["lottery_teams"]
+        for rank_idx, (name, wins, losses) in enumerate(lottery_teams):
+            d = dist.get(name, [0.0] * len(lottery_teams))
+            ml_pick = _most_likely_pick(d)
+            actual_pick = (actual_order.index(name) + 1) if (not is_pending and name in actual_order) else None
+            delta = (actual_pick - ml_pick) if (actual_pick is not None) else None
+
+            if delta is None:
+                delta_cls = ""
+                delta_str = "—"
+            elif abs(delta) <= 1:
+                delta_cls = "diff-same"
+                delta_str = "±0" if delta == 0 else f"{delta:+d}"
+            elif delta > 0:
+                delta_cls = "diff-worse"
+                delta_str = f"{delta:+d}"
+            else:
+                delta_cls = "diff-better"
+                delta_str = f"{delta:+d}"
+
+            rows.append({
+                "name": name,
+                "wins": wins,
+                "losses": losses,
+                "lottery_seed": rank_idx + 1,
+                "dist": d,
+                "ml_pick": ml_pick,
+                "actual_pick": actual_pick,
+                "delta": delta,
+                "delta_cls": delta_cls,
+                "delta_str": delta_str,
+                "pick1_pct": d[0] if d else 0.0,
+                "top4_pct": sum(d[:4]) if len(d) >= 4 else sum(d),
+            })
+
+        rows_sorted = sorted(rows, key=lambda r: r["dist"].index(max(r["dist"])))
+
+        sim_results.append({
+            "system_name": system.name,
+            "rows": rows_sorted,
+            "explainer": SYSTEM_EXPLAINERS.get(system.name, {}),
+            "color": CHART_COLORS[len(sim_results)] if len(sim_results) < len(CHART_COLORS) else "#ff8c00",
+        })
+
+    elapsed = round(time.perf_counter() - t0, 2)
+
+    return templates.TemplateResponse(
+        request,
+        "historical_results.html",
+        {
+            "season_key": season_key,
+            "season_data": season_data,
+            "sim_results": sim_results,
+            "actual_order": actual_order,
+            "is_pending": is_pending,
+            "elapsed": elapsed,
+            "n_runs": n_runs,
+            "selected_systems": [s.name for s in selected],
+            "colors": CHART_COLORS,
+            "season_keys": SEASON_KEYS,
             "systems": [s.name for s in ALL_SYSTEMS],
         },
     )

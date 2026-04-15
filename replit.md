@@ -11,8 +11,10 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Preview path**: `/` (port 21381)
 - **Workflow**: "Lottery Lab" — runs `cd artifacts/lottery-lab && uvicorn main:app --host 0.0.0.0 --port 21381 --reload`
 - **Purpose**: NBA draft lottery scenario simulator comparing 8 systems via Monte Carlo simulations
+- **Features**: System comparison, per-slot pick distributions, sortable tables, historical NBA seasons mode (2000-01 through 2025-26)
 - **Stack**: Python 3.11, FastAPI, Jinja2 templates, inline SVG charts, Bloomberg terminal dark theme CSS
-- **Key files**: `engine/lottery_sim.py` (sim engine), `web/router.py` (FastAPI routes), `web/templates/` (Jinja2)
+- **Key files**: `engine/lottery_sim.py` (sim engine), `web/router.py` (FastAPI routes), `web/templates/` (Jinja2), `data/historical_seasons.py` (26 seasons of data)
+- **Tests**: 21 tests in `tests/test_lottery_sim.py`, all passing
 - **Note**: The `artifacts/lottery-lab: web` workflow (auto-created by the artifact system for Vite) should remain NOT STARTED — uvicorn handles the server via the "Lottery Lab" workflow
 
 ## Stack
