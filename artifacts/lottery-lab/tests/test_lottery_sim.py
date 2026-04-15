@@ -178,6 +178,25 @@ def test_flat_bottom_uniform_incentive():
     assert flat_metrics.gini_top5 >= 0
 
 
+def test_late_season_effort_semantics():
+    """
+    Effort metric uses bottom-6 teams only.
+    Pure Inversion incentivizes worst teams to WIN (late effort >= early effort, ratio >= 1).
+    CurrentNBA incentivizes worst teams to LOSE (late effort <= early effort, ratio <= 1).
+    Verified with enough runs/seasons for a stable signal.
+    """
+    pi = monte_carlo(PureInversion(), runs=30, seasons=12, seed=7)
+    nba = monte_carlo(CurrentNBA(), runs=30, seasons=12, seed=7)
+    # effort_by_week should span all weeks for bottom-6 teams
+    assert len(pi.effort_by_week) == WEEKS_PER_SEASON, "effort_by_week wrong length"
+    assert all(0.0 <= e <= 1.0 for e in pi.effort_by_week), "effort values out of [0,1]"
+    # Pure Inversion should have higher late-season effort than Current NBA (less tanking)
+    assert pi.late_season_effort > nba.late_season_effort, (
+        f"Pure Inversion late effort ({pi.late_season_effort:.4f}) should exceed "
+        f"CurrentNBA late effort ({nba.late_season_effort:.4f})"
+    )
+
+
 def test_post_lottery_ordering_by_record():
     """Picks 5+ (non-lottery-drawn) must be ordered worst record first for NBA-style systems."""
     from engine.lottery_sim import _non_playoff_teams, LOTTERY_PICKS
@@ -228,6 +247,9 @@ if __name__ == "__main__":
 
     test_monte_carlo_smoke()
     print("✓ Monte Carlo runs")
+
+    test_late_season_effort_semantics()
+    print("✓ Late-season effort semantics (bottom-6 cohort, Pure Inversion > CurrentNBA)")
 
     test_post_lottery_ordering_by_record()
     print("✓ Post-lottery picks ordered by record (worst first)")

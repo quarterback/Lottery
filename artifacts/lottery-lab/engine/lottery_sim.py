@@ -44,14 +44,14 @@ class DraftConstraints:
 @dataclass
 class MetricsBundle:
     system_name: str
-    late_season_effort: float          # win% of bottom-6 teams in final 20 games vs first 62
+    late_season_effort: float          # effort-multiplier ratio (bottom-6 teams): last ~20 games / first ~62
     repeat_top1_frequency: float       # fraction of seasons where same team got #1 again within 5 years
     gini_top5: float                   # Gini coefficient of top-5 pick distribution across teams
     tank_cycles: float                 # avg number of teams tanking per season
     competitive_balance: float         # avg stddev of wins year over year
     avg_wins_top3_recipients: float    # avg wins of teams that received top-3 picks
     pick_distribution: dict[int, list[float]]  # team_id -> [pct of top-5 picks received]
-    effort_by_week: list[float]        # avg effort multiplier per week across all seasons
+    effort_by_week: list[float]        # avg effort multiplier per week (bottom-6 teams across all seasons)
     avg_wins_by_rank: list[float]      # avg wins for rank-1..NUM_TEAMS (best to worst)
 
 
@@ -880,13 +880,19 @@ def compute_metrics(run: RunResult, teams: list[Team]) -> MetricsBundle:
         for tid in team_ids
     }
 
-    # --- Effort by week (avg across all seasons) ---
+    # --- Effort by week (avg across all seasons, bottom-6 teams only) ---
     effort_by_week: list[float] = []
     for week_idx in range(WEEKS_PER_SEASON):
         week_effs = []
-        for effort_log in run.effort_log:
+        for s_idx2, effort_log in enumerate(run.effort_log):
             if week_idx < len(effort_log):
-                week_effs.extend(effort_log[week_idx])
+                # Identify bottom-6 teams for this specific season
+                season_b6 = {
+                    t[0] for t in sorted(seasons[s_idx2].standings, key=lambda x: x[1])[:6]
+                }
+                for t_idx, eff in enumerate(effort_log[week_idx]):
+                    if team_ids[t_idx] in season_b6:
+                        week_effs.append(eff)
         effort_by_week.append(sum(week_effs) / len(week_effs) if week_effs else 1.0)
 
     # --- Win distribution by rank (avg wins of rank-1..NUM_TEAMS teams) ---

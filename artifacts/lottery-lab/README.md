@@ -19,7 +19,7 @@ NBA draft lottery scenario simulator. Compare 8 different draft lottery systems 
 
 ## Metrics reported
 
-- **Late-season effort** — Win rate of bottom teams in final 20 games vs first 62. < 1.0 = tanking.
+- **Late-season effort** — Effort-multiplier ratio of bottom-6 teams: last ~20 games vs first ~62. < 1.0 = tanking.
 - **Repeat #1 pick frequency** — How often does the same team get #1 within a 5-year window?
 - **Gini coefficient (top-5 picks)** — Pick equity. 0 = perfectly equal, 1 = one team gets everything.
 - **Tank cycles** — Avg number of teams intentionally tanking per season in late weeks.
