@@ -546,8 +546,34 @@ def _make_historical_season_result(season_data: dict) -> tuple[SeasonResult, dic
 
 
 def _compute_actual_order(season_data: dict) -> list[str]:
-    """Actual draft order: actual_top4 first (deduplicated), remaining by record (worst first)."""
-    lottery_teams = season_data["lottery_teams"]  # sorted worst-to-best (ascending wins)
+    """
+    Actual draft order as a 14-element list.
+
+    Strategy (in priority order):
+    1. Use `actual_picks` dict if present (maps team_name → slot number 1-14).
+       Only teams that appear in lottery_teams are included; any entry in
+       actual_picks that isn't in lottery_teams is silently dropped (e.g.,
+       expansion teams or traded picks from playoff squads).
+    2. Fall back to lottery_top4 (deduplicated, valid-names-filtered) +
+       remaining teams by record order (worst first).
+    """
+    lottery_teams = season_data["lottery_teams"]
+    valid_names = {t[0] for t in lottery_teams}
+
+    # --- Strategy 1: use explicit actual_picks dict ---
+    actual_picks: dict[str, int] = season_data.get("actual_picks", {})
+    if actual_picks:
+        # Keep only picks for teams that are in lottery_teams
+        valid_picks = {name: slot for name, slot in actual_picks.items() if name in valid_names}
+        if valid_picks:
+            # Teams explicitly ranked by their pick slot
+            ranked = sorted(valid_picks.keys(), key=lambda n: valid_picks[n])
+            ranked_set = set(ranked)
+            # Any team in lottery_teams NOT in actual_picks: append by record order
+            remaining = [name for name, _w, _l in lottery_teams if name not in ranked_set]
+            return ranked + remaining
+
+    # --- Strategy 2: fall back to lottery_top4 ---
     top4_raw = season_data.get("lottery_top4", [])
     if not top4_raw and season_data.get("lottery_pick1"):
         top4_raw = [season_data["lottery_pick1"]]
@@ -560,8 +586,7 @@ def _compute_actual_order(season_data: dict) -> list[str]:
             top4_unique.append(name)
             seen.add(name)
 
-    # Only include teams that are actually in lottery_teams (handle name mismatches gracefully)
-    valid_names = {t[0] for t in lottery_teams}
+    # Only include teams that are actually in lottery_teams
     top4_valid = [n for n in top4_unique if n in valid_names]
     top4_set = set(top4_valid)
     remaining = [name for name, _w, _l in lottery_teams if name not in top4_set]

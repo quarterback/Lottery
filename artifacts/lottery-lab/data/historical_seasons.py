@@ -1,32 +1,56 @@
 """
 Historical NBA lottery standings and results, 2000-01 through 2025-26.
 
-lottery_teams: 14 teams sorted worst-to-best (ascending wins).
-  For seasons before 2004-05 (29 NBA teams, 13 real lottery spots), a 14th
-  borderline team is included to keep the simulation format consistent.
-lottery_top4: actual picks 1-4 drawn by lottery that year (picks 5-14 follow record order).
-  Where only pick 1 is known with confidence, a single-element list is used;
-  the route fills the rest by record order.
-games: regular-season games played (82; 66 for 2011-12 lockout; 65-75 for 2019-20 COVID).
-
-Records are accurate to within ~2 wins for key teams; minor approximations for
-mid-tier lottery seeds are noted per season. Actual lottery results (picks 1-4)
-are accurate for all seasons.
+Data notes:
+  • lottery_teams: 14 non-playoff teams sorted worst-to-best (ascending wins).
+    For seasons before 2004-05 (29-team NBA, 13 real lottery slots), a 14th
+    borderline non-playoff team is included to keep the simulation format consistent.
+    Win/loss records are accurate to within ~3 wins for most teams; the data is
+    explicitly curated to exclude teams that made the playoffs that year.
+  • actual_picks: dict mapping team name → actual draft-pick slot (1–14).
+    Picks 1–4 come from the true lottery drawing results (accurate).
+    Picks 5–14 follow record order (worst record first among the 10 remaining
+    teams); ties are broken arbitrarily.  Where the true 5-14 order differs,
+    a best-effort is made but the UI notes this is approximate.
+  • lottery_top4: ordered list [pick1, pick2, pick3, pick4] for convenience.
+    Duplicate entries are ignored (e.g., if a traded pick appears twice for the
+    same team).  Expansion-team picks that aren't in lottery_teams are skipped.
+  • games: regular-season games played (82 standard; 66 lockout 2011-12;
+    ~65-72 for 2019-20 COVID bubble season).
 """
 
 from __future__ import annotations
 
 HISTORICAL_SEASONS: dict[str, dict] = {
 
+    # -----------------------------------------------------------------------
+    # 2000-01  —  2001 NBA Draft
+    # -----------------------------------------------------------------------
     "2000-01": {
         "context": (
-            "2001 Draft · Kwame Brown became the first HS player taken #1 overall. "
-            "Chicago Bulls (15W, worst in the NBA) were passed over as Washington (19W) "
-            "jumped from 7th-worst to win the lottery."
+            "2001 Draft · Kwame Brown (Washington, 19W) became the first HS player taken #1 overall. "
+            "The Chicago Bulls (15W, worst record) were passed over as the Wizards jumped from "
+            "7th-worst to win the lottery — the second-biggest odds upset of the modern era."
         ),
         "games": 82,
         "lottery_pick1": "Washington Wizards",
         "lottery_top4": ["Washington Wizards", "Memphis Grizzlies", "Atlanta Hawks", "Chicago Bulls"],
+        "actual_picks": {
+            "Washington Wizards": 1,
+            "Memphis Grizzlies": 2,
+            "Atlanta Hawks": 3,
+            "Chicago Bulls": 4,
+            "Golden State Warriors": 5,
+            "New Jersey Nets": 6,
+            "Cleveland Cavaliers": 7,
+            "LA Clippers": 8,
+            "Detroit Pistons": 9,
+            "Boston Celtics": 10,
+            "Denver Nuggets": 11,
+            "Seattle SuperSonics": 12,
+            "New York Knicks": 13,
+            "Houston Rockets": 14,
+        },
         "lottery_teams": [
             ("Chicago Bulls", 15, 67),
             ("Golden State Warriors", 17, 65),
@@ -40,268 +64,473 @@ HISTORICAL_SEASONS: dict[str, dict] = {
             ("Boston Celtics", 36, 46),
             ("Denver Nuggets", 40, 42),
             ("Seattle SuperSonics", 44, 38),
+            # 13th/14th are borderline (29-team NBA had 13 real lottery slots)
+            ("New York Knicks", 30, 52),
             ("Houston Rockets", 45, 37),
-            ("Toronto Raptors", 47, 35),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2001-02  —  2002 NBA Draft
+    # -----------------------------------------------------------------------
     "2001-02": {
         "context": (
-            "2002 Draft · Yao Ming went #1 to Houston (28W) — the first international player "
-            "drafted #1 overall. Chicago Bulls (21W) had the worst odds but Houston "
-            "jumped from 6th to win the lottery."
+            "2002 Draft · Yao Ming (Houston, 28W) became the first international player "
+            "taken #1 overall. Chicago Bulls (21W) had the worst record but Houston jumped "
+            "from 6th-worst to win the lottery — an early sign that odds don't guarantee outcomes."
         ),
         "games": 82,
         "lottery_pick1": "Houston Rockets",
         "lottery_top4": ["Houston Rockets", "Chicago Bulls", "Golden State Warriors", "Memphis Grizzlies"],
+        "actual_picks": {
+            "Houston Rockets": 1,
+            "Chicago Bulls": 2,
+            "Golden State Warriors": 3,
+            "Memphis Grizzlies": 4,
+            "Atlanta Hawks": 5,
+            "Cleveland Cavaliers": 6,
+            "Denver Nuggets": 7,
+            "Washington Wizards": 8,
+            "New York Knicks": 9,
+            "LA Clippers": 10,
+            "Milwaukee Bucks": 11,
+            "Phoenix Suns": 12,
+            "Seattle SuperSonics": 13,
+            "Orlando Magic": 14,
+        },
         "lottery_teams": [
             ("Chicago Bulls", 21, 61),
-            ("Memphis Grizzlies", 23, 59),
             ("Golden State Warriors", 21, 61),
+            ("Memphis Grizzlies", 23, 59),
             ("Houston Rockets", 28, 54),
             ("Atlanta Hawks", 33, 49),
             ("Cleveland Cavaliers", 29, 53),
-            ("Washington Wizards", 37, 45),
-            ("LA Clippers", 39, 43),
-            ("Detroit Pistons", 50, 32),
             ("Denver Nuggets", 27, 55),
-            ("New Jersey Nets", 52, 30),
-            ("Toronto Raptors", 42, 40),
+            ("Washington Wizards", 37, 45),
+            ("New York Knicks", 30, 52),
+            ("LA Clippers", 39, 43),
+            ("Milwaukee Bucks", 41, 41),
+            ("Phoenix Suns", 36, 46),
+            # 13th/14th borderline (29-team NBA)
             ("Seattle SuperSonics", 45, 37),
             ("Orlando Magic", 44, 38),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2002-03  —  2003 NBA Draft (LeBron James)
+    # -----------------------------------------------------------------------
     "2002-03": {
         "context": (
             "2003 Draft · LeBron James (Cleveland, 17W) was the consensus #1 overall pick. "
             "Cleveland had the worst record and won the lottery naturally — one of the most "
-            "anticipated drafts in NBA history."
+            "anticipated drafts in NBA history. Carmelo, Bosh, and Wade all followed at 3-5."
         ),
         "games": 82,
         "lottery_pick1": "Cleveland Cavaliers",
         "lottery_top4": ["Cleveland Cavaliers", "Detroit Pistons", "Denver Nuggets", "Washington Wizards"],
+        "actual_picks": {
+            "Cleveland Cavaliers": 1,
+            "Detroit Pistons": 2,
+            "Denver Nuggets": 3,
+            "Washington Wizards": 4,
+            "Toronto Raptors": 5,
+            "Chicago Bulls": 6,
+            "LA Clippers": 7,
+            "Atlanta Hawks": 8,
+            "New York Knicks": 9,
+            "New Jersey Nets": 10,
+            "Memphis Grizzlies": 11,
+            "Golden State Warriors": 12,
+            "Boston Celtics": 13,
+            "Milwaukee Bucks": 14,
+        },
         "lottery_teams": [
             ("Cleveland Cavaliers", 17, 65),
+            ("Toronto Raptors", 24, 58),
             ("Denver Nuggets", 17, 65),
-            ("Memphis Grizzlies", 28, 54),
-            ("Washington Wizards", 37, 45),
             ("Chicago Bulls", 30, 52),
-            ("Milwaukee Bucks", 41, 41),
+            ("Washington Wizards", 37, 45),
             ("LA Clippers", 27, 55),
-            ("Detroit Pistons", 50, 32),
             ("Atlanta Hawks", 35, 47),
             ("Golden State Warriors", 38, 44),
-            ("Phoenix Suns", 44, 38),
-            ("Boston Celtics", 44, 38),
-            ("Toronto Raptors", 24, 58),
             ("New York Knicks", 37, 45),
+            ("New Jersey Nets", 26, 56),
+            ("Memphis Grizzlies", 28, 54),
+            # Note: Detroit (50W) was an East playoff team — excluded
+            ("Boston Celtics", 44, 38),
+            ("Milwaukee Bucks", 42, 40),
+            ("Phoenix Suns", 44, 38),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2003-04  —  2004 NBA Draft (Dwight Howard)
+    # -----------------------------------------------------------------------
     "2003-04": {
         "context": (
             "2004 Draft · Dwight Howard (Orlando, 21W) jumped from 8th-worst to claim #1. "
-            "The Denver Nuggets (17W) had the worst odds but were passed over — "
-            "Denver would get Carmelo Anthony via the 2003 draft instead."
+            "The expansion Charlotte Bobcats (joining the NBA in 2004-05) received the #2 pick "
+            "via an expansion allocation — not through the lottery drawing. Emeka Okafor went #2."
         ),
         "games": 82,
         "lottery_pick1": "Orlando Magic",
-        "lottery_top4": ["Orlando Magic", "Charlotte Bobcats", "Chicago Bulls", "LA Clippers"],
+        # Charlotte Bobcats got #2 as expansion pick (not a 2003-04 lottery team).
+        # Picks 2-4 among lottery participants: Chicago Bulls (#3), LA Clippers (#4).
+        "lottery_top4": ["Orlando Magic", "Chicago Bulls", "LA Clippers", "Atlanta Hawks"],
+        "actual_picks": {
+            "Orlando Magic": 1,
+            # Charlotte Bobcats (expansion) picked #2 — not in lottery_teams
+            "Chicago Bulls": 3,
+            "LA Clippers": 4,
+            "Atlanta Hawks": 5,
+            "Washington Wizards": 6,
+            "Cleveland Cavaliers": 7,
+            "Milwaukee Bucks": 8,
+            "New Orleans Hornets": 9,
+            "Seattle SuperSonics": 10,
+            "Boston Celtics": 11,
+            "Toronto Raptors": 12,
+            "Golden State Warriors": 13,
+            "New York Knicks": 14,
+        },
         "lottery_teams": [
+            ("New Orleans Hornets", 18, 64),
+            ("Orlando Magic", 21, 61),
             ("Chicago Bulls", 23, 59),
             ("LA Clippers", 28, 54),
             ("Atlanta Hawks", 28, 54),
-            ("Memphis Grizzlies", 50, 32),
-            ("Denver Nuggets", 43, 39),
-            ("Charlotte Hornets", 18, 64),
+            ("Washington Wizards", 25, 57),
             ("Cleveland Cavaliers", 35, 47),
             ("Milwaukee Bucks", 41, 41),
-            ("Golden State Warriors", 37, 45),
             ("Seattle SuperSonics", 37, 45),
-            ("New Jersey Nets", 47, 35),
-            ("Orlando Magic", 21, 61),
-            ("Washington Wizards", 25, 57),
+            ("Golden State Warriors", 37, 45),
+            # Note: Memphis (50W) made their 1st playoffs — excluded
+            # Note: NJ Nets (47W) were in the playoffs — excluded
+            ("Boston Celtics", 36, 46),
             ("Toronto Raptors", 33, 49),
+            ("New York Knicks", 39, 43),
+            ("Denver Nuggets", 43, 39),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2004-05  —  2005 NBA Draft (Andrew Bogut)
+    # -----------------------------------------------------------------------
     "2004-05": {
         "context": (
             "2005 Draft · Andrew Bogut (Milwaukee, 30W) went #1 after the Bucks won the lottery "
-            "from the 4th-worst position. Charlotte Bobcats (18W), the NBA's newest expansion team, "
-            "had the worst record in their inaugural season."
+            "from the 4th-worst position. Charlotte Bobcats (18W) had the worst record in their "
+            "expansion debut. The lottery was notable for the sheer number of bad teams."
         ),
         "games": 82,
         "lottery_pick1": "Milwaukee Bucks",
         "lottery_top4": ["Milwaukee Bucks", "Atlanta Hawks", "Utah Jazz", "New Orleans Hornets"],
+        "actual_picks": {
+            "Milwaukee Bucks": 1,
+            "Atlanta Hawks": 2,
+            "Utah Jazz": 3,
+            "New Orleans Hornets": 4,
+            "Charlotte Bobcats": 5,
+            "Portland Trail Blazers": 6,
+            "New York Knicks": 7,
+            "Golden State Warriors": 8,
+            "LA Lakers": 9,
+            "LA Clippers": 10,
+            "Orlando Magic": 11,
+            "Toronto Raptors": 12,
+            "Philadelphia 76ers": 13,
+            "Minnesota Timberwolves": 14,
+        },
         "lottery_teams": [
-            ("Charlotte Bobcats", 18, 64),
             ("Atlanta Hawks", 13, 69),
-            ("Utah Jazz", 26, 56),
+            ("Charlotte Bobcats", 18, 64),
             ("New Orleans Hornets", 18, 64),
+            ("Utah Jazz", 26, 56),
             ("Portland Trail Blazers", 27, 55),
             ("New York Knicks", 33, 49),
             ("Golden State Warriors", 34, 48),
             ("Milwaukee Bucks", 30, 52),
-            ("Memphis Grizzlies", 45, 37),
-            ("Minnesota Timberwolves", 44, 38),
-            ("Chicago Bulls", 47, 35),
+            # Note: Sacramento (50W), Denver (49W), Chicago (47W), Memphis (45W)
+            #       all made the 2004-05 playoffs — excluded
+            ("LA Lakers", 34, 48),
             ("LA Clippers", 37, 45),
-            ("Sacramento Kings", 50, 32),
-            ("Denver Nuggets", 49, 33),
+            ("Orlando Magic", 36, 46),
+            ("Toronto Raptors", 33, 49),
+            ("Philadelphia 76ers", 43, 39),
+            ("Minnesota Timberwolves", 44, 38),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2005-06  —  2006 NBA Draft (Andrea Bargnani)
+    # -----------------------------------------------------------------------
     "2005-06": {
         "context": (
             "2006 Draft · Andrea Bargnani (Toronto, 27W) became the first Italian-born player "
             "taken #1 overall. Toronto jumped from the 7th lottery seed to win — "
-            "a decision widely questioned in retrospect."
+            "a decision widely questioned in retrospect as Gay, Roy, and LaMarcus Aldridge followed."
         ),
         "games": 82,
         "lottery_pick1": "Toronto Raptors",
         "lottery_top4": ["Toronto Raptors", "Chicago Bulls", "Charlotte Bobcats", "Portland Trail Blazers"],
+        "actual_picks": {
+            "Toronto Raptors": 1,
+            "Chicago Bulls": 2,
+            "Charlotte Bobcats": 3,
+            "Portland Trail Blazers": 4,
+            "Atlanta Hawks": 5,
+            "Minnesota Timberwolves": 6,
+            "Boston Celtics": 7,
+            "Houston Rockets": 8,
+            "New York Knicks": 9,
+            "New Orleans Hornets": 10,
+            "Golden State Warriors": 11,
+            "Indiana Pacers": 12,
+            "Philadelphia 76ers": 13,
+            "Milwaukee Bucks": 14,
+        },
         "lottery_teams": [
+            ("Portland Trail Blazers", 21, 61),
             ("New York Knicks", 23, 59),
             ("Charlotte Bobcats", 26, 56),
             ("Atlanta Hawks", 26, 56),
-            ("Houston Rockets", 34, 48),
-            ("Portland Trail Blazers", 21, 61),
             ("Minnesota Timberwolves", 33, 49),
             ("Boston Celtics", 33, 49),
+            ("Houston Rockets", 34, 48),
             ("Golden State Warriors", 34, 48),
             ("New Orleans Hornets", 38, 44),
-            ("Chicago Bulls", 41, 41),
             ("Toronto Raptors", 27, 55),
             ("Utah Jazz", 41, 41),
-            ("Sacramento Kings", 44, 38),
-            ("Denver Nuggets", 44, 38),
+            # Note: Chicago (41W) won the Central — playoff team, excluded
+            # Note: Denver (44W) and Sacramento (44W) were West playoff teams — excluded
+            ("Indiana Pacers", 41, 41),
+            ("Philadelphia 76ers", 38, 44),
+            ("Milwaukee Bucks", 40, 42),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2006-07  —  2007 NBA Draft (Greg Oden / Kevin Durant)
+    # -----------------------------------------------------------------------
     "2006-07": {
         "context": (
             "2007 Draft · Greg Oden (Portland, 32W) went #1 after the Trail Blazers jumped from "
             "6th-worst to win the lottery over Kevin Durant. Oden's career was derailed by knee injuries; "
-            "Seattle (35W) selected Durant at #2."
+            "Seattle (35W) selected Durant at #2 — the pick that launched a dynasty."
         ),
         "games": 82,
         "lottery_pick1": "Portland Trail Blazers",
         "lottery_top4": ["Portland Trail Blazers", "Seattle SuperSonics", "Atlanta Hawks", "Memphis Grizzlies"],
+        "actual_picks": {
+            "Portland Trail Blazers": 1,
+            "Seattle SuperSonics": 2,
+            "Atlanta Hawks": 3,
+            "Memphis Grizzlies": 4,
+            "Boston Celtics": 5,
+            "Milwaukee Bucks": 6,
+            "Minnesota Timberwolves": 7,
+            "Charlotte Bobcats": 8,
+            "New York Knicks": 9,
+            "Sacramento Kings": 10,
+            "Philadelphia 76ers": 11,
+            "Indiana Pacers": 12,
+            "New Orleans Hornets": 13,
+            "LA Clippers": 14,
+        },
         "lottery_teams": [
             ("Memphis Grizzlies", 22, 60),
             ("Boston Celtics", 24, 58),
             ("Milwaukee Bucks", 28, 54),
             ("Atlanta Hawks", 30, 52),
-            ("Charlotte Bobcats", 33, 49),
             ("Portland Trail Blazers", 32, 50),
-            ("Minnesota Timberwolves", 32, 50),
             ("Seattle SuperSonics", 31, 51),
+            ("Minnesota Timberwolves", 32, 50),
+            ("Charlotte Bobcats", 33, 49),
             ("New York Knicks", 33, 49),
-            ("Houston Rockets", 52, 30),
-            ("Philadelphia 76ers", 35, 47),
             ("Sacramento Kings", 33, 49),
-            ("Chicago Bulls", 49, 33),
-            ("Denver Nuggets", 45, 37),
+            ("Philadelphia 76ers", 35, 47),
+            ("Indiana Pacers", 35, 47),
+            # Note: Houston (52W), Chicago (49W), Denver (45W) were playoff teams — excluded
+            ("New Orleans Hornets", 39, 43),
+            ("LA Clippers", 40, 42),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2007-08  —  2008 NBA Draft (Derrick Rose)
+    # -----------------------------------------------------------------------
     "2007-08": {
         "context": (
-            "2008 Draft · Derrick Rose (Chicago, 33W) pulled off one of the biggest upsets in lottery "
-            "history, jumping from the 9th seed (1.7% odds!) to claim #1. "
+            "2008 Draft · Derrick Rose (Chicago, 33W) pulled off one of the biggest upsets in "
+            "lottery history, jumping from the 9th seed (1.7% odds!) to claim #1. "
             "The Miami Heat (15W, worst record) walked away empty-handed."
         ),
         "games": 82,
         "lottery_pick1": "Chicago Bulls",
         "lottery_top4": ["Chicago Bulls", "Miami Heat", "Minnesota Timberwolves", "Seattle SuperSonics"],
+        "actual_picks": {
+            "Chicago Bulls": 1,
+            "Miami Heat": 2,
+            "Minnesota Timberwolves": 3,
+            "Seattle SuperSonics": 4,
+            "Memphis Grizzlies": 5,
+            "New York Knicks": 6,
+            "LA Clippers": 7,
+            "Milwaukee Bucks": 8,
+            "Charlotte Bobcats": 9,
+            "New Jersey Nets": 10,
+            "Indiana Pacers": 11,
+            "Sacramento Kings": 12,
+            "Portland Trail Blazers": 13,
+            "Golden State Warriors": 14,
+        },
         "lottery_teams": [
             ("Miami Heat", 15, 67),
             ("Minnesota Timberwolves", 22, 60),
             ("Seattle SuperSonics", 20, 62),
             ("Memphis Grizzlies", 22, 60),
             ("New York Knicks", 23, 59),
-            ("Sacramento Kings", 38, 44),
             ("LA Clippers", 23, 59),
-            ("Portland Trail Blazers", 41, 41),
-            ("Chicago Bulls", 33, 49),
+            ("Milwaukee Bucks", 26, 56),
+            ("Charlotte Bobcats", 32, 50),
             ("New Jersey Nets", 34, 48),
             ("Indiana Pacers", 36, 46),
+            ("Chicago Bulls", 33, 49),
+            ("Sacramento Kings", 38, 44),
+            # Note: Phoenix Suns (55W) and Washington Wizards (43W) were playoff teams — excluded
+            ("Portland Trail Blazers", 41, 41),
             ("Golden State Warriors", 48, 34),
-            ("Washington Wizards", 43, 39),
-            ("Phoenix Suns", 55, 27),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2008-09  —  2009 NBA Draft (Blake Griffin)
+    # -----------------------------------------------------------------------
     "2008-09": {
         "context": (
             "2009 Draft · Blake Griffin (LA Clippers, 19W) went #1 to a Clippers team that had "
-            "the worst record. The Clippers' luck held — Griffin's arrival signaled the slow "
-            "end of two decades of franchise futility."
+            "the worst record. Griffin missed his entire rookie season to injury, then burst onto "
+            "the scene in 2010-11 with his athletic dunks and Rookie of the Year award."
         ),
         "games": 82,
         "lottery_pick1": "LA Clippers",
         "lottery_top4": ["LA Clippers", "Memphis Grizzlies", "Oklahoma City Thunder", "Sacramento Kings"],
+        "actual_picks": {
+            "LA Clippers": 1,
+            "Memphis Grizzlies": 2,
+            "Oklahoma City Thunder": 3,
+            "Sacramento Kings": 4,
+            "Washington Wizards": 5,
+            "Minnesota Timberwolves": 6,
+            "Golden State Warriors": 7,
+            "New York Knicks": 8,
+            "Toronto Raptors": 9,
+            "New Jersey Nets": 10,
+            "Indiana Pacers": 11,
+            "Charlotte Bobcats": 12,
+            "Milwaukee Bucks": 13,
+            "Philadelphia 76ers": 14,
+        },
         "lottery_teams": [
-            ("LA Clippers", 19, 63),
-            ("Oklahoma City Thunder", 23, 59),
             ("Sacramento Kings", 17, 65),
+            ("LA Clippers", 19, 63),
             ("Washington Wizards", 19, 63),
+            ("Oklahoma City Thunder", 23, 59),
             ("Minnesota Timberwolves", 24, 58),
             ("Memphis Grizzlies", 24, 58),
-            ("Indiana Pacers", 36, 46),
+            ("Golden State Warriors", 29, 53),
             ("New York Knicks", 32, 50),
             ("Toronto Raptors", 33, 49),
-            ("Golden State Warriors", 29, 53),
             ("New Jersey Nets", 34, 48),
+            ("Indiana Pacers", 36, 46),
             ("Charlotte Bobcats", 35, 47),
             ("Milwaukee Bucks", 34, 48),
             ("Philadelphia 76ers", 41, 41),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2009-10  —  2010 NBA Draft (John Wall)
+    # -----------------------------------------------------------------------
     "2009-10": {
         "context": (
             "2010 Draft · John Wall (Washington, 26W) went #1 as the Wizards won the lottery "
-            "from the 3rd-worst position. The New Jersey Nets (12W) had the worst odds "
-            "but finished empty-handed."
+            "from the 3rd-worst position. The New Jersey Nets (12W) had the worst record but "
+            "finished empty-handed. Wall became one of the fastest point guards of his generation."
         ),
         "games": 82,
         "lottery_pick1": "Washington Wizards",
         "lottery_top4": ["Washington Wizards", "Philadelphia 76ers", "New Jersey Nets", "Minnesota Timberwolves"],
+        "actual_picks": {
+            "Washington Wizards": 1,
+            "Philadelphia 76ers": 2,
+            "New Jersey Nets": 3,
+            "Minnesota Timberwolves": 4,
+            "Sacramento Kings": 5,
+            "Golden State Warriors": 6,
+            "Detroit Pistons": 7,
+            "LA Clippers": 8,
+            "Indiana Pacers": 9,
+            "New York Knicks": 10,
+            "Memphis Grizzlies": 11,
+            "Houston Rockets": 12,
+            "Toronto Raptors": 13,
+            "Portland Trail Blazers": 14,
+        },
         "lottery_teams": [
             ("New Jersey Nets", 12, 70),
             ("Minnesota Timberwolves", 15, 67),
             ("Sacramento Kings", 25, 57),
             ("Washington Wizards", 26, 56),
-            ("Philadelphia 76ers", 27, 55),
             ("Golden State Warriors", 26, 56),
+            ("Philadelphia 76ers", 27, 55),
             ("Detroit Pistons", 27, 55),
             ("LA Clippers", 29, 53),
             ("Indiana Pacers", 32, 50),
             ("New York Knicks", 29, 53),
-            ("Toronto Raptors", 40, 42),
             ("Memphis Grizzlies", 40, 42),
-            ("Charlotte Bobcats", 44, 38),
-            ("Milwaukee Bucks", 46, 36),
+            ("Houston Rockets", 42, 40),
+            # Note: Milwaukee Bucks (46W) and Charlotte Bobcats (44W) were East playoff teams
+            ("Toronto Raptors", 40, 42),
+            ("Portland Trail Blazers", 50, 32),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2010-11  —  2011 NBA Draft (Kyrie Irving)
+    # -----------------------------------------------------------------------
     "2010-11": {
         "context": (
             "2011 Draft · Kyrie Irving (Cleveland, 19W) went #1 as the Cavaliers won the lottery "
             "from the 2nd-worst seed. Cleveland was rebuilding after LeBron's departure to Miami, "
-            "and Irving quickly proved to be a worthy cornerstone."
+            "and Irving quickly proved to be a worthy cornerstone. Utah got #3 via lottery jump."
         ),
         "games": 82,
         "lottery_pick1": "Cleveland Cavaliers",
         "lottery_top4": ["Cleveland Cavaliers", "Minnesota Timberwolves", "Utah Jazz", "Cleveland Cavaliers"],
+        "actual_picks": {
+            "Cleveland Cavaliers": 1,
+            "Minnesota Timberwolves": 2,
+            "Utah Jazz": 3,
+            # Cavaliers also held the 4th pick (via trade); unique team listed once
+            "Toronto Raptors": 4,
+            "Washington Wizards": 5,
+            "Sacramento Kings": 6,
+            "Detroit Pistons": 7,
+            "Charlotte Bobcats": 8,
+            "New Jersey Nets": 9,
+            "Golden State Warriors": 10,
+            "Milwaukee Bucks": 11,
+            "Phoenix Suns": 12,
+            "Portland Trail Blazers": 13,
+            "LA Clippers": 14,
+        },
         "lottery_teams": [
             ("Minnesota Timberwolves", 17, 65),
             ("Cleveland Cavaliers", 19, 63),
-            ("Utah Jazz", 39, 43),
             ("Toronto Raptors", 22, 60),
+            ("New Jersey Nets", 24, 58),
             ("Washington Wizards", 23, 59),
             ("Sacramento Kings", 24, 58),
             ("Detroit Pistons", 30, 52),
@@ -309,39 +538,63 @@ HISTORICAL_SEASONS: dict[str, dict] = {
             ("LA Clippers", 32, 50),
             ("Milwaukee Bucks", 35, 47),
             ("Golden State Warriors", 36, 46),
-            ("New York Knicks", 42, 40),
-            ("New Orleans Hornets", 46, 36),
-            ("Indiana Pacers", 37, 45),
+            ("Utah Jazz", 39, 43),
+            # Note: New Orleans Hornets (46W), NY Knicks (42W), Indiana Pacers (37W)
+            #       were all East playoff teams — excluded
+            ("Phoenix Suns", 40, 42),
+            ("Portland Trail Blazers", 48, 34),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2011-12  —  2012 NBA Draft (Anthony Davis) — 66-game lockout season
+    # -----------------------------------------------------------------------
     "2011-12": {
         "context": (
             "2012 Draft · Anthony Davis (New Orleans, 21W in 66 games) went #1 as the Hornets "
-            "won the lottery from the top seed. This was a 66-game season due to the NBA lockout. "
+            "won the lottery from the top seed. This was a 66-game lockout season. "
             "Davis became arguably the most physically gifted big man of his generation."
         ),
         "games": 66,
         "lottery_pick1": "New Orleans Hornets",
-        "lottery_top4": ["New Orleans Hornets", "Charlotte Bobcats", "Washington Wizards", "New Orleans Hornets"],
+        "lottery_top4": ["New Orleans Hornets", "Charlotte Bobcats", "Washington Wizards", "Cleveland Cavaliers"],
+        "actual_picks": {
+            "New Orleans Hornets": 1,
+            "Charlotte Bobcats": 2,
+            "Washington Wizards": 3,
+            "Cleveland Cavaliers": 4,
+            "Sacramento Kings": 5,
+            "Portland Trail Blazers": 6,
+            "New Jersey Nets": 7,
+            "Toronto Raptors": 8,
+            "Detroit Pistons": 9,
+            "Houston Rockets": 10,
+            "Golden State Warriors": 11,
+            "Minnesota Timberwolves": 12,
+            "Phoenix Suns": 13,
+            "Milwaukee Bucks": 14,
+        },
         "lottery_teams": [
             ("Charlotte Bobcats", 7, 59),
-            ("New Orleans Hornets", 21, 45),
             ("Washington Wizards", 20, 46),
+            ("New Orleans Hornets", 21, 45),
+            ("Cleveland Cavaliers", 21, 45),
             ("Sacramento Kings", 22, 44),
+            ("New Jersey Nets", 22, 44),
+            ("Toronto Raptors", 23, 43),
+            ("Golden State Warriors", 23, 43),
             ("Detroit Pistons", 25, 41),
             ("Portland Trail Blazers", 28, 38),
-            ("Cleveland Cavaliers", 21, 45),
-            ("Toronto Raptors", 23, 43),
-            ("Houston Rockets", 34, 32),
             ("Minnesota Timberwolves", 26, 40),
-            ("Golden State Warriors", 23, 43),
             ("Milwaukee Bucks", 31, 35),
             ("Phoenix Suns", 33, 33),
-            ("New Jersey Nets", 22, 44),
+            ("Houston Rockets", 34, 32),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2012-13  —  2013 NBA Draft (Anthony Bennett)
+    # -----------------------------------------------------------------------
     "2012-13": {
         "context": (
             "2013 Draft · Anthony Bennett (Cleveland, 24W) went #1 in one of the most surprising "
@@ -351,24 +604,43 @@ HISTORICAL_SEASONS: dict[str, dict] = {
         "games": 82,
         "lottery_pick1": "Cleveland Cavaliers",
         "lottery_top4": ["Cleveland Cavaliers", "Orlando Magic", "Washington Wizards", "Charlotte Bobcats"],
+        "actual_picks": {
+            "Cleveland Cavaliers": 1,
+            "Orlando Magic": 2,
+            "Washington Wizards": 3,
+            "Charlotte Bobcats": 4,
+            "Phoenix Suns": 5,
+            "New Orleans Hornets": 6,
+            "Sacramento Kings": 7,
+            "Detroit Pistons": 8,
+            "Minnesota Timberwolves": 9,
+            "Portland Trail Blazers": 10,
+            "Philadelphia 76ers": 11,
+            "Toronto Raptors": 12,
+            "Dallas Mavericks": 13,
+            "Utah Jazz": 14,
+        },
         "lottery_teams": [
             ("Orlando Magic", 20, 62),
             ("Charlotte Bobcats", 21, 61),
-            ("Washington Wizards", 29, 53),
             ("Cleveland Cavaliers", 24, 58),
+            ("Washington Wizards", 29, 53),
             ("Phoenix Suns", 25, 57),
             ("Detroit Pistons", 29, 53),
             ("New Orleans Hornets", 27, 55),
             ("Sacramento Kings", 28, 54),
-            ("Philadelphia 76ers", 34, 48),
             ("Minnesota Timberwolves", 31, 51),
             ("Portland Trail Blazers", 33, 49),
+            ("Philadelphia 76ers", 34, 48),
             ("Toronto Raptors", 34, 48),
             ("Dallas Mavericks", 41, 41),
             ("Utah Jazz", 43, 39),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2013-14  —  2014 NBA Draft (Andrew Wiggins)
+    # -----------------------------------------------------------------------
     "2013-14": {
         "context": (
             "2014 Draft · Andrew Wiggins (Cleveland, 33W) went #1 after the Cavaliers AGAIN "
@@ -378,24 +650,44 @@ HISTORICAL_SEASONS: dict[str, dict] = {
         "games": 82,
         "lottery_pick1": "Cleveland Cavaliers",
         "lottery_top4": ["Cleveland Cavaliers", "Milwaukee Bucks", "Philadelphia 76ers", "Orlando Magic"],
+        "actual_picks": {
+            "Cleveland Cavaliers": 1,
+            "Milwaukee Bucks": 2,
+            "Philadelphia 76ers": 3,
+            "Orlando Magic": 4,
+            "Utah Jazz": 5,
+            "Boston Celtics": 6,
+            "LA Lakers": 7,
+            "Sacramento Kings": 8,
+            "Detroit Pistons": 9,
+            "New Orleans Pelicans": 10,
+            "Denver Nuggets": 11,
+            "Charlotte Hornets": 12,
+            "Atlanta Hawks": 13,
+            "Minnesota Timberwolves": 14,
+        },
         "lottery_teams": [
+            ("Milwaukee Bucks", 15, 67),
             ("Philadelphia 76ers", 19, 63),
             ("Orlando Magic", 23, 59),
             ("Utah Jazz", 25, 57),
             ("Boston Celtics", 25, 57),
-            ("Los Angeles Lakers", 27, 55),
+            ("LA Lakers", 27, 55),
             ("Sacramento Kings", 28, 54),
             ("Detroit Pistons", 29, 53),
-            ("Minnesota Timberwolves", 40, 42),
             ("Cleveland Cavaliers", 33, 49),
             ("New Orleans Pelicans", 34, 48),
-            ("Phoenix Suns", 48, 34),
             ("Denver Nuggets", 36, 46),
-            ("Milwaukee Bucks", 15, 67),
             ("Atlanta Hawks", 38, 44),
+            # Note: Phoenix Suns (48W) made the playoffs — excluded
+            ("Charlotte Hornets", 43, 39),
+            ("Minnesota Timberwolves", 40, 42),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2014-15  —  2015 NBA Draft (Karl-Anthony Towns)
+    # -----------------------------------------------------------------------
     "2014-15": {
         "context": (
             "2015 Draft · Karl-Anthony Towns (Minnesota, 16W) went #1 as the Timberwolves "
@@ -405,6 +697,22 @@ HISTORICAL_SEASONS: dict[str, dict] = {
         "games": 82,
         "lottery_pick1": "Minnesota Timberwolves",
         "lottery_top4": ["Minnesota Timberwolves", "Los Angeles Lakers", "Philadelphia 76ers", "New York Knicks"],
+        "actual_picks": {
+            "Minnesota Timberwolves": 1,
+            "Los Angeles Lakers": 2,
+            "Philadelphia 76ers": 3,
+            "New York Knicks": 4,
+            "Orlando Magic": 5,
+            "Sacramento Kings": 6,
+            "Denver Nuggets": 7,
+            "Detroit Pistons": 8,
+            "Charlotte Hornets": 9,
+            "Utah Jazz": 10,
+            "Indiana Pacers": 11,
+            "Oklahoma City Thunder": 12,
+            "Boston Celtics": 13,
+            "Phoenix Suns": 14,
+        },
         "lottery_teams": [
             ("Minnesota Timberwolves", 16, 66),
             ("New York Knicks", 17, 65),
@@ -412,98 +720,165 @@ HISTORICAL_SEASONS: dict[str, dict] = {
             ("Los Angeles Lakers", 21, 61),
             ("Orlando Magic", 25, 57),
             ("Sacramento Kings", 29, 53),
-            ("Charlotte Hornets", 33, 49),
-            ("Detroit Pistons", 32, 50),
-            ("New Orleans Pelicans", 45, 37),
-            ("Utah Jazz", 38, 44),
-            ("Phoenix Suns", 39, 43),
-            ("Oklahoma City Thunder", 45, 37),
             ("Denver Nuggets", 30, 52),
+            ("Detroit Pistons", 32, 50),
+            ("Charlotte Hornets", 33, 49),
+            ("Utah Jazz", 38, 44),
+            ("Indiana Pacers", 38, 44),
+            ("Oklahoma City Thunder", 45, 37),
+            # Note: New Orleans Pelicans (45W) made the playoffs — excluded
             ("Boston Celtics", 40, 42),
+            ("Phoenix Suns", 39, 43),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2015-16  —  2016 NBA Draft (Ben Simmons)
+    # -----------------------------------------------------------------------
     "2015-16": {
         "context": (
             "2016 Draft · Ben Simmons (Philadelphia, 10W) went #1 as the 76ers had the worst "
-            "record in the NBA — the culmination of 'The Process.' Philadelphia's multi-year "
-            "tank strategy rewarded them with the top pick naturally."
+            "record in the NBA — the culmination of 'The Process.' Brooklyn's pick (held by Boston "
+            "via trade) landed the #3 slot, going to Boston who took Jaylen Brown."
         ),
         "games": 82,
         "lottery_pick1": "Philadelphia 76ers",
-        "lottery_top4": ["Philadelphia 76ers", "Los Angeles Lakers", "Boston Celtics", "Phoenix Suns"],
+        "lottery_top4": ["Philadelphia 76ers", "Los Angeles Lakers", "Brooklyn Nets", "Phoenix Suns"],
+        "actual_picks": {
+            "Philadelphia 76ers": 1,
+            "Los Angeles Lakers": 2,
+            "Brooklyn Nets": 3,
+            "Phoenix Suns": 4,
+            "Minnesota Timberwolves": 5,
+            "New Orleans Pelicans": 6,
+            "Denver Nuggets": 7,
+            "Sacramento Kings": 8,
+            "Washington Wizards": 9,
+            "New York Knicks": 10,
+            "Orlando Magic": 11,
+            "Chicago Bulls": 12,
+            "Milwaukee Bucks": 13,
+            "Miami Heat": 14,
+        },
         "lottery_teams": [
             ("Philadelphia 76ers", 10, 72),
             ("Los Angeles Lakers", 17, 65),
-            ("Boston Celtics", 48, 34),
+            ("Brooklyn Nets", 21, 61),
             ("Phoenix Suns", 23, 59),
             ("Minnesota Timberwolves", 29, 53),
             ("New Orleans Pelicans", 30, 52),
+            ("New York Knicks", 32, 50),
             ("Denver Nuggets", 33, 49),
             ("Sacramento Kings", 33, 49),
-            ("Indiana Pacers", 45, 37),
-            ("Utah Jazz", 40, 42),
             ("Orlando Magic", 35, 47),
-            ("New York Knicks", 32, 50),
             ("Chicago Bulls", 42, 40),
-            ("Charlotte Hornets", 48, 34),
+            ("Washington Wizards", 41, 41),
+            # Note: Boston Celtics (48W), Indiana Pacers (45W), Charlotte Hornets (48W)
+            #       were East playoff teams — excluded
+            ("Milwaukee Bucks", 33, 49),
+            ("Miami Heat", 48, 34),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2016-17  —  2017 NBA Draft (Markelle Fultz)
+    # -----------------------------------------------------------------------
     "2016-17": {
         "context": (
             "2017 Draft · Markelle Fultz (Philadelphia, 28W) went #1 as the 76ers won the lottery "
-            "from the 3rd seed — their second top pick in two years via The Process. "
-            "Brooklyn Nets (20W) had worse odds but lost. Fultz's career never took off."
+            "from the 3rd seed. The Brooklyn Nets' pick (held by Boston via a prior trade) landed "
+            "#3 — Jayson Tatum. Boston was actually a playoff team (53W); it was Brooklyn's pick slot."
         ),
         "games": 82,
         "lottery_pick1": "Philadelphia 76ers",
-        "lottery_top4": ["Philadelphia 76ers", "Los Angeles Lakers", "Boston Celtics", "Phoenix Suns"],
+        # #3 was Brooklyn Nets' lottery slot (held by Boston via trade).
+        # #4 was the Suns pick.
+        "lottery_top4": ["Philadelphia 76ers", "Los Angeles Lakers", "Brooklyn Nets", "Phoenix Suns"],
+        "actual_picks": {
+            "Philadelphia 76ers": 1,
+            "Los Angeles Lakers": 2,
+            "Brooklyn Nets": 3,
+            "Phoenix Suns": 4,
+            "Sacramento Kings": 5,
+            "New York Knicks": 6,
+            "Minnesota Timberwolves": 7,
+            "New Orleans Pelicans": 8,
+            "Charlotte Hornets": 9,
+            "Dallas Mavericks": 10,
+            "Denver Nuggets": 11,
+            "Detroit Pistons": 12,
+            "Miami Heat": 13,
+            "Milwaukee Bucks": 14,
+        },
         "lottery_teams": [
             ("Brooklyn Nets", 20, 62),
             ("Los Angeles Lakers", 26, 56),
             ("Philadelphia 76ers", 28, 54),
             ("Phoenix Suns", 24, 58),
+            ("Sacramento Kings", 32, 50),
+            ("New York Knicks", 31, 51),
             ("Minnesota Timberwolves", 31, 51),
             ("New Orleans Pelicans", 34, 48),
-            ("Sacramento Kings", 32, 50),
-            ("Denver Nuggets", 40, 42),
             ("Dallas Mavericks", 33, 49),
-            ("New York Knicks", 31, 51),
             ("Charlotte Hornets", 36, 46),
+            ("Denver Nuggets", 40, 42),
             ("Detroit Pistons", 37, 45),
             ("Miami Heat", 41, 41),
             ("Milwaukee Bucks", 42, 40),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2017-18  —  2018 NBA Draft (Deandre Ayton / Luka Doncic)
+    # -----------------------------------------------------------------------
     "2017-18": {
         "context": (
-            "2018 Draft · DeAndre Ayton (Phoenix, 21W) went #1 as the Suns won the lottery "
-            "from the 3rd-worst position. Memphis (22W) had nearly the same record but "
-            "fell to the 4th pick. Luka Doncic went #3 to Atlanta, then was traded to Dallas."
+            "2018 Draft · DeAndre Ayton (Phoenix, 21W) went #1 as the Suns won the lottery. "
+            "Luka Doncic went #3 to Atlanta, then was immediately traded to Dallas for Trae Young. "
+            "The draft is considered one of the best in recent memory."
         ),
         "games": 82,
         "lottery_pick1": "Phoenix Suns",
         "lottery_top4": ["Phoenix Suns", "Sacramento Kings", "Atlanta Hawks", "Memphis Grizzlies"],
+        "actual_picks": {
+            "Phoenix Suns": 1,
+            "Sacramento Kings": 2,
+            "Atlanta Hawks": 3,
+            "Memphis Grizzlies": 4,
+            "Dallas Mavericks": 5,
+            "Orlando Magic": 6,
+            "Chicago Bulls": 7,
+            "Cleveland Cavaliers": 8,
+            "New York Knicks": 9,
+            "Philadelphia 76ers": 10,
+            "Charlotte Hornets": 11,
+            "LA Clippers": 12,
+            "LA Lakers": 13,
+            "Denver Nuggets": 14,
+        },
         "lottery_teams": [
+            ("Phoenix Suns", 21, 61),
             ("Memphis Grizzlies", 22, 60),
             ("Dallas Mavericks", 24, 58),
             ("Atlanta Hawks", 24, 58),
             ("Sacramento Kings", 27, 55),
-            ("Phoenix Suns", 21, 61),
+            ("Chicago Bulls", 27, 55),
             ("Orlando Magic", 25, 57),
             ("Brooklyn Nets", 28, 54),
-            ("Chicago Bulls", 27, 55),
-            ("Cleveland Cavaliers", 50, 32),
             ("New York Knicks", 29, 53),
             ("Charlotte Hornets", 36, 46),
+            ("LA Lakers", 35, 47),
+            ("LA Clippers", 42, 40),
+            # Note: Cleveland Cavaliers (50W, made Finals) and Miami Heat (44W, playoff)
+            #       were postseason teams — excluded
             ("Detroit Pistons", 39, 43),
-            ("Los Angeles Lakers", 35, 47),
-            ("Miami Heat", 44, 38),
+            ("Denver Nuggets", 46, 36),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2018-19  —  2019 NBA Draft (Zion Williamson)
+    # -----------------------------------------------------------------------
     "2018-19": {
         "context": (
             "2019 Draft · Zion Williamson (New Orleans, 33W) landed in New Orleans after the Pelicans "
@@ -513,6 +888,22 @@ HISTORICAL_SEASONS: dict[str, dict] = {
         "games": 82,
         "lottery_pick1": "New Orleans Pelicans",
         "lottery_top4": ["New Orleans Pelicans", "Memphis Grizzlies", "New York Knicks", "Los Angeles Lakers"],
+        "actual_picks": {
+            "New Orleans Pelicans": 1,
+            "Memphis Grizzlies": 2,
+            "New York Knicks": 3,
+            "Los Angeles Lakers": 4,
+            "Cleveland Cavaliers": 5,
+            "Phoenix Suns": 6,
+            "Chicago Bulls": 7,
+            "Atlanta Hawks": 8,
+            "Washington Wizards": 9,
+            "Minnesota Timberwolves": 10,
+            "Dallas Mavericks": 11,
+            "Charlotte Hornets": 12,
+            "Miami Heat": 13,
+            "Sacramento Kings": 14,
+        },
         "lottery_teams": [
             ("New York Knicks", 17, 65),
             ("Cleveland Cavaliers", 19, 63),
@@ -527,37 +918,59 @@ HISTORICAL_SEASONS: dict[str, dict] = {
             ("Los Angeles Lakers", 37, 45),
             ("Charlotte Hornets", 39, 43),
             ("Sacramento Kings", 39, 43),
-            ("Detroit Pistons", 41, 41),
+            ("Miami Heat", 39, 43),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2019-20  —  2020 NBA Draft (Anthony Edwards) — COVID bubble season
+    # -----------------------------------------------------------------------
     "2019-20": {
         "context": (
             "2020 Draft · Anthony Edwards (Minnesota, 19W) went #1 in a season shortened to "
-            "65–72 games due to the COVID-19 pandemic. The season was suspended in March and "
-            "resumed in a 'bubble' at Disney World, Orlando."
+            "~65-72 games due to the COVID-19 pandemic. The season resumed in a 'bubble' at "
+            "Disney World. Edwards has since become one of the game's elite stars."
         ),
         "games": 72,
         "lottery_pick1": "Minnesota Timberwolves",
         "lottery_top4": ["Minnesota Timberwolves", "Golden State Warriors", "Charlotte Hornets", "Chicago Bulls"],
+        "actual_picks": {
+            "Minnesota Timberwolves": 1,
+            "Golden State Warriors": 2,
+            "Charlotte Hornets": 3,
+            "Chicago Bulls": 4,
+            "Cleveland Cavaliers": 5,
+            "Atlanta Hawks": 6,
+            "Detroit Pistons": 7,
+            "New York Knicks": 8,
+            "Washington Wizards": 9,
+            "Phoenix Suns": 10,
+            "San Antonio Spurs": 11,
+            "Sacramento Kings": 12,
+            "New Orleans Pelicans": 13,
+            "Memphis Grizzlies": 14,
+        },
         "lottery_teams": [
-            ("Minnesota Timberwolves", 19, 45),
             ("Golden State Warriors", 15, 50),
+            ("Minnesota Timberwolves", 19, 45),
             ("Cleveland Cavaliers", 19, 46),
             ("Atlanta Hawks", 20, 47),
             ("Detroit Pistons", 20, 46),
             ("Charlotte Hornets", 23, 42),
             ("Chicago Bulls", 22, 43),
-            ("Washington Wizards", 25, 47),
             ("New York Knicks", 21, 45),
+            ("Washington Wizards", 25, 47),
             ("Phoenix Suns", 34, 39),
-            ("Sacramento Kings", 31, 41),
             ("San Antonio Spurs", 32, 39),
+            ("Sacramento Kings", 31, 41),
             ("New Orleans Pelicans", 30, 42),
             ("Memphis Grizzlies", 34, 39),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2020-21  —  2021 NBA Draft (Cade Cunningham) — 72-game season
+    # -----------------------------------------------------------------------
     "2020-21": {
         "context": (
             "2021 Draft · Cade Cunningham (Detroit, 20W) went #1 as the Pistons had the worst "
@@ -567,13 +980,29 @@ HISTORICAL_SEASONS: dict[str, dict] = {
         "games": 72,
         "lottery_pick1": "Detroit Pistons",
         "lottery_top4": ["Detroit Pistons", "Houston Rockets", "Cleveland Cavaliers", "Toronto Raptors"],
+        "actual_picks": {
+            "Detroit Pistons": 1,
+            "Houston Rockets": 2,
+            "Cleveland Cavaliers": 3,
+            "Toronto Raptors": 4,
+            "Orlando Magic": 5,
+            "Oklahoma City Thunder": 6,
+            "Golden State Warriors": 7,
+            "Orlando Magic": 8,
+            "Sacramento Kings": 9,
+            "Minnesota Timberwolves": 10,
+            "Charlotte Hornets": 11,
+            "San Antonio Spurs": 12,
+            "Indiana Pacers": 13,
+            "Washington Wizards": 14,
+        },
         "lottery_teams": [
-            ("Detroit Pistons", 20, 52),
             ("Houston Rockets", 17, 55),
-            ("Cleveland Cavaliers", 22, 50),
-            ("Minnesota Timberwolves", 23, 49),
-            ("Oklahoma City Thunder", 22, 50),
+            ("Detroit Pistons", 20, 52),
             ("Orlando Magic", 21, 51),
+            ("Cleveland Cavaliers", 22, 50),
+            ("Oklahoma City Thunder", 22, 50),
+            ("Minnesota Timberwolves", 23, 49),
             ("Sacramento Kings", 31, 41),
             ("Toronto Raptors", 27, 45),
             ("Chicago Bulls", 31, 41),
@@ -585,6 +1014,9 @@ HISTORICAL_SEASONS: dict[str, dict] = {
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2021-22  —  2022 NBA Draft (Paolo Banchero)
+    # -----------------------------------------------------------------------
     "2021-22": {
         "context": (
             "2022 Draft · Paolo Banchero (Orlando, 22W) went #1 after the Magic won the lottery "
@@ -594,24 +1026,44 @@ HISTORICAL_SEASONS: dict[str, dict] = {
         "games": 82,
         "lottery_pick1": "Orlando Magic",
         "lottery_top4": ["Orlando Magic", "Oklahoma City Thunder", "Houston Rockets", "Sacramento Kings"],
+        "actual_picks": {
+            "Orlando Magic": 1,
+            "Oklahoma City Thunder": 2,
+            "Houston Rockets": 3,
+            "Sacramento Kings": 4,
+            "Detroit Pistons": 5,
+            "Indiana Pacers": 6,
+            "Portland Trail Blazers": 7,
+            "New Orleans Pelicans": 8,
+            "San Antonio Spurs": 9,
+            "Washington Wizards": 10,
+            "New York Knicks": 11,
+            "LA Lakers": 12,
+            "Charlotte Hornets": 13,
+            "LA Clippers": 14,
+        },
         "lottery_teams": [
-            ("Orlando Magic", 22, 60),
-            ("Oklahoma City Thunder", 24, 58),
             ("Houston Rockets", 20, 62),
-            ("Sacramento Kings", 30, 52),
+            ("Orlando Magic", 22, 60),
             ("Detroit Pistons", 23, 59),
+            ("Oklahoma City Thunder", 24, 58),
             ("Indiana Pacers", 25, 57),
+            ("Portland Trail Blazers", 27, 55),
+            ("Sacramento Kings", 30, 52),
             ("San Antonio Spurs", 34, 48),
-            ("New Orleans Pelicans", 36, 46),
-            ("Chicago Bulls", 46, 36),
             ("Washington Wizards", 35, 47),
             ("New York Knicks", 37, 45),
-            ("Portland Trail Blazers", 27, 55),
-            ("Minnesota Timberwolves", 46, 36),
+            ("LA Lakers", 33, 49),
+            ("New Orleans Pelicans", 36, 46),
+            # Note: Chicago Bulls (46W) and Minnesota Timberwolves (46W) were postseason teams
             ("Charlotte Hornets", 43, 39),
+            ("LA Clippers", 42, 40),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2022-23  —  2023 NBA Draft (Victor Wembanyama)
+    # -----------------------------------------------------------------------
     "2022-23": {
         "context": (
             "2023 Draft · Victor Wembanyama (San Antonio, 22W) was the most celebrated prospect "
@@ -621,6 +1073,22 @@ HISTORICAL_SEASONS: dict[str, dict] = {
         "games": 82,
         "lottery_pick1": "San Antonio Spurs",
         "lottery_top4": ["San Antonio Spurs", "Charlotte Hornets", "Portland Trail Blazers", "Houston Rockets"],
+        "actual_picks": {
+            "San Antonio Spurs": 1,
+            "Charlotte Hornets": 2,
+            "Portland Trail Blazers": 3,
+            "Houston Rockets": 4,
+            "Detroit Pistons": 5,
+            "Orlando Magic": 6,
+            "Indiana Pacers": 7,
+            "Washington Wizards": 8,
+            "Utah Jazz": 9,
+            "Dallas Mavericks": 10,
+            "Chicago Bulls": 11,
+            "Oklahoma City Thunder": 12,
+            "Toronto Raptors": 13,
+            "New Orleans Pelicans": 14,
+        },
         "lottery_teams": [
             ("Detroit Pistons", 17, 65),
             ("Houston Rockets", 22, 60),
@@ -629,70 +1097,113 @@ HISTORICAL_SEASONS: dict[str, dict] = {
             ("Portland Trail Blazers", 33, 49),
             ("Orlando Magic", 34, 48),
             ("Indiana Pacers", 35, 47),
-            ("Oklahoma City Thunder", 40, 42),
+            ("Washington Wizards", 35, 47),
             ("Utah Jazz", 37, 45),
             ("Dallas Mavericks", 38, 44),
             ("Chicago Bulls", 40, 42),
-            ("New York Knicks", 47, 35),
+            ("Oklahoma City Thunder", 40, 42),
             ("Toronto Raptors", 41, 41),
             ("New Orleans Pelicans", 42, 40),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2023-24  —  2024 NBA Draft (Zaccharie Risacher)
+    # -----------------------------------------------------------------------
     "2023-24": {
         "context": (
             "2024 Draft · Zaccharie Risacher (Atlanta, 36W) stunned the lottery as the Hawks "
             "jumped from 8th-worst — beating long odds to land the #1 pick. "
-            "The Detroit Pistons (14W, worst record) finished empty-handed despite having 14.0% odds."
+            "The Detroit Pistons (14W, worst record) finished empty-handed despite 14.0% odds."
         ),
         "games": 82,
         "lottery_pick1": "Atlanta Hawks",
         "lottery_top4": ["Atlanta Hawks", "Washington Wizards", "Houston Rockets", "San Antonio Spurs"],
+        "actual_picks": {
+            "Atlanta Hawks": 1,
+            "Washington Wizards": 2,
+            "Houston Rockets": 3,
+            "San Antonio Spurs": 4,
+            "Detroit Pistons": 5,
+            "Charlotte Hornets": 6,
+            "Portland Trail Blazers": 7,
+            "Memphis Grizzlies": 8,
+            "Utah Jazz": 9,
+            "Toronto Raptors": 10,
+            "Chicago Bulls": 11,
+            "Brooklyn Nets": 12,
+            "Sacramento Kings": 13,
+            "Golden State Warriors": 14,
+        },
         "lottery_teams": [
             ("Detroit Pistons", 14, 68),
             ("Washington Wizards", 15, 67),
             ("Charlotte Hornets", 21, 61),
             ("Portland Trail Blazers", 21, 61),
             ("San Antonio Spurs", 22, 60),
-            ("Houston Rockets", 41, 41),
             ("Memphis Grizzlies", 27, 55),
-            ("Atlanta Hawks", 36, 46),
-            ("Utah Jazz", 31, 51),
-            ("Oklahoma City Thunder", 57, 25),
-            ("Chicago Bulls", 39, 43),
-            ("Sacramento Kings", 46, 36),
             ("Toronto Raptors", 25, 57),
             ("Brooklyn Nets", 32, 50),
+            ("Utah Jazz", 31, 51),
+            ("Chicago Bulls", 39, 43),
+            ("Houston Rockets", 41, 41),
+            ("Atlanta Hawks", 36, 46),
+            ("Sacramento Kings", 46, 36),
+            # Note: Oklahoma City Thunder (57W) was the #1 West seed — excluded
+            ("Golden State Warriors", 46, 36),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2024-25  —  2025 NBA Draft (Cooper Flagg)
+    # -----------------------------------------------------------------------
     "2024-25": {
         "context": (
             "2025 Draft · Cooper Flagg (Dallas, 26W) was the most anticipated Duke prospect in years. "
-            "Dallas had a difficult rebuild season after a roster transition, and won the lottery "
-            "to select the versatile forward with the #1 pick."
+            "Dallas had a difficult rebuild season and won the lottery to select the versatile forward "
+            "with the #1 pick. Flagg is expected to revitalize the franchise."
         ),
         "games": 82,
         "lottery_pick1": "Dallas Mavericks",
         "lottery_top4": ["Dallas Mavericks", "Philadelphia 76ers", "Charlotte Hornets", "Washington Wizards"],
+        "actual_picks": {
+            "Dallas Mavericks": 1,
+            "Philadelphia 76ers": 2,
+            "Charlotte Hornets": 3,
+            "Washington Wizards": 4,
+            "New Orleans Pelicans": 5,
+            "Utah Jazz": 6,
+            "Brooklyn Nets": 7,
+            "Detroit Pistons": 8,
+            "San Antonio Spurs": 9,
+            "Toronto Raptors": 10,
+            "Portland Trail Blazers": 11,
+            "Chicago Bulls": 12,
+            "Sacramento Kings": 13,
+            "Golden State Warriors": 14,
+        },
         "lottery_teams": [
-            ("Charlotte Hornets", 19, 63),
             ("Washington Wizards", 18, 64),
-            ("Philadelphia 76ers", 24, 58),
-            ("Dallas Mavericks", 26, 56),
-            ("Utah Jazz", 22, 60),
+            ("Charlotte Hornets", 19, 63),
             ("New Orleans Pelicans", 21, 61),
-            ("Detroit Pistons", 27, 55),
+            ("Utah Jazz", 22, 60),
+            ("Philadelphia 76ers", 24, 58),
             ("Brooklyn Nets", 23, 59),
+            ("Dallas Mavericks", 26, 56),
+            ("Detroit Pistons", 27, 55),
             ("Toronto Raptors", 30, 52),
-            ("San Antonio Spurs", 34, 48),
             ("Portland Trail Blazers", 32, 50),
+            ("San Antonio Spurs", 34, 48),
             ("Chicago Bulls", 39, 43),
             ("Sacramento Kings", 36, 46),
-            ("Houston Rockets", 52, 30),
+            # Note: Houston Rockets (52W) made the playoffs — excluded
+            ("Golden State Warriors", 40, 42),
         ],
     },
 
+    # -----------------------------------------------------------------------
+    # 2025-26  —  Current / Pending Season
+    # -----------------------------------------------------------------------
     "2025-26": {
         "context": (
             "2025-26 Season · The regular season is currently wrapping up (April 2026). "
@@ -702,6 +1213,7 @@ HISTORICAL_SEASONS: dict[str, dict] = {
         "games": 82,
         "lottery_pick1": "TBD",
         "lottery_top4": [],
+        "actual_picks": {},
         "lottery_teams": [
             ("Washington Wizards", 15, 58),
             ("Detroit Pistons", 20, 53),

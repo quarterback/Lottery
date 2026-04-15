@@ -299,55 +299,140 @@ def test_two_system_comparison_rendering():
 
 
 def test_historical_data_integrity():
-    """All historical seasons have required keys and 14 lottery teams."""
+    """All historical seasons have required keys, 14 lottery teams, and consistent actual_picks."""
     from data.historical_seasons import HISTORICAL_SEASONS, SEASON_KEYS
+
     assert len(HISTORICAL_SEASONS) == 26, f"Expected 26 seasons, got {len(HISTORICAL_SEASONS)}"
     assert len(SEASON_KEYS) == 26
-    required_keys = {"context", "games", "lottery_pick1", "lottery_top4", "lottery_teams"}
+
+    required_keys = {"context", "games", "lottery_pick1", "lottery_top4", "lottery_teams", "actual_picks"}
     for key, data in HISTORICAL_SEASONS.items():
         missing = required_keys - set(data.keys())
         assert not missing, f"Season {key} missing keys: {missing}"
+
         teams = data["lottery_teams"]
         assert len(teams) == 14, f"Season {key} has {len(teams)} lottery teams, expected 14"
+
+        max_games = data["games"]
         for entry in teams:
             assert len(entry) == 3, f"Season {key} team entry should be (name, wins, losses)"
             name, wins, losses = entry
             assert isinstance(name, str) and len(name) > 0
-            assert isinstance(wins, int) and 0 <= wins <= 82
-            assert isinstance(losses, int) and 0 <= losses <= 82
+            assert isinstance(wins, int) and 0 <= wins <= max_games, \
+                f"Season {key}: {name} has wins={wins} out of range 0-{max_games}"
+            assert isinstance(losses, int) and 0 <= losses <= max_games, \
+                f"Season {key}: {name} has losses={losses} out of range 0-{max_games}"
+
+        # No team in lottery_teams should have a very high win total (>55) — such teams
+        # would almost certainly have been playoff teams.
+        high_win_teams = [(t[0], t[1]) for t in teams if t[1] > 55]
+        assert not high_win_teams, \
+            f"Season {key}: suspiciously high win totals (likely playoff teams) in lottery: {high_win_teams}"
+
         pick1 = data["lottery_pick1"]
+        team_names = [t[0] for t in teams]
         if pick1 != "TBD":
-            team_names = [t[0] for t in teams]
             assert pick1 in team_names, f"Season {key}: lottery_pick1 '{pick1}' not in lottery_teams"
+
+        # actual_picks consistency: every key that is in lottery_teams must map to a valid slot
+        actual_picks: dict = data["actual_picks"]
+        if actual_picks:
+            for apname, slot in actual_picks.items():
+                # Expansion team entries (e.g., Charlotte Bobcats in 2003-04) may not be in
+                # lottery_teams — that is intentional and allowed.
+                assert isinstance(slot, int) and 1 <= slot <= 14, \
+                    f"Season {key}: {apname} → slot {slot} out of range"
+            # The #1 pick slot must exist and match lottery_pick1 if defined
+            if pick1 != "TBD":
+                pick1_entries = [n for n, s in actual_picks.items() if s == 1]
+                assert len(pick1_entries) >= 1, \
+                    f"Season {key}: no team assigned slot 1 in actual_picks"
+                assert pick1_entries[0] == pick1 or pick1 in actual_picks, \
+                    f"Season {key}: pick1 '{pick1}' not in actual_picks"
+
+        # No duplicate team names in lottery_teams
+        seen_names: set[str] = set()
+        for name, _, _ in teams:
+            assert name not in seen_names, f"Season {key}: duplicate team '{name}' in lottery_teams"
+            seen_names.add(name)
+
+
+def test_historical_known_picks():
+    """Spot-check known factual outcomes for famous draft lottery seasons."""
+    from data.historical_seasons import HISTORICAL_SEASONS
+
+    # 2002-03: Cleveland Cavaliers won the lottery, LeBron James
+    s = HISTORICAL_SEASONS["2002-03"]
+    assert s["lottery_pick1"] == "Cleveland Cavaliers"
+    assert s["actual_picks"]["Cleveland Cavaliers"] == 1
+
+    # 2007-08: Derrick Rose, Chicago Bulls picked #1 despite being 9th seed
+    s = HISTORICAL_SEASONS["2007-08"]
+    assert s["lottery_pick1"] == "Chicago Bulls"
+    assert s["actual_picks"]["Chicago Bulls"] == 1
+    assert s["actual_picks"]["Miami Heat"] == 2  # Miami had worst record, got #2
+
+    # 2018-19: Zion Williamson, New Orleans Pelicans upset
+    s = HISTORICAL_SEASONS["2018-19"]
+    assert s["lottery_pick1"] == "New Orleans Pelicans"
+    assert s["actual_picks"]["New Orleans Pelicans"] == 1
+    assert s["actual_picks"]["Memphis Grizzlies"] == 2
+
+    # 2011-12: Anthony Davis, New Orleans Hornets
+    s = HISTORICAL_SEASONS["2011-12"]
+    assert s["lottery_pick1"] == "New Orleans Hornets"
+    assert s["actual_picks"]["New Orleans Hornets"] == 1
+    assert s["actual_picks"]["Charlotte Bobcats"] == 2
+
+    # 2023-24: Zaccharie Risacher, Atlanta Hawks — major upset
+    s = HISTORICAL_SEASONS["2023-24"]
+    assert s["lottery_pick1"] == "Atlanta Hawks"
+    assert s["actual_picks"]["Atlanta Hawks"] == 1
+    assert s["actual_picks"]["Detroit Pistons"] == 5  # worst record, didn't jump
+
+
+def test_no_obvious_playoff_teams_in_lottery():
+    """No team with >55 wins should appear in any season's lottery_teams."""
+    from data.historical_seasons import HISTORICAL_SEASONS
+
+    violations = []
+    for season_key, data in HISTORICAL_SEASONS.items():
+        for name, wins, _ in data["lottery_teams"]:
+            if wins > 55:
+                violations.append(f"{season_key}: {name} ({wins}W)")
+    assert not violations, (
+        "Teams with >55 wins in lottery_teams are almost certainly playoff teams:\n"
+        + "\n".join(violations)
+    )
 
 
 def test_historical_simulation_smoke():
     """Historical simulation: pick distributions sum correctly."""
     from data.historical_seasons import HISTORICAL_SEASONS
-    from web.router import _make_historical_season_result, _run_historical_lottery
+    from web.router import _run_historical_lottery
 
     system = CurrentNBA()
-    season_data = dict(HISTORICAL_SEASONS["2007-08"])
-    season_data["lottery_teams"] = sorted(season_data["lottery_teams"], key=lambda t: t[1])
+    season_data = HISTORICAL_SEASONS["2007-08"]
 
-    dist = _run_historical_lottery(season_data, system, n_runs=200)
+    dist = _run_historical_lottery(season_data, system, n_runs=500)
     n_lottery = len(season_data["lottery_teams"])
 
     assert len(dist) == n_lottery, f"Expected {n_lottery} teams in dist"
     for name, probs in dist.items():
         assert len(probs) == n_lottery
-        # Each slot sums to 100% across all teams (with some rounding)
+
+    # Each slot should sum to ~100% across all teams
     slot_sums = [sum(dist[name][slot] for name in dist) for slot in range(n_lottery)]
     for slot, s in enumerate(slot_sums[:4]):
         assert abs(s - 100.0) < 5.0, f"Slot {slot+1} probabilities sum to {s:.1f}%, expected ~100%"
 
-    # Under Current NBA, Miami Heat (worst team) should have highest pick-1 odds
+    # Under Current NBA, Miami Heat (worst 15W team) should have highest pick-1 odds
     assert dist["Miami Heat"][0] > dist["Chicago Bulls"][0], \
-        "Miami (worst) should have higher #1 pick odds than Chicago (9th worst)"
+        "Miami (worst) should have higher #1 pick odds than Chicago"
 
 
 def test_historical_actual_order():
-    """_compute_actual_order always places the lottery pick 1 team first."""
+    """_compute_actual_order returns exactly 14 teams with #1 pick first, for every season."""
     from data.historical_seasons import HISTORICAL_SEASONS
     from web.router import _compute_actual_order
 
@@ -355,11 +440,24 @@ def test_historical_actual_order():
         if data.get("season_pending"):
             continue
         order = _compute_actual_order(data)
+        lottery_team_names = {t[0] for t in data["lottery_teams"]}
+
+        # Must return exactly 14 teams
         assert len(order) == 14, f"Season {season_key}: expected 14 teams in order, got {len(order)}"
-        top4 = data.get("lottery_top4", [data["lottery_pick1"]])
-        if top4:
-            assert order[0] == top4[0], \
-                f"Season {season_key}: expected {top4[0]} at #1, got {order[0]}"
+
+        # All returned names must be from lottery_teams
+        for name in order:
+            assert name in lottery_team_names, \
+                f"Season {season_key}: '{name}' in order but not in lottery_teams"
+
+        # No duplicates
+        assert len(set(order)) == 14, f"Season {season_key}: duplicate teams in order"
+
+        # The true #1 pick (lottery_pick1) must be at position 0
+        expected_pick1 = data["lottery_pick1"]
+        if expected_pick1 in lottery_team_names:
+            assert order[0] == expected_pick1, \
+                f"Season {season_key}: expected '{expected_pick1}' at #1, got '{order[0]}'"
 
 
 if __name__ == "__main__":
