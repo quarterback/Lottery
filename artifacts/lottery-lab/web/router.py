@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -19,7 +20,8 @@ from engine.lottery_sim import (
 )
 
 router = APIRouter()
-templates = Jinja2Templates(directory="web/templates")
+TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 CHART_COLORS = ["#ff8c00", "#4ade80"]
 
