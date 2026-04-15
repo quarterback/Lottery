@@ -111,6 +111,7 @@
             <td style="text-align:left">
               <div>{{ ex.desc if ex.desc else '—' }}</div>
               {% if ex.odds %}
+              {% set max_odds = [ex.odds | max, 0.01] | max %}
               <details style="margin-top:6px">
                 <summary>Pick #1 odds by slot</summary>
                 <div class="details-body" style="padding:8px">
@@ -132,15 +133,19 @@
                         </td>
                         <td style="text-align:right">{{ "%.1f"|format(pct) }}%</td>
                         <td style="width:80px">
-                          <span class="odds-bar" style="width:{{ [pct / 14.0 * 70, 2]|max|int }}px"></span>
+                          <span class="odds-bar" style="width:{{ [pct / max_odds * 70, 2]|max|int }}px"></span>
                         </td>
                       </tr>
                       {% endfor %}
                     </tbody>
                   </table>
+                  {% if ex.odds_note %}
+                  <div class="odds-note" style="margin-top:6px">{{ ex.odds_note }}</div>
+                  {% endif %}
                 </div>
               </details>
-              {% elif ex.odds_note %}
+              {% endif %}
+              {% if not ex.odds and ex.odds_note %}
               <div class="odds-note">{{ ex.odds_note }}</div>
               {% endif %}
             </td>
