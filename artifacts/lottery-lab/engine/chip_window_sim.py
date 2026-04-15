@@ -62,14 +62,28 @@ def _simulate_60_games(talent: float, rng: random.Random) -> tuple[int, int]:
     return wins, GAMES_BEFORE_WINDOW - wins
 
 
-def _pick_bet(chips: float, strategy: str) -> float:
-    """Choose wager based on strategy. Minimum wager is always MIN_BET."""
+def _pick_bet(chips: float, strategy: str, rng: random.Random) -> float:
+    """Choose wager. Floor is MIN_BET (10). Cap is the team's current chip total
+    (teams can't bet more than they have, but chips can go negative so floor always applies).
+    Creates variety: teams with large stacks bid bigger in proportion.
+    """
+    available = max(chips, MIN_BET)   # effective ceiling; floor always MIN_BET
+
     if strategy == "aggressive":
-        return BIG_BET
-    if strategy == "conservative":
-        return MIN_BET
-    # standard: adaptive — bid big when comfortably ahead
-    return BIG_BET if chips >= 50.0 else MIN_BET
+        # Bid 30–60% of stack — big swings, scales with chip count
+        frac = rng.uniform(0.30, 0.60)
+        base = available * frac
+    elif strategy == "conservative":
+        # Bid low flat: 10–20 chips regardless of stack size
+        base = MIN_BET + rng.uniform(0, 10)
+    else:
+        # Standard: proportional momentum — 15–40% of stack, rising with chip count
+        t = max(0.0, min(chips, 300.0)) / 300.0
+        frac = 0.15 + 0.25 * t
+        base = max(MIN_BET, available * frac)
+
+    noise = rng.gauss(0, 2.0)
+    return round(max(MIN_BET, min(available, base + noise)), 1)
 
 
 # ── Lottery odds computation ─────────────────────────────────────────────────
@@ -291,17 +305,17 @@ def simulate_chip_window_league(
                     away_td["double_night"] = night_idx
 
                 # ── Wagers ───────────────────────────────────────────────────
-                home_base = _pick_bet(chips[home_id], home_td["strategy"])
-                away_base = _pick_bet(chips[away_id], away_td["strategy"])
+                home_base = _pick_bet(chips[home_id], home_td["strategy"], rng)
+                away_base = _pick_bet(chips[away_id], away_td["strategy"], rng)
 
                 home_wager = home_base * 2.0 if home_dbl else home_base
                 away_wager = away_base * 2.0 if away_dbl else away_base
 
-                # Opponent responds to a double with max bid
+                # Opponent responds to a double with an aggressive bid (proportional to their stack)
                 if home_dbl:
-                    away_wager = BIG_BET
+                    away_wager = _pick_bet(chips[away_id], "aggressive", rng)
                 if away_dbl:
-                    home_wager = BIG_BET
+                    home_wager = _pick_bet(chips[home_id], "aggressive", rng)
 
                 pot = home_wager + away_wager
 
