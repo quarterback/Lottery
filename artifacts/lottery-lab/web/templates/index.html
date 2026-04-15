@@ -14,15 +14,15 @@
       <div class="section-title">Select Systems (max 2 for comparison)</div>
       <div class="checkbox-grid" id="system-grid">
 
-        {% set descriptions = {
-          "Current NBA": "Bottom-3 get 14% odds each. Status quo.",
-          "Flat Bottom": "All lottery teams get equal odds. No bottom-out incentive.",
-          "Play-In Boost": "Play-in teams get equal-or-better odds. Making the play-in is the reward.",
-          "UEFA Coefficient": "Rolling 3-year weighted score sets odds. Kills one-year tanking.",
-          "RCL": "Multi-year coefficient + h2h bonus + hard caps. No #1 more than once in 5 years.",
-          "Lottery Tournament": "Bottom-8 play single-elim. Tournament winner gets the #1 pick.",
-          "Pure Inversion": "Best non-playoff team picks first. Rewards competitive failure.",
-          "Gold Plan (PWHL)": "Post-elimination wins decide order. Real-world PWHL system."
+        {% set short_desc = {
+          "Current NBA": "Bottom-3 get 14% odds each.",
+          "Flat Bottom": "Equal odds for all 14 lottery teams.",
+          "Play-In Boost": "Play-in teams get best odds.",
+          "UEFA Coefficient": "3-year rolling score sets odds.",
+          "RCL": "Multi-year coeff + hard caps.",
+          "Lottery Tournament": "Bottom-8 single-elim for #1 pick.",
+          "Pure Inversion": "Best non-playoff picks first.",
+          "Gold Plan (PWHL)": "Post-elimination wins decide order."
         } %}
 
         {% for system in systems %}
@@ -32,7 +32,7 @@
             {% if loop.index0 == 0 %}checked{% endif %}>
           <div>
             <div class="cb-name">{{ system }}</div>
-            <div class="cb-tag">{{ descriptions.get(system, '') }}</div>
+            <div class="cb-tag">{{ short_desc.get(system, '') }}</div>
           </div>
         </label>
         {% endfor %}
@@ -65,7 +65,7 @@
     </div>
 
     <!-- Submit -->
-    <div class="mt-24" style="display:flex;align-items:center;gap:16px;">
+    <div class="mt-24" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       <button type="submit" class="btn btn-primary submit-btn" onclick="startSim()">
         Run Simulation →
       </button>
@@ -77,28 +77,77 @@
 
   </form>
 
-  <!-- System reference table -->
+  <!-- System reference with How It Works -->
   <div class="mt-32">
-    <div class="section-title">System Reference</div>
+    <div class="section-title">System Reference — How Each One Works</div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>#</th>
             <th style="text-align:left">System</th>
-            <th style="text-align:left">Mechanic</th>
+            <th style="text-align:left">Core Mechanic</th>
             <th style="text-align:left">Real-World?</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td>1</td><td>Current NBA</td><td>Bottom-3 get 14% for #1, descending after</td><td>✓ NBA (current)</td></tr>
-          <tr><td>2</td><td>Flat Bottom</td><td>Equal odds for all 14 lottery teams</td><td>—</td></tr>
-          <tr><td>3</td><td>Play-In Boost</td><td>Play-in teams get same or better odds than worse teams</td><td>—</td></tr>
-          <tr><td>4</td><td>UEFA Coefficient</td><td>3-year rolling weighted score sets odds</td><td>Inspired by UEFA</td></tr>
-          <tr><td>5</td><td>RCL</td><td>Multi-year coeff + H2H bonus + hard caps</td><td>—</td></tr>
-          <tr><td>6</td><td>Lottery Tournament</td><td>Bottom-8 single-elim; winner gets #1</td><td>—</td></tr>
-          <tr><td>7</td><td>Pure Inversion</td><td>Best non-playoff team picks first</td><td>—</td></tr>
-          <tr><td>8</td><td>Gold Plan (PWHL)</td><td>Post-elimination wins = draft order</td><td>✓ PWHL (live)</td></tr>
+
+          {% set real_world = {
+            "Current NBA": "✓ NBA (current)",
+            "Flat Bottom": "—",
+            "Play-In Boost": "—",
+            "UEFA Coefficient": "Inspired by UEFA",
+            "RCL": "—",
+            "Lottery Tournament": "—",
+            "Pure Inversion": "—",
+            "Gold Plan (PWHL)": "✓ PWHL (live)"
+          } %}
+
+          {% for system in systems %}
+          {% set ex = explainers.get(system, {}) %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td style="font-weight:600;color:var(--fg)">{{ system }}</td>
+            <td style="text-align:left">
+              <div>{{ ex.desc if ex.desc else '—' }}</div>
+              {% if ex.odds %}
+              <details style="margin-top:6px">
+                <summary>Pick #1 odds by slot</summary>
+                <div class="details-body" style="padding:8px">
+                  <table class="odds-table">
+                    <thead>
+                      <tr>
+                        <th style="text-align:left">Slot</th>
+                        <th style="text-align:left">Record</th>
+                        <th style="text-align:right">Odds</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for pct in ex.odds %}
+                      <tr>
+                        <td>{{ loop.index }}</td>
+                        <td style="text-align:left;color:var(--fg-faint)">
+                          {%- if loop.index == 1 %}Worst{%- elif loop.index == 14 %}Best non-playoff{%- else %}—{%- endif -%}
+                        </td>
+                        <td style="text-align:right">{{ "%.1f"|format(pct) }}%</td>
+                        <td style="width:80px">
+                          <span class="odds-bar" style="width:{{ [pct / 14.0 * 70, 2]|max|int }}px"></span>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+              {% elif ex.odds_note %}
+              <div class="odds-note">{{ ex.odds_note }}</div>
+              {% endif %}
+            </td>
+            <td style="text-align:left;color:var(--fg-faint)">{{ real_world.get(system, '—') }}</td>
+          </tr>
+          {% endfor %}
+
         </tbody>
       </table>
     </div>

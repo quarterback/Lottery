@@ -10,13 +10,60 @@
     <a href="/" class="btn btn-secondary" style="margin-left:auto;padding:6px 14px;font-size:11px;">← New Run</a>
   </div>
 
-  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px;">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;">
     {% for r in results %}
     <span class="system-badge badge-{{ loop.index0 }}">{{ r.system_name }}</span>
     {% endfor %}
   </div>
 
-  <!-- ── Metrics ─────────────────────────────────────── -->
+  <!-- ── System Explainers ────────────────────────────────── -->
+  <div class="{{ 'comparison-grid' if is_comparison else '' }}" style="margin-bottom:24px;">
+    {% for ex in result_explainers %}
+    {% set idx = loop.index0 %}
+    {% if ex %}
+    <div style="background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <span class="system-badge badge-{{ idx }}" style="font-size:10px">{{ results[idx].system_name }}</span>
+        <span style="font-size:10px;color:var(--fg-faint);text-transform:uppercase;letter-spacing:0.1em">How it works</span>
+      </div>
+      <p style="font-size:var(--fs-sm);color:var(--fg-dim);line-height:1.7;margin-bottom:{% if ex.odds or ex.odds_note %}10px{% else %}0{% endif %}">
+        {{ ex.desc }}
+      </p>
+      {% if ex.odds %}
+      <details>
+        <summary>Pick #1 odds by lottery slot</summary>
+        <div class="details-body" style="padding:8px;margin-top:6px">
+          <table class="odds-table">
+            <thead>
+              <tr>
+                <th style="text-align:left">Slot</th>
+                <th style="text-align:right">Odds</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for pct in ex.odds %}
+              <tr>
+                <td>{{ loop.index }} {% if loop.index == 1 %}(worst){% elif loop.index == 14 %}(best){% endif %}</td>
+                <td style="text-align:right">{{ "%.1f"|format(pct) }}%</td>
+                <td style="width:70px">
+                  <span class="odds-bar" style="width:{{ [pct / 14.0 * 60, 2]|max|int }}px"></span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      {% elif ex.odds_note %}
+      <div class="odds-note">{{ ex.odds_note }}</div>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  <!-- ── Metrics ─────────────────────────────────────────── -->
   {% if is_comparison %}
   <div class="section-title">Metric Comparison</div>
   <div class="table-wrap mb-24">
@@ -61,7 +108,63 @@
   </div>
   {% endif %}
 
-  <!-- ── Pick Distribution Bar Charts ───────────────── -->
+  <!-- ── Simulated Standings ──────────────────────────────── -->
+  <div class="section-title mt-32">Simulated League Standings</div>
+  <p style="font-size:var(--fs-sm);color:var(--fg-faint);margin-bottom:12px;">
+    Average wins per team across all simulated seasons. Teams below the dotted line are lottery-eligible.
+    Pick % columns show how often each team received that pick under this system.
+  </p>
+  <div class="{{ 'comparison-grid' if is_comparison else '' }}">
+    {% for rows in standings_tables %}
+    {% set idx = loop.index0 %}
+    <div>
+      {% if is_comparison %}
+      <div class="mb-8"><span class="system-badge badge-{{ idx }}">{{ results[idx].system_name }}</span></div>
+      {% endif %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left">#</th>
+              <th style="text-align:left">Team</th>
+              <th>Avg W</th>
+              <th>Avg L</th>
+              <th>#1 Pick%</th>
+              <th>Top-5%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+            {% if loop.index == 17 %}
+            <tr>
+              <td colspan="6" style="text-align:center;color:var(--fg-faint);font-size:9px;padding:4px;border-top:2px dashed var(--border-2);">
+                ── lottery eligible ──
+              </td>
+            </tr>
+            {% endif %}
+            <tr {% if loop.index > 16 %}style="color:var(--fg-dim)"{% endif %}>
+              <td style="color:var(--fg-faint)">{{ loop.index }}</td>
+              <td style="text-align:left;color:var(--fg)">{{ row.name }}</td>
+              <td>{{ row.avg_wins }}</td>
+              <td style="color:var(--fg-faint)">{{ row.avg_losses }}</td>
+              <td>
+                {% if row.pick1_pct > 0 %}
+                <span style="color:var(--accent)">{{ "%.1f"|format(row.pick1_pct) }}%</span>
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                {% if row.top5_pct > 0 %}{{ "%.1f"|format(row.top5_pct) }}%{% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- ── Pick Distribution Bar Charts ───────────────────── -->
   <div class="section-title mt-32">Top-5 Pick Distribution</div>
   <div class="{{ 'comparison-grid' if is_comparison else '' }}">
     {% for svg_data in pick_chart_svg %}
@@ -69,7 +172,7 @@
     <div class="chart-wrap">
       <div class="chart-title">
         <span class="system-badge badge-{{ idx }}" style="font-size:10px">{{ results[idx].system_name }}</span>
-        — % of all top-5 picks received
+        — % of top-5 picks received (lottery teams)
       </div>
       <svg viewBox="0 0 {{ svg_data.total_w }} {{ svg_data.chart_svg_h }}"
            style="width:100%;max-width:{{ svg_data.total_w }}px;display:block;overflow:visible">
@@ -88,7 +191,7 @@
     {% endfor %}
   </div>
 
-  <!-- ── Effort Over Season Line Chart ──────────────── -->
+  <!-- ── Effort Over Season ──────────────────────────────── -->
   <div class="section-title mt-24">Team Effort Over the Season</div>
   <div class="chart-wrap">
     <div class="chart-title">
@@ -104,18 +207,15 @@
       <text x="{{ effort_meta.pad_l - 4 }}" y="{{ g.y + 3 }}"
             fill="#555" font-family="monospace" font-size="9" text-anchor="end">{{ g.v }}</text>
       {% endfor %}
-
       {% for wl in effort_meta.week_labels %}
       <text x="{{ wl.x }}" y="{{ effort_meta.chart_h - 6 }}"
             fill="#555" font-family="monospace" font-size="9" text-anchor="middle">{{ wl.label }}</text>
       {% endfor %}
-
       <line x1="{{ effort_meta.mid_x }}" y1="{{ effort_meta.pad_t }}"
             x2="{{ effort_meta.mid_x }}" y2="{{ effort_meta.chart_h - 24 }}"
             stroke="#333" stroke-width="1" stroke-dasharray="3,3"/>
       <text x="{{ effort_meta.mid_x }}" y="{{ effort_meta.pad_t - 1 }}"
             fill="#444" font-family="monospace" font-size="9" text-anchor="middle">mid-season</text>
-
       {% for bars in effort_bars %}
       {% for r in bars %}
       <rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}"
@@ -133,11 +233,11 @@
     </div>
   </div>
 
-  <!-- ── Win Distribution (Competitive Balance) ─────── -->
+  <!-- ── Win Distribution (Competitive Balance) ─────────── -->
   <div class="section-title mt-24">Win Distribution — Competitive Balance</div>
   <div class="chart-wrap">
     <div class="chart-title">
-      Avg wins by standings rank (rank 1 = best team · rank 30 = worst)
+      Avg wins by standings rank (rank 1 = best · rank 30 = worst)
       <span style="color:var(--fg-faint);font-size:10px">(flatter curve = more balanced league)</span>
     </div>
     <svg viewBox="0 0 {{ win_dist_meta.chart_w }} {{ win_dist_meta.chart_h }}"
@@ -149,18 +249,15 @@
       <text x="{{ win_dist_meta.pad_l - 4 }}" y="{{ g.y + 3 }}"
             fill="#555" font-family="monospace" font-size="9" text-anchor="end">{{ g.v }}</text>
       {% endfor %}
-
       {% for rl in win_dist_meta.rank_labels %}
       <text x="{{ rl.x }}" y="{{ win_dist_meta.chart_h - 6 }}"
             fill="#555" font-family="monospace" font-size="9" text-anchor="middle">{{ rl.label }}</text>
       {% endfor %}
-
       <line x1="{{ win_dist_meta.cutoff_x }}" y1="{{ win_dist_meta.pad_t }}"
             x2="{{ win_dist_meta.cutoff_x }}" y2="{{ win_dist_meta.chart_h - 24 }}"
             stroke="#333" stroke-width="1" stroke-dasharray="3,3"/>
       <text x="{{ win_dist_meta.cutoff_x }}" y="{{ win_dist_meta.pad_t - 1 }}"
             fill="#444" font-family="monospace" font-size="9" text-anchor="middle">playoff cut</text>
-
       {% for bars in win_dist_bars %}
       {% for r in bars %}
       <rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}"
@@ -178,7 +275,7 @@
     </div>
   </div>
 
-  <!-- ── Pick Distribution Tables ────────────────────── -->
+  <!-- ── Pick Distribution Detail Tables ────────────────── -->
   <div class="section-title mt-24">Pick Distribution Detail</div>
   <div class="{{ 'comparison-grid' if is_comparison else '' }}">
     {% for table_rows in pick_tables %}
@@ -191,17 +288,21 @@
         <table>
           <thead>
             <tr>
-              <th>#</th>
               <th style="text-align:left">Team</th>
-              <th>% of top-5 picks</th>
+              <th>#1 Pick%</th>
+              <th>Top-5%</th>
               <th>Share</th>
             </tr>
           </thead>
           <tbody>
             {% for row in table_rows %}
             <tr>
-              <td>{{ loop.index }}</td>
-              <td>{{ row.name }}</td>
+              <td style="text-align:left">{{ row.name }}</td>
+              <td>
+                {% if row.pick1_pct > 0 %}
+                <span style="color:var(--accent)">{{ "%.1f"|format(row.pick1_pct) }}%</span>
+                {% else %}—{% endif %}
+              </td>
               <td>{{ "%.2f"|format(row.pct) }}%</td>
               <td>{{ row.bar_svg | safe }}</td>
             </tr>
@@ -213,7 +314,7 @@
     {% endfor %}
   </div>
 
-  <!-- ── Run Again ────────────────────────────────────── -->
+  <!-- ── Run Again ────────────────────────────────────────── -->
   <div class="mt-32" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
     <a href="/" class="btn btn-primary">← Configure New Run</a>
     <form method="POST" action="/simulate" id="rerun-form" style="display:inline;">

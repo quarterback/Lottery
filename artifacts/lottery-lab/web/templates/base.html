@@ -530,6 +530,84 @@
     .mb-16 { margin-bottom: 16px; }
     .mb-24 { margin-bottom: 24px; }
     .gap-4 { gap: 4px; }
+
+    /* ── Collapsible details/summary ────────────────────── */
+    details { margin: 0; }
+    summary {
+      cursor: pointer;
+      font-size: 10px;
+      color: var(--fg-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      list-style: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 0;
+      user-select: none;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::before {
+      content: "▶";
+      font-size: 8px;
+      display: inline-block;
+      transition: transform 0.15s;
+    }
+    details[open] summary::before { transform: rotate(90deg); }
+    summary:hover { color: var(--accent); }
+    .details-body {
+      margin-top: 8px;
+      padding: 10px 12px;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: var(--fs-sm);
+      color: var(--fg-dim);
+      line-height: 1.6;
+    }
+    .odds-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 10px;
+    }
+    .odds-table th {
+      font-size: 9px;
+      padding: 4px 6px;
+      background: var(--bg-alt);
+    }
+    .odds-table td {
+      padding: 3px 6px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+    }
+    .odds-table .odds-bar {
+      height: 6px;
+      background: var(--accent);
+      border-radius: 1px;
+      opacity: 0.7;
+      display: inline-block;
+    }
+    .odds-note {
+      font-size: 10px;
+      color: var(--fg-faint);
+      font-style: italic;
+      margin-top: 6px;
+    }
+
+    /* ── Mobile-specific overrides ───────────────────────── */
+    @media (max-width: 640px) {
+      .container { padding: 0 12px; }
+      .header-inner { flex-wrap: wrap; gap: 6px; }
+      .tagline { display: none; }
+      .results-header {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .results-header .btn { margin-left: 0 !important; }
+      .metrics-grid { grid-template-columns: 1fr 1fr; }
+      main { padding: 20px 0 48px; }
+    }
   </style>
 </head>
 <body>

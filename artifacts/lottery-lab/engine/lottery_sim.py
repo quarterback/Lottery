@@ -53,6 +53,8 @@ class MetricsBundle:
     pick_distribution: dict[int, list[float]]  # team_id -> [pct of top-5 picks received]
     effort_by_week: list[float]        # avg effort multiplier per week (bottom-6 teams across all seasons)
     avg_wins_by_rank: list[float]      # avg wins for rank-1..NUM_TEAMS (best to worst)
+    avg_wins_by_team: dict[int, float] = field(default_factory=dict)  # team_id -> avg wins/season
+    pick1_by_team: dict[int, float] = field(default_factory=dict)     # team_id -> % of #1 picks
 
 
 @dataclass
@@ -906,6 +908,23 @@ def compute_metrics(run: RunResult, teams: list[Team]) -> MetricsBundle:
             rank_wins[rank].append(float(wins))
     avg_wins_by_rank = [round(sum(r) / len(r), 1) if r else 0.0 for r in rank_wins]
 
+    # --- Avg wins per team across all seasons ---
+    avg_wins_per_team: dict[int, float] = {}
+    for tid in team_ids:
+        wins_list = [w for season in seasons for t_id, w, _ in season.standings if t_id == tid]
+        avg_wins_per_team[tid] = round(sum(wins_list) / len(wins_list), 1) if wins_list else 0.0
+
+    # --- #1 pick distribution per team ---
+    pick1_counts: dict[int, int] = {tid: 0 for tid in team_ids}
+    for order in draft_orders:
+        if order:
+            pick1_counts[order[0]] = pick1_counts.get(order[0], 0) + 1
+    total_seasons_n = max(len(draft_orders), 1)
+    pick1_by_team = {
+        tid: round(pick1_counts.get(tid, 0) / total_seasons_n * 100, 2)
+        for tid in team_ids
+    }
+
     return MetricsBundle(
         system_name=run.system_name,
         late_season_effort=round(late_season_effort, 4),
@@ -917,6 +936,8 @@ def compute_metrics(run: RunResult, teams: list[Team]) -> MetricsBundle:
         pick_distribution=pick_dist,
         effort_by_week=[round(e, 4) for e in effort_by_week],
         avg_wins_by_rank=avg_wins_by_rank,
+        avg_wins_by_team=avg_wins_per_team,
+        pick1_by_team=pick1_by_team,
     )
 
 
@@ -964,6 +985,18 @@ def monte_carlo(
         vals = [m.avg_wins_by_rank[rank] for m in all_metrics if rank < len(m.avg_wins_by_rank)]
         avg_wins_by_rank.append(round(sum(vals) / len(vals), 1) if vals else 0.0)
 
+    # Average avg_wins_by_team
+    avg_wins_by_team_mc: dict[int, float] = {}
+    for i in range(NUM_TEAMS):
+        vals = [m.avg_wins_by_team.get(i, 0.0) for m in all_metrics]
+        avg_wins_by_team_mc[i] = round(sum(vals) / len(vals), 1) if vals else 0.0
+
+    # Average pick1_by_team
+    avg_pick1_by_team: dict[int, float] = {}
+    for i in range(NUM_TEAMS):
+        vals = [m.pick1_by_team.get(i, 0.0) for m in all_metrics]
+        avg_pick1_by_team[i] = round(sum(vals) / len(vals), 2) if vals else 0.0
+
     return MetricsBundle(
         system_name=system.name,
         late_season_effort=round(avg("late_season_effort"), 4),
@@ -975,6 +1008,8 @@ def monte_carlo(
         pick_distribution=avg_pick_dist,
         effort_by_week=[round(e, 4) for e in avg_effort_by_week],
         avg_wins_by_rank=avg_wins_by_rank,
+        avg_wins_by_team=avg_wins_by_team_mc,
+        pick1_by_team=avg_pick1_by_team,
     )
 
 
