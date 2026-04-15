@@ -4,6 +4,11 @@
   "buildCommand": "mkdir -p public",
   "outputDirectory": "public",
   "installCommand": "echo skip-node-install",
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "artifacts/lottery-lab/**"
+    }
+  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
   ]
