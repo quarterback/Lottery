@@ -30,7 +30,9 @@ STATUS_LOTTERY = "Lottery"
 
 
 def _win_prob(talent: float) -> float:
-    return 1.0 / (1.0 + math.exp(-(talent - 50.0) / 8.0))
+    # Scale=14 calibrated to real NBA: talent 76 ≈ 84% win rate (~69 wins),
+    # talent 50 = 50% (41 wins), talent 18 ≈ 15% (~12 wins).
+    return 1.0 / (1.0 + math.exp(-(talent - 50.0) / 14.0))
 
 
 def _simulate_60_games(talent: float, rng: random.Random) -> tuple[int, int]:
@@ -39,41 +41,73 @@ def _simulate_60_games(talent: float, rng: random.Random) -> tuple[int, int]:
     return wins, GAMES_BEFORE_WINDOW - wins
 
 
+def _pick_bet(chips: float, strategy: str) -> float:
+    if strategy == "aggressive":
+        return BIG_BET
+    elif strategy == "conservative":
+        return MIN_BET
+    return BIG_BET if chips >= 50.0 else MIN_BET
+
+
 def _simulate_chip_window(
     talent: float,
     rng: random.Random,
     strategy: str = "standard",
+    can_double: bool = True,
 ) -> tuple[float, list[float], int, int, bool]:
     """
     Simulate the 22-game chip window.
+
+    Double mechanic (paper-accurate):
+      - Lottery teams only (can_double=False for play-in).
+      - May only be executed at a HOME game, announced pregame.
+      - Optimal play: execute at the last home game where chips > DOUBLE_THRESHOLD.
+      - After executing, remaining games use the doubled chip total as the new base.
+
     Returns (final_chips, trajectory, wins, losses, doubled).
-    trajectory includes chip count after each game (length 22, not including start).
     """
     wp = _win_prob(talent)
-    chips = STARTING_CHIPS
+
+    # Pre-generate all game outcomes and home/away designations in one pass
+    # so we can run two passes without consuming extra RNG calls.
+    outcomes: list[tuple[bool, bool]] = []  # (won, is_home)
+    for _ in range(GAMES_IN_WINDOW):
+        outcomes.append((rng.random() < wp, rng.random() < 0.5))
+
+    # ── Pass 1: find the last eligible home-game double opportunity ──────────
+    if can_double:
+        chips_p1 = float(STARTING_CHIPS)
+        best_double_game: int = -1
+        for g, (won, is_home) in enumerate(outcomes):
+            bet = _pick_bet(chips_p1, strategy)
+            chips_p1 = chips_p1 + bet if won else max(0.0, chips_p1 - bet)
+            if is_home and chips_p1 > DOUBLE_THRESHOLD:
+                best_double_game = g   # keep updating → last eligible home game
+    else:
+        best_double_game = -1
+
+    # ── Pass 2: simulate with double applied at best_double_game ────────────
+    chips = float(STARTING_CHIPS)
     trajectory: list[float] = []
     wins = 0
     losses = 0
+    doubled = False
 
-    for _ in range(GAMES_IN_WINDOW):
-        if strategy == "aggressive":
-            bet = BIG_BET
-        elif strategy == "conservative":
-            bet = MIN_BET
-        else:
-            bet = BIG_BET if chips >= 50.0 else MIN_BET
-
-        if rng.random() < wp:
+    for g, (won, is_home) in enumerate(outcomes):
+        bet = _pick_bet(chips, strategy)
+        if won:
             chips += bet
             wins += 1
         else:
             chips = max(0.0, chips - bet)
             losses += 1
-        trajectory.append(round(chips, 1))
 
-    doubled = chips > DOUBLE_THRESHOLD
-    if doubled:
-        chips *= 2.0
+        # Execute the double at the chosen home game (before recording trajectory)
+        if g == best_double_game and not doubled:
+            chips *= 2.0
+            doubled = True
+
+        trajectory.append(round(chips, 1))
 
     return round(chips, 1), trajectory, wins, losses, doubled
 
@@ -145,9 +179,11 @@ def simulate_chip_window_league(
     rng = random.Random(seed)
 
     talents: list[float] = []
+    # gauss(50, 10) + scale=14 logistic produces realistic NBA win totals:
+    # best teams ~65-69 wins, average ~41 wins, worst ~13-18 wins.
     for _ in range(30):
-        t = rng.gauss(50, 16)
-        talents.append(max(12.0, min(88.0, t)))
+        t = rng.gauss(50, 10)
+        talents.append(max(18.0, min(76.0, t)))
     talents.sort(reverse=True)
 
     titles: dict[int, int] = {i: 0 for i in range(30)}
@@ -161,7 +197,7 @@ def simulate_chip_window_league(
 
         for i in range(30):
             drift = rng.gauss(0, 2.5)
-            t = max(8.0, min(92.0, talents[i] + drift))
+            t = max(18.0, min(76.0, talents[i] + drift))
             w60, l60 = _simulate_60_games(t, rng)
             team_data.append({
                 "id": i,
@@ -195,15 +231,22 @@ def simulate_chip_window_league(
 
         for td in team_data:
             if not td["in_chip_pool"]:
+                # Safe playoff teams still play games 61-82; simulate their record.
+                wp = _win_prob(td["talent"])
+                extra_w = sum(1 for _ in range(GAMES_IN_WINDOW) if rng.random() < wp)
+                extra_l = GAMES_IN_WINDOW - extra_w
                 td["chip_trajectory"] = [STARTING_CHIPS] * GAMES_IN_WINDOW
                 td["chips_end"] = STARTING_CHIPS
+                td["final_wins"] = td["wins_60"] + extra_w
+                td["final_losses"] = td["losses_60"] + extra_l
                 continue
 
-            # Play-In teams have dual incentive to win (playoff seeding + chips),
-            # so they always bet aggressively regardless of the chosen strategy.
-            team_strategy = "aggressive" if td["status"] == STATUS_PLAYIN else strategy
+            # Play-In teams bet aggressively (dual incentive: seeding + chips).
+            # The double mechanic is restricted to confirmed lottery teams only.
+            is_playin = td["status"] == STATUS_PLAYIN
+            team_strategy = "aggressive" if is_playin else strategy
             chips_end, traj, cw, cl, doubled = _simulate_chip_window(
-                td["talent"], rng, strategy=team_strategy
+                td["talent"], rng, strategy=team_strategy, can_double=not is_playin
             )
             td["strategy"] = team_strategy
 
@@ -252,7 +295,7 @@ def simulate_chip_window_league(
         ))
 
         for i in range(30):
-            talents[i] = max(8.0, min(92.0, talents[i] + rng.gauss(0, 1.5)))
+            talents[i] = max(18.0, min(76.0, talents[i] + rng.gauss(0, 1.5)))
 
     leaderboard = []
     for i in range(30):
