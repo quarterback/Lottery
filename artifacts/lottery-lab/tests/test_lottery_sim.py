@@ -299,21 +299,26 @@ def test_two_system_comparison_rendering():
 
 
 def test_historical_data_integrity():
-    """All historical seasons have required keys, 14 lottery teams, and consistent actual_picks."""
+    """All historical seasons have required keys, 14 unique lottery teams, and clean lottery_top4."""
     from data.historical_seasons import HISTORICAL_SEASONS, SEASON_KEYS
 
     assert len(HISTORICAL_SEASONS) == 26, f"Expected 26 seasons, got {len(HISTORICAL_SEASONS)}"
     assert len(SEASON_KEYS) == 26
 
-    required_keys = {"context", "games", "lottery_pick1", "lottery_top4", "lottery_teams", "actual_picks"}
+    required_keys = {"context", "games", "lottery_pick1", "lottery_top4", "lottery_teams"}
     for key, data in HISTORICAL_SEASONS.items():
         missing = required_keys - set(data.keys())
         assert not missing, f"Season {key} missing keys: {missing}"
+
+        # No actual_picks dicts (removed in favour of _compute_actual_order)
+        assert "actual_picks" not in data, \
+            f"Season {key}: stale 'actual_picks' dict found; remove it"
 
         teams = data["lottery_teams"]
         assert len(teams) == 14, f"Season {key} has {len(teams)} lottery teams, expected 14"
 
         max_games = data["games"]
+        team_names_list = []
         for entry in teams:
             assert len(entry) == 3, f"Season {key} team entry should be (name, wins, losses)"
             name, wins, losses = entry
@@ -322,6 +327,13 @@ def test_historical_data_integrity():
                 f"Season {key}: {name} has wins={wins} out of range 0-{max_games}"
             assert isinstance(losses, int) and 0 <= losses <= max_games, \
                 f"Season {key}: {name} has losses={losses} out of range 0-{max_games}"
+            team_names_list.append(name)
+
+        # No duplicate team names in lottery_teams
+        seen_names: set[str] = set()
+        for name in team_names_list:
+            assert name not in seen_names, f"Season {key}: duplicate team '{name}' in lottery_teams"
+            seen_names.add(name)
 
         # No team in lottery_teams should have a very high win total (>55) — such teams
         # would almost certainly have been playoff teams.
@@ -329,66 +341,65 @@ def test_historical_data_integrity():
         assert not high_win_teams, \
             f"Season {key}: suspiciously high win totals (likely playoff teams) in lottery: {high_win_teams}"
 
+        # lottery_pick1 must be in lottery_teams (except TBD for pending seasons)
         pick1 = data["lottery_pick1"]
-        team_names = [t[0] for t in teams]
         if pick1 != "TBD":
-            assert pick1 in team_names, f"Season {key}: lottery_pick1 '{pick1}' not in lottery_teams"
+            assert pick1 in seen_names, f"Season {key}: lottery_pick1 '{pick1}' not in lottery_teams"
 
-        # actual_picks consistency: every key that is in lottery_teams must map to a valid slot
-        actual_picks: dict = data["actual_picks"]
-        if actual_picks:
-            for apname, slot in actual_picks.items():
-                # Expansion team entries (e.g., Charlotte Bobcats in 2003-04) may not be in
-                # lottery_teams — that is intentional and allowed.
-                assert isinstance(slot, int) and 1 <= slot <= 14, \
-                    f"Season {key}: {apname} → slot {slot} out of range"
-            # The #1 pick slot must exist and match lottery_pick1 if defined
-            if pick1 != "TBD":
-                pick1_entries = [n for n, s in actual_picks.items() if s == 1]
-                assert len(pick1_entries) >= 1, \
-                    f"Season {key}: no team assigned slot 1 in actual_picks"
-                assert pick1_entries[0] == pick1 or pick1 in actual_picks, \
-                    f"Season {key}: pick1 '{pick1}' not in actual_picks"
-
-        # No duplicate team names in lottery_teams
-        seen_names: set[str] = set()
-        for name, _, _ in teams:
-            assert name not in seen_names, f"Season {key}: duplicate team '{name}' in lottery_teams"
-            seen_names.add(name)
+        # lottery_top4 integrity: all entries must be in lottery_teams (no traded/expansion picks)
+        top4 = data["lottery_top4"]
+        assert isinstance(top4, list) and len(top4) <= 4, \
+            f"Season {key}: lottery_top4 must be a list of ≤4 names"
+        for pos, name in enumerate(top4, 1):
+            assert name in seen_names, \
+                f"Season {key}: lottery_top4[{pos}]='{name}' not in lottery_teams — " \
+                f"use the next eligible lottery team instead"
 
 
 def test_historical_known_picks():
-    """Spot-check known factual outcomes for famous draft lottery seasons."""
+    """Spot-check known factual outcomes using lottery_pick1 and lottery_top4."""
     from data.historical_seasons import HISTORICAL_SEASONS
+    from web.router import _compute_actual_order
 
     # 2002-03: Cleveland Cavaliers won the lottery, LeBron James
     s = HISTORICAL_SEASONS["2002-03"]
     assert s["lottery_pick1"] == "Cleveland Cavaliers"
-    assert s["actual_picks"]["Cleveland Cavaliers"] == 1
+    assert s["lottery_top4"][0] == "Cleveland Cavaliers"
+    order = _compute_actual_order(s)
+    assert order[0] == "Cleveland Cavaliers", f"Expected Cleveland at #1, got {order[0]}"
 
-    # 2007-08: Derrick Rose, Chicago Bulls picked #1 despite being 9th seed
+    # 2007-08: Derrick Rose, Chicago Bulls
     s = HISTORICAL_SEASONS["2007-08"]
     assert s["lottery_pick1"] == "Chicago Bulls"
-    assert s["actual_picks"]["Chicago Bulls"] == 1
-    assert s["actual_picks"]["Miami Heat"] == 2  # Miami had worst record, got #2
+    assert s["lottery_top4"][0] == "Chicago Bulls"
+    order = _compute_actual_order(s)
+    assert order[0] == "Chicago Bulls"
+    assert order[1] == "Miami Heat", f"Miami (worst 15W) should be #2, got {order[1]}"
 
     # 2018-19: Zion Williamson, New Orleans Pelicans upset
     s = HISTORICAL_SEASONS["2018-19"]
     assert s["lottery_pick1"] == "New Orleans Pelicans"
-    assert s["actual_picks"]["New Orleans Pelicans"] == 1
-    assert s["actual_picks"]["Memphis Grizzlies"] == 2
+    assert s["lottery_top4"][0] == "New Orleans Pelicans"
+    assert s["lottery_top4"][1] == "Memphis Grizzlies"
+    order = _compute_actual_order(s)
+    assert order[0] == "New Orleans Pelicans"
 
     # 2011-12: Anthony Davis, New Orleans Hornets
     s = HISTORICAL_SEASONS["2011-12"]
     assert s["lottery_pick1"] == "New Orleans Hornets"
-    assert s["actual_picks"]["New Orleans Hornets"] == 1
-    assert s["actual_picks"]["Charlotte Bobcats"] == 2
+    assert s["lottery_top4"][0] == "New Orleans Hornets"
+    order = _compute_actual_order(s)
+    assert order[0] == "New Orleans Hornets"
+    assert len(set(order)) == 14, "Duplicate teams in computed order"
 
     # 2023-24: Zaccharie Risacher, Atlanta Hawks — major upset
     s = HISTORICAL_SEASONS["2023-24"]
     assert s["lottery_pick1"] == "Atlanta Hawks"
-    assert s["actual_picks"]["Atlanta Hawks"] == 1
-    assert s["actual_picks"]["Detroit Pistons"] == 5  # worst record, didn't jump
+    assert s["lottery_top4"][0] == "Atlanta Hawks"
+    order = _compute_actual_order(s)
+    assert order[0] == "Atlanta Hawks"
+    # Detroit Pistons (14W, worst) should be near the end of actual_order
+    assert "Detroit Pistons" in order[4:]
 
 
 def test_no_obvious_playoff_teams_in_lottery():

@@ -549,47 +549,28 @@ def _compute_actual_order(season_data: dict) -> list[str]:
     """
     Actual draft order as a 14-element list.
 
-    Strategy (in priority order):
-    1. Use `actual_picks` dict if present (maps team_name → slot number 1-14).
-       Only teams that appear in lottery_teams are included; any entry in
-       actual_picks that isn't in lottery_teams is silently dropped (e.g.,
-       expansion teams or traded picks from playoff squads).
-    2. Fall back to lottery_top4 (deduplicated, valid-names-filtered) +
-       remaining teams by record order (worst first).
+    Builds order from lottery_top4 (the real drawing results, picks 1-4) plus
+    the remaining lottery_teams in ascending-wins order (approximate for picks 5-14).
+    Any lottery_top4 entry not present in lottery_teams is silently skipped
+    (handles expansion/traded picks from outside the lottery pool).
     """
     lottery_teams = season_data["lottery_teams"]
     valid_names = {t[0] for t in lottery_teams}
 
-    # --- Strategy 1: use explicit actual_picks dict ---
-    actual_picks: dict[str, int] = season_data.get("actual_picks", {})
-    if actual_picks:
-        # Keep only picks for teams that are in lottery_teams
-        valid_picks = {name: slot for name, slot in actual_picks.items() if name in valid_names}
-        if valid_picks:
-            # Teams explicitly ranked by their pick slot
-            ranked = sorted(valid_picks.keys(), key=lambda n: valid_picks[n])
-            ranked_set = set(ranked)
-            # Any team in lottery_teams NOT in actual_picks: append by record order
-            remaining = [name for name, _w, _l in lottery_teams if name not in ranked_set]
-            return ranked + remaining
-
-    # --- Strategy 2: fall back to lottery_top4 ---
     top4_raw = season_data.get("lottery_top4", [])
     if not top4_raw and season_data.get("lottery_pick1"):
         top4_raw = [season_data["lottery_pick1"]]
 
-    # Deduplicate while preserving order (a team can only appear once)
+    # Deduplicate while preserving order; only keep teams actually in lottery_teams
     seen: set[str] = set()
-    top4_unique: list[str] = []
+    top4_valid: list[str] = []
     for name in top4_raw:
-        if name not in seen:
-            top4_unique.append(name)
+        if name in valid_names and name not in seen:
+            top4_valid.append(name)
             seen.add(name)
 
-    # Only include teams that are actually in lottery_teams
-    top4_valid = [n for n in top4_unique if n in valid_names]
-    top4_set = set(top4_valid)
-    remaining = [name for name, _w, _l in lottery_teams if name not in top4_set]
+    # Remaining lottery_teams in record order (worst first = ascending wins)
+    remaining = [name for name, _w, _l in lottery_teams if name not in seen]
     return top4_valid + remaining
 
 
@@ -648,9 +629,8 @@ async def historical_run(
     request: Request,
     season_key: str = Form(...),
     systems: list[str] = Form(default=[]),
-    n_runs: int = Form(default=500),
 ):
-    n_runs = max(100, min(2000, n_runs))
+    n_runs = 1000  # fixed server-side for convergence
     season_data = HISTORICAL_SEASONS.get(season_key)
     if not season_data:
         return templates.TemplateResponse(
@@ -680,7 +660,6 @@ async def historical_run(
     sim_results = []
     for system in selected:
         dist = _run_historical_lottery(season_data, system, n_runs=n_runs)
-        most_likely = sorted(dist.keys(), key=lambda name: dist[name].index(max(dist[name])))
 
         rows = []
         lottery_teams = season_data["lottery_teams"]
