@@ -104,6 +104,26 @@
   }
 
   .traj-svg { display: block; }
+
+  .strategy-btn {
+    font-size: 11px; padding: 4px 10px;
+    border: 1px solid var(--border-2);
+    background: var(--bg-2);
+    color: var(--fg-dim);
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background .12s, color .12s;
+  }
+  .strategy-btn.active {
+    background: var(--accent-bg);
+    color: var(--accent);
+    border-color: var(--accent-dim);
+    font-weight: 700;
+  }
+  .strategy-btn:hover:not(.active) {
+    background: var(--bg-alt);
+    color: var(--fg);
+  }
 </style>
 
 <div class="mt-24">
@@ -139,6 +159,16 @@
           style="background:var(--bg-2);border:1px solid var(--border-2);color:var(--fg);font-family:var(--font);font-size:var(--fs);padding:8px 10px;border-radius:var(--radius);width:100%">
         <span class="field-hint">Same seed = same results</span>
       </div>
+      <div class="field" style="min-width:220px">
+        <label>Betting Strategy</label>
+        <div style="display:flex;gap:6px;margin-top:4px" id="strategy-btns">
+          <button type="button" class="btn strategy-btn active" data-val="standard"  onclick="selectStrategy('standard')">Standard</button>
+          <button type="button" class="btn strategy-btn"        data-val="aggressive" onclick="selectStrategy('aggressive')">Aggressive</button>
+          <button type="button" class="btn strategy-btn"        data-val="conservative" onclick="selectStrategy('conservative')">Conservative</button>
+        </div>
+        <span class="field-hint" id="strategy-hint">Adaptive: 25 if ≥50 chips, else 10</span>
+        <input type="hidden" id="cw-strategy" value="standard">
+      </div>
       <div>
         <button type="button" class="btn btn-primary" id="cw-run-btn" onclick="runSim()">
           Run Simulation →
@@ -155,6 +185,10 @@
   <div id="sim-summary" style="display:none;margin-bottom:24px">
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <span id="summary-text" style="font-size:11px;color:var(--fg-dim)"></span>
+      <button type="button" class="btn" id="export-csv-btn" onclick="exportCsv()"
+        style="margin-left:auto;font-size:11px;padding:4px 10px">
+        Export CSV ↓
+      </button>
     </div>
   </div>
 
@@ -267,18 +301,33 @@
 let simData = null;
 let currentSeason = 1;
 
+const STRATEGY_HINTS = {
+  standard:     'Adaptive: wager 25 if ≥50 chips, else 10',
+  aggressive:   'Always wager 25 chips per game',
+  conservative: 'Always wager 10 chips per game',
+};
+
+function selectStrategy(val) {
+  document.getElementById('cw-strategy').value = val;
+  document.getElementById('strategy-hint').textContent = STRATEGY_HINTS[val] || '';
+  document.querySelectorAll('.strategy-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === val);
+  });
+}
+
 async function runSim() {
   const btn = document.getElementById('cw-run-btn');
   const spinner = document.getElementById('cw-spinner');
   btn.disabled = true;
   spinner.style.display = 'flex';
 
-  const form = document.getElementById('cw-form');
   const seasons = document.getElementById('cw-seasons').value;
   const seed = document.getElementById('cw-seed').value;
+  const strategy = document.getElementById('cw-strategy').value;
 
   const body = new URLSearchParams();
   body.append('seasons', seasons);
+  body.append('strategy', strategy);
   if (seed.trim()) body.append('seed', seed.trim());
 
   try {
@@ -294,6 +343,39 @@ async function runSim() {
   }
 }
 
+function exportCsv() {
+  if (!simData) return;
+  const rows = [['Season', 'Rank', 'Team', 'Status', 'Strategy', 'W@60', 'L@60', 'Final W', 'Final L', 'Chips Start', 'Chips End', 'Doubled', 'CW Wins', 'CW Losses', 'Lottery Odds%']];
+  simData.seasons.forEach((s, si) => {
+    const sorted = [...s.teams].sort((a, b) => a.final_rank - b.final_rank);
+    sorted.forEach(t => {
+      rows.push([
+        si + 1,
+        t.final_rank,
+        t.name,
+        t.status,
+        t.strategy || 'none',
+        t.wins_60,
+        t.losses_60,
+        t.final_wins,
+        t.final_losses,
+        t.chips_start,
+        t.chips_end,
+        t.doubled ? 'Yes' : 'No',
+        t.chip_wins,
+        t.chip_losses,
+        t.lottery_odds.toFixed(2),
+      ]);
+    });
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `chip_window_seed${simData.seed}_${simData.strategy}.csv`;
+  a.click();
+}
+
 function renderAll() {
   if (!simData) return;
 
@@ -305,7 +387,7 @@ function renderAll() {
 
   document.getElementById('sim-summary').style.display = 'block';
   document.getElementById('summary-text').textContent =
-    sc + ' seasons · seed ' + simData.seed + ' · 30 teams · 22-game chip window';
+    sc + ' seasons · seed ' + simData.seed + ' · ' + (simData.strategy || 'standard') + ' strategy · 30 teams · 22-game chip window';
 
   document.getElementById('season-nav-wrap').style.display = 'block';
   document.getElementById('standings-section').style.display = 'block';

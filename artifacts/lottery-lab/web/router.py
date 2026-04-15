@@ -814,11 +814,30 @@ async def chip_window_run(
     request: Request,
     seasons: int = Form(default=10),
     seed: Optional[str] = Form(default=None),
+    strategy: str = Form(default="standard"),
 ):
     seasons = max(5, min(15, seasons))
     seed_val: Optional[int] = None
     if seed and seed.strip().isdigit():
         seed_val = int(seed.strip())
+    if strategy not in ("standard", "aggressive", "conservative"):
+        strategy = "standard"
 
-    result = simulate_chip_window_league(seasons=seasons, seed=seed_val)
+    result = simulate_chip_window_league(seasons=seasons, seed=seed_val, strategy=strategy)
     return result_to_json(result)
+
+
+@router.get("/leaderboard", response_class=HTMLResponse)
+async def leaderboard_page(request: Request):
+    """Fan-facing public chip window leaderboard using current season data."""
+    from data.historical_seasons import HISTORICAL_SEASONS
+    season_data = HISTORICAL_SEASONS.get("2025-26", {})
+    lottery_teams = season_data.get("lottery_teams", [])
+    return templates.TemplateResponse(
+        request,
+        "chip_leaderboard.html",
+        {
+            "season_key": "2025-26",
+            "lottery_teams": lottery_teams,
+        },
+    )

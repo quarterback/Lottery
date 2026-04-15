@@ -1,0 +1,581 @@
+{% extends "base.html" %}
+{% block title %}Lottery Lab — Chip Window Leaderboard{% endblock %}
+
+{% block content %}
+<style>
+  .lb-hero {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px 16px;
+    margin-bottom: 20px;
+  }
+  .lb-hero-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+  }
+  .lb-hero-meta {
+    font-size: 11px;
+    color: var(--fg-dim);
+    margin-top: 4px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .live-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ff4444;
+    animation: blink 1.6s ease-in-out infinite;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+  .lb-game-slider-wrap {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin-bottom: 20px;
+  }
+  .lb-game-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-dim);
+  }
+  #game-slider {
+    accent-color: var(--accent);
+    width: 240px;
+  }
+  .game-badge {
+    display: inline-block;
+    background: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent-dim);
+    padding: 3px 10px;
+    border-radius: 2px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .game-record {
+    font-size: 11px; color: var(--fg-faint);
+  }
+
+  .lb-two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media(max-width:860px) { .lb-two-col { grid-template-columns: 1fr; } }
+
+  .lb-panel {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .lb-panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .lb-panel-title {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--fg-dim);
+  }
+  .lb-panel-body {
+    padding: 0;
+  }
+
+  .lb-row {
+    display: grid;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    transition: background .1s;
+  }
+  .lb-row:last-child { border-bottom: none; }
+  .lb-row:hover { background: var(--bg-2); }
+
+  /* Left panel: full standings */
+  .lb-standings-row {
+    grid-template-columns: 28px 1fr 80px 50px;
+  }
+  /* Right panel: chip leaderboard */
+  .lb-chips-row {
+    grid-template-columns: 28px 1fr 90px 60px;
+  }
+
+  .lb-num { font-size: 11px; color: var(--fg-faint); text-align: center; }
+  .lb-num-gold  { color: #f5c518; font-weight: 700; }
+  .lb-num-silv  { color: #aaa; font-weight: 700; }
+  .lb-num-brnz  { color: #cd7f32; font-weight: 700; }
+
+  .lb-team-name { font-size: 12px; font-weight: 600; color: var(--fg); }
+  .lb-record { font-size: 11px; color: var(--fg-faint); text-align: right; }
+
+  .lb-status-pill {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .lb-status-safe    { background: #0d2a0d; color: #4ade80; border: 1px solid #2a6640; }
+  .lb-status-playin  { background: #001a2a; color: #60a5fa; border: 1px solid #1e4060; }
+  .lb-status-lottery { background: #1a0f00; color: #ff8c00; border: 1px solid #a85c00; }
+
+  .chips-bar-wrap { display: flex; align-items: center; gap: 5px; }
+  .chips-bar {
+    height: 7px; border-radius: 1px; min-width: 2px;
+    display: inline-block;
+  }
+  .chips-num {
+    font-size: 11px; color: var(--fg); font-weight: 600;
+    min-width: 30px; text-align: right;
+  }
+  .doubled-pip {
+    display: inline-block;
+    font-size: 9px; padding: 0 4px;
+    background: #1a1200; color: #ccaa44;
+    border: 1px solid #3a2a00;
+    border-radius: 2px;
+  }
+  .odds-num { font-size: 11px; color: var(--fg-dim); text-align: right; }
+
+  /* trajectory chart section */
+  .traj-section {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-top: 20px;
+  }
+  .traj-section-title {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--fg-dim); margin-bottom: 12px;
+  }
+  #traj-svg-lb { display: block; width: 100%; }
+
+  .bottom-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px;
+    margin-top: 20px;
+  }
+  .bottom-meta { font-size: 11px; color: var(--fg-faint); }
+
+  .loading-overlay {
+    text-align: center;
+    padding: 40px;
+    font-size: 12px;
+    color: var(--fg-dim);
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .strategy-info {
+    font-size: 10px; color: var(--fg-faint);
+    border-top: 1px solid var(--border);
+    padding: 6px 12px;
+    display: flex; gap: 12px; flex-wrap: wrap;
+  }
+  .strategy-key { display: flex; align-items: center; gap: 4px; }
+</style>
+
+<div class="mt-24">
+
+  <!-- Hero header -->
+  <div class="lb-hero">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div>
+        <div class="lb-hero-title">
+          <span class="live-dot"></span>Chip Window Standings
+        </div>
+        <div class="lb-hero-meta">2025-26 NBA Season · Chip Window: Games 61 – 82</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--fg-faint)">Monte Carlo Scenario</div>
+        <div id="hero-seed" style="font-size:11px;color:var(--accent);font-weight:600"></div>
+        <button class="btn" onclick="rerunSim()" style="margin-top:6px;font-size:11px;padding:4px 10px">New Scenario</button>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--fg-dim);line-height:1.65;margin-top:12px;margin-bottom:0;max-width:720px">
+      The Chip Window activates at game 60 for all non-top-12 teams. Teams wager chips on each remaining game —
+      a <b style="color:var(--green)">win returns the wager</b>, a <b style="color:var(--red)">loss deducts it</b>.
+      Play-In teams bet aggressively to secure playoff position. Teams with &gt;100 chips at game 82
+      can <b>double</b>. Final chips determine lottery odds — no tanking advantage.
+    </p>
+  </div>
+
+  <!-- Game slider -->
+  <div class="lb-game-slider-wrap">
+    <span class="lb-game-label">Game</span>
+    <input type="range" id="game-slider" min="1" max="22" value="22" step="1"
+      oninput="onGameSlide(this.value)" disabled>
+    <span id="game-badge" class="game-badge">Loading…</span>
+    <span id="game-record" class="game-record"></span>
+    <span style="flex:1"></span>
+    <button class="btn" id="export-btn" onclick="exportCsv()" style="font-size:11px;padding:4px 10px" disabled>
+      Export CSV ↓
+    </button>
+  </div>
+
+  <!-- Loading state -->
+  <div id="loading-state" class="loading-overlay">
+    <div class="spinner"></div>
+    <span>Running 2025-26 chip window scenario…</span>
+  </div>
+
+  <!-- Main content (hidden until loaded) -->
+  <div id="main-content" style="display:none">
+
+    <!-- Two-column panels -->
+    <div class="lb-two-col">
+
+      <!-- Left: Full Standings -->
+      <div class="lb-panel">
+        <div class="lb-panel-header">
+          <span class="lb-panel-title">Full League Standings</span>
+          <span style="font-size:10px;color:var(--fg-faint);margin-left:auto">After game <span id="standings-game-num">82</span></span>
+        </div>
+        <div class="lb-panel-body">
+          <div id="standings-list"></div>
+        </div>
+      </div>
+
+      <!-- Right: Chip Leaderboard -->
+      <div class="lb-panel">
+        <div class="lb-panel-header">
+          <span class="lb-panel-title">Chip Pool Leaderboard</span>
+          <span style="font-size:10px;color:var(--fg-faint);margin-left:auto">After game <span id="chips-game-num">82</span></span>
+        </div>
+        <div class="lb-panel-body">
+          <div id="chips-list"></div>
+        </div>
+        <div class="strategy-info">
+          <div class="strategy-key">
+            <span style="display:inline-block;width:8px;height:8px;background:#ff8c00;border-radius:1px"></span>
+            <span>Lottery — Standard strategy</span>
+          </div>
+          <div class="strategy-key">
+            <span style="display:inline-block;width:8px;height:8px;background:#60a5fa;border-radius:1px"></span>
+            <span>Play-In — Aggressive strategy</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trajectory chart -->
+    <div class="traj-section">
+      <div class="traj-section-title">Chip Trajectories — All Pool Teams</div>
+      <svg id="traj-svg-lb" height="200" viewBox="0 0 900 200" preserveAspectRatio="none"></svg>
+      <div id="traj-legend" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px"></div>
+    </div>
+
+  </div><!-- /main-content -->
+</div>
+
+<script>
+let lbData = null;      // full sim result (1 season)
+let currentGame = 22;   // which game of the chip window we're viewing (1–22)
+
+const GAMES = 22;
+const STARTING_CHIPS = 100;
+const DOUBLE_THRESH = 100;
+
+/* ── Status colours — keys must match engine output ── */
+const STATUS_COLORS = {
+  'Safe Playoff': { bar: '#4ade80', pill: 'lb-status-safe',    label: 'Safe'    },
+  'Play-In':      { bar: '#60a5fa', pill: 'lb-status-playin',  label: 'Play-In' },
+  'Lottery':      { bar: '#ff8c00', pill: 'lb-status-lottery', label: 'Lottery' },
+};
+
+async function runSim(seed) {
+  document.getElementById('loading-state').style.display = 'flex';
+  document.getElementById('main-content').style.display = 'none';
+  document.getElementById('game-slider').disabled = true;
+  document.getElementById('export-btn').disabled = true;
+
+  const body = new URLSearchParams();
+  body.append('seasons', '1');
+  body.append('strategy', 'standard');   // lottery teams = standard; play-in overridden to aggressive in engine
+  if (seed != null) body.append('seed', String(seed));
+
+  try {
+    const resp = await fetch('/chip-window/run', { method: 'POST', body });
+    if (!resp.ok) throw new Error('Server error ' + resp.status);
+    const json = await resp.json();
+    // Use season 0 (only season)
+    lbData = json.seasons[0];
+    lbData._seed = json.seed;
+
+    document.getElementById('hero-seed').textContent = 'Seed #' + json.seed;
+    document.getElementById('game-slider').disabled = false;
+    document.getElementById('export-btn').disabled = false;
+
+    // start at end (game 22 = final standings)
+    currentGame = 22;
+    document.getElementById('game-slider').value = 22;
+
+    renderAll(22);
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('main-content').style.display = 'block';
+  } catch (e) {
+    document.getElementById('loading-state').innerHTML =
+      '<span style="color:var(--red)">Failed to load simulation: ' + e.message + '</span>';
+  }
+}
+
+function rerunSim() {
+  runSim(null);
+}
+
+function onGameSlide(val) {
+  currentGame = parseInt(val);
+  renderAll(currentGame);
+}
+
+/* ── Chip at a given game (0-indexed trajectory) ── */
+function chipsAt(team, gameIdx) {
+  if (!team.in_chip_pool) return null;
+  const traj = team.chip_trajectory;
+  if (!traj || traj.length === 0) return STARTING_CHIPS;
+  const idx = Math.min(gameIdx, traj.length - 1);
+  return traj[idx];
+}
+
+/* ── Render everything ── */
+function renderAll(game) {
+  const gameLabel = 60 + game;
+  document.getElementById('game-badge').textContent = 'Game ' + gameLabel + ' of 82';
+  document.getElementById('game-record').textContent =
+    game === 22 ? '· Final' : '· Chip window game ' + game + ' of 22';
+  document.getElementById('standings-game-num').textContent = gameLabel;
+  document.getElementById('chips-game-num').textContent = gameLabel;
+
+  if (!lbData) return;
+
+  renderStandings(game);
+  renderChips(game);
+  renderTraj(game);
+}
+
+/* ── Left panel: full league standings sorted by wins ── */
+function renderStandings(game) {
+  const teams = [...lbData.teams];
+  // Sort by current wins (at game 60 + partial chip window)
+  // For simplicity, use final_rank (best proxy for standings order at any game)
+  teams.sort((a, b) => a.final_rank - b.final_rank);
+
+  const el = document.getElementById('standings-list');
+  el.innerHTML = '';
+  teams.forEach((t, i) => {
+    const rank = i + 1;
+    const col = STATUS_COLORS[t.status] || STATUS_COLORS['Lottery'];
+    const wins = t.final_wins;
+    const losses = t.final_losses;
+
+    const row = document.createElement('div');
+    row.className = 'lb-row lb-standings-row';
+
+    // rank num
+    let numClass = 'lb-num';
+    if (rank === 1) numClass += ' lb-num-gold';
+    else if (rank === 2) numClass += ' lb-num-silv';
+    else if (rank === 3) numClass += ' lb-num-brnz';
+
+    row.innerHTML = `
+      <div class="${numClass}">${rank}</div>
+      <div>
+        <div class="lb-team-name">${t.name}</div>
+        <span class="lb-status-pill ${col.pill}">${col.label}</span>
+      </div>
+      <div class="lb-record">${wins}–${losses}</div>
+      <div style="text-align:right"></div>
+    `;
+    el.appendChild(row);
+  });
+}
+
+/* ── Right panel: chip pool teams sorted by chips at current game ── */
+function renderChips(game) {
+  const gameIdx = game - 1;  // 0-indexed into trajectory array
+  const poolTeams = lbData.teams.filter(t => t.in_chip_pool);
+
+  // Calculate chips at this game
+  const withChips = poolTeams.map(t => ({
+    ...t,
+    chips_now: chipsAt(t, gameIdx),
+  }));
+  withChips.sort((a, b) => b.chips_now - a.chips_now);
+
+  // Max chips for bar scaling
+  const maxChips = Math.max(...withChips.map(t => t.chips_now), 1);
+
+  const el = document.getElementById('chips-list');
+  el.innerHTML = '';
+  withChips.forEach((t, i) => {
+    const rank = i + 1;
+    const col = STATUS_COLORS[t.status] || STATUS_COLORS['Lottery'];
+    const barW = Math.max(2, Math.round((t.chips_now / Math.max(maxChips, 200)) * 120));
+    const isDoubled = game === 22 && t.doubled;
+    const odds = t.lottery_odds.toFixed(1);
+
+    let numClass = 'lb-num';
+    if (rank === 1) numClass += ' lb-num-gold';
+    else if (rank === 2) numClass += ' lb-num-silv';
+    else if (rank === 3) numClass += ' lb-num-brnz';
+
+    const row = document.createElement('div');
+    row.className = 'lb-row lb-chips-row';
+    row.innerHTML = `
+      <div class="${numClass}">${rank}</div>
+      <div>
+        <div class="lb-team-name">${t.name}${isDoubled ? ' <span class="doubled-pip">2×</span>' : ''}</div>
+        <div class="chips-bar-wrap" style="margin-top:3px">
+          <div class="chips-bar" style="width:${barW}px;background:${col.bar}"></div>
+          <span class="chips-num">${t.chips_now.toFixed(1)}</span>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--fg-faint);text-align:right">
+        ${t.status === 'Play-In' ? '<span style="color:#60a5fa">Aggr</span>' : 'Std'}
+      </div>
+      <div class="odds-num">${game === 22 ? odds + '%' : '—'}</div>
+    `;
+    el.appendChild(row);
+  });
+}
+
+/* ── Trajectory SVG ── */
+const TRAJ_W = 900, TRAJ_H = 200;
+const PAD_L = 30, PAD_R = 10, PAD_T = 10, PAD_B = 24;
+
+function trajX(gameIdx) {
+  return PAD_L + (gameIdx / (GAMES - 1)) * (TRAJ_W - PAD_L - PAD_R);
+}
+function trajY(chips) {
+  const minC = 0, maxC = 250;
+  return PAD_T + (1 - (chips - minC) / (maxC - minC)) * (TRAJ_H - PAD_T - PAD_B);
+}
+
+function renderTraj(highlightGame) {
+  const svg = document.getElementById('traj-svg-lb');
+  svg.innerHTML = '';
+
+  const ns = 'http://www.w3.org/2000/svg';
+
+  // Grid lines
+  [0, 50, 100, 150, 200].forEach(val => {
+    const y = trajY(val);
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', PAD_L); line.setAttribute('x2', TRAJ_W - PAD_R);
+    line.setAttribute('y1', y); line.setAttribute('y2', y);
+    line.setAttribute('stroke', 'var(--border)'); line.setAttribute('stroke-width', '0.5');
+    svg.appendChild(line);
+    const lbl = document.createElementNS(ns, 'text');
+    lbl.setAttribute('x', PAD_L - 4); lbl.setAttribute('y', y + 3);
+    lbl.setAttribute('text-anchor', 'end');
+    lbl.setAttribute('fill', 'var(--fg-faint)');
+    lbl.setAttribute('font-size', '9');
+    lbl.textContent = val;
+    svg.appendChild(lbl);
+  });
+
+  // Double threshold line
+  const dY = trajY(DOUBLE_THRESH);
+  const dLine = document.createElementNS(ns, 'line');
+  dLine.setAttribute('x1', PAD_L); dLine.setAttribute('x2', TRAJ_W - PAD_R);
+  dLine.setAttribute('y1', dY); dLine.setAttribute('y2', dY);
+  dLine.setAttribute('stroke', '#ccaa44'); dLine.setAttribute('stroke-width', '1');
+  dLine.setAttribute('stroke-dasharray', '4,3'); dLine.setAttribute('opacity', '0.5');
+  svg.appendChild(dLine);
+
+  // X-axis game labels (every 5 games)
+  for (let g = 0; g <= GAMES; g += 5) {
+    const x = trajX(g === GAMES ? GAMES - 1 : g);
+    const lbl = document.createElementNS(ns, 'text');
+    lbl.setAttribute('x', x); lbl.setAttribute('y', TRAJ_H - 6);
+    lbl.setAttribute('text-anchor', 'middle');
+    lbl.setAttribute('fill', 'var(--fg-faint)');
+    lbl.setAttribute('font-size', '9');
+    lbl.textContent = 'G' + (60 + (g === GAMES ? g - 1 : g));
+    svg.appendChild(lbl);
+  }
+
+  const poolTeams = lbData ? lbData.teams.filter(t => t.in_chip_pool) : [];
+  const colors = ['#ff8c00','#60a5fa','#f5c518','#4ade80','#f87171','#c084fc','#22d3ee','#fb923c','#a3e635','#e879f9','#34d399','#fbbf24','#818cf8','#f472b6','#6ee7b7','#fca5a5','#a5b4fc','#93c5fd'];
+
+  poolTeams.forEach((t, i) => {
+    const traj = t.chip_trajectory;
+    if (!traj || traj.length === 0) return;
+    const color = colors[i % colors.length];
+
+    let d = '';
+    traj.forEach((chips, gi) => {
+      const x = trajX(gi);
+      const y = trajY(chips);
+      d += (gi === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
+    });
+
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', '1.5');
+    path.setAttribute('opacity', '0.75');
+    svg.appendChild(path);
+  });
+
+  // Highlight vertical line at current game
+  if (highlightGame > 0 && highlightGame <= GAMES) {
+    const hx = trajX(highlightGame - 1);
+    const vline = document.createElementNS(ns, 'line');
+    vline.setAttribute('x1', hx); vline.setAttribute('x2', hx);
+    vline.setAttribute('y1', PAD_T); vline.setAttribute('y2', TRAJ_H - PAD_B);
+    vline.setAttribute('stroke', 'var(--accent)'); vline.setAttribute('stroke-width', '1.5');
+    vline.setAttribute('stroke-dasharray', '4,3'); vline.setAttribute('opacity', '0.8');
+    svg.appendChild(vline);
+  }
+
+  // Legend
+  const legend = document.getElementById('traj-legend');
+  legend.innerHTML = '';
+  poolTeams.forEach((t, i) => {
+    const color = colors[i % colors.length];
+    const el = document.createElement('div');
+    el.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:10px;color:var(--fg-dim)';
+    el.innerHTML = `<span style="display:inline-block;width:16px;height:2px;background:${color};border-radius:1px"></span>${t.name}`;
+    legend.appendChild(el);
+  });
+}
+
+/* ── CSV export ── */
+function exportCsv() {
+  if (!lbData) return;
+  const rows = [['Rank','Team','Status','Strategy','Final W','Final L','Chips Start','Chips End','Doubled','CW Wins','CW Losses','Lottery Odds%']];
+  const sorted = [...lbData.teams.filter(t => t.in_chip_pool)].sort((a,b) => b.chips_end - a.chips_end);
+  sorted.forEach((t, i) => {
+    rows.push([
+      i + 1, t.name, t.status,
+      t.strategy || 'standard',
+      t.final_wins, t.final_losses,
+      t.chips_start, t.chips_end,
+      t.doubled ? 'Yes' : 'No',
+      t.chip_wins, t.chip_losses,
+      t.lottery_odds.toFixed(2),
+    ]);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `chip_window_2025-26_seed${lbData._seed}.csv`;
+  a.click();
+}
+
+/* ── Auto-run on page load ── */
+window.addEventListener('DOMContentLoaded', () => { runSim(null); });
+</script>
+{% endblock %}

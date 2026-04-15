@@ -126,12 +126,19 @@ class SimResult:
     leaderboard: list[dict]
     seed: int
     seasons_count: int
+    strategy: str = "standard"
+
+
+VALID_STRATEGIES = ("standard", "aggressive", "conservative")
 
 
 def simulate_chip_window_league(
     seasons: int = 10,
     seed: Optional[int] = None,
+    strategy: str = "standard",
 ) -> SimResult:
+    if strategy not in VALID_STRATEGIES:
+        strategy = "standard"
     if seed is None:
         seed = random.randint(0, 999999)
 
@@ -192,9 +199,13 @@ def simulate_chip_window_league(
                 td["chips_end"] = STARTING_CHIPS
                 continue
 
+            # Play-In teams have dual incentive to win (playoff seeding + chips),
+            # so they always bet aggressively regardless of the chosen strategy.
+            team_strategy = "aggressive" if td["status"] == STATUS_PLAYIN else strategy
             chips_end, traj, cw, cl, doubled = _simulate_chip_window(
-                td["talent"], rng, strategy="standard"
+                td["talent"], rng, strategy=team_strategy
             )
+            td["strategy"] = team_strategy
 
             if td["status"] == STATUS_PLAYIN and chips_end <= DOUBLE_THRESHOLD:
                 chips_end = round(chips_end + PLAY_IN_BONUS, 1)
@@ -261,6 +272,7 @@ def simulate_chip_window_league(
         leaderboard=leaderboard,
         seed=seed,
         seasons_count=seasons,
+        strategy=strategy,
     )
 
 
@@ -288,6 +300,7 @@ def result_to_json(result: SimResult) -> dict:
                 "final_rank": td.get("final_rank", 30),
                 "playoff": td["playoff"],
                 "lottery_odds": td["lottery_odds"],
+                "strategy": td.get("strategy", "none"),
             })
         seasons_json.append({
             "season_num": s.season_num,
@@ -302,4 +315,5 @@ def result_to_json(result: SimResult) -> dict:
         "leaderboard": result.leaderboard,
         "seed": result.seed,
         "seasons_count": result.seasons_count,
+        "strategy": result.strategy,
     }
