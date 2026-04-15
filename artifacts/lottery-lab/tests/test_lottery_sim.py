@@ -145,10 +145,12 @@ def test_pure_inversion_order():
         season = run.seasons[s_idx]
         lottery = _non_playoff_teams(season)
         wins_map = {tid: w for tid, w, _ in lottery}
-        # All picks in draft_order should be lottery teams
+        # All picks in draft_order must be lottery (non-playoff) teams
         lottery_ids = {t[0] for t in lottery}
         for pick in draft_order:
-            assert pick in lottery_ids or pick not in wins_map, "Non-lottery team in draft order"
+            assert pick in lottery_ids, (
+                f"Pure Inversion season {s_idx}: team {pick} is not a lottery team"
+            )
         # First pick should have >= wins as last pick (inverted order)
         if len(draft_order) >= 2:
             first_pick_wins = wins_map.get(draft_order[0], 0)
