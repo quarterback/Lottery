@@ -230,6 +230,38 @@ def test_draft_order_completeness():
             assert len(set(lottery_section)) == LOTTERY_TEAMS, f"{system.name}: duplicate lottery teams"
 
 
+def test_two_system_comparison_rendering():
+    """Router helpers produce a valid comparison table when two systems are simulated."""
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "web"))
+    from router import build_comparison_rows, make_effort_polyline, make_win_dist_polyline
+
+    m0 = monte_carlo(CurrentNBA(), runs=5, seasons=5, seed=1)
+    m1 = monte_carlo(PureInversion(), runs=5, seasons=5, seed=1)
+
+    rows = build_comparison_rows(m0, m1)
+    # Should return one row per metric
+    assert len(rows) > 0, "Comparison table is empty"
+    for row in rows:
+        assert "label" in row and "v0" in row and "v1" in row and "diff_class" in row, (
+            f"Malformed row: {row}"
+        )
+        assert row["diff_class"] in ("diff-same", "diff-better", "diff-worse"), (
+            f"Unexpected diff class: {row['diff_class']}"
+        )
+
+    # effort polylines should produce valid SVG point strings for each system
+    for m in (m0, m1):
+        poly = make_effort_polyline(m.effort_by_week, "#fff")
+        assert "points" in poly and len(poly["points"]) > 0, "Empty effort polyline"
+        pts = poly["points"].split(" ")
+        assert len(pts) == WEEKS_PER_SEASON, f"Wrong point count: {len(pts)}"
+
+    # win distribution polylines
+    for m in (m0, m1):
+        wd = make_win_dist_polyline(m.avg_wins_by_rank, "#fff")
+        assert "points" in wd and len(wd["points"]) > 0, "Empty win dist polyline"
+
+
 if __name__ == "__main__":
     print("Running smoke tests...")
     test_all_systems_present()
@@ -256,5 +288,8 @@ if __name__ == "__main__":
 
     test_draft_order_completeness()
     print("✓ Draft order completeness")
+
+    test_two_system_comparison_rendering()
+    print("✓ Two-system comparison table + SVG polylines render correctly")
 
     print("\nAll tests passed!")
