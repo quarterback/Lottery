@@ -1,0 +1,119 @@
+# Bid Standardization
+### A Chip-Based Draft Order System to Eliminate Tanking in Professional Sports
+
+---
+
+## Abstract
+
+This paper proposes a novel draft order mechanism, *Bid Standardization*, designed to permanently sever the relationship between losing and draft position in the NBA. Under the current system, non-playoff teams are incentivized to lose games to improve lottery odds — a strategic behavior known as tanking — that harms competitive balance, fan engagement, and league integrity. Prior reform proposals flatten lottery odds or extend multi-year record windows, but none eliminate the core incentive: losing still helps.
+
+Bid Standardization eliminates the draft lottery entirely for non-playoff teams. Instead, draft order among the 14 lottery teams is determined exclusively by final chip totals accumulated during a 22-game chip window beginning at game 60 of the regular season. The team with the most chips earns the first pick. Record is irrelevant to draft position.
+
+Playoff teams retain the current system — picks 15 through 30 are seeded by regular season record and postseason finish.
+
+---
+
+## Core Mechanics
+
+**The chip window opens at game 60** for all 30 teams. Every team receives 100 chips. In each remaining regular-season game, both teams announce their chip wager for that game by noon on game day. Wagers are locked in and public.
+
+**Wager options are 10 or 25 chips.** The minimum wager is 10 — there is no zero bid. A team cannot sit out the chip competition.
+
+**The pot is both teams' wagers combined.** If New Orleans bids 50 and Atlanta bids 19, there are 69 chips in play. The winner receives the full 69-chip pot added to their total. The loser loses only their own stake — Atlanta loses 19, New Orleans loses nothing if they win.
+
+**The double:** Once per season, a team with at least 100 chips may declare a double on a home game, announced pregame. The double multiplies their wager for that game. Opponents know in advance and can adjust their own bid accordingly — including bidding aggressively to inflate the pot and deny the windfall. A playoff team with pick swap exposure has direct financial incentive to bid high against a lottery team attempting a double.
+
+**Chip totals can grow well above 100.** A team that wins consistently against aggressive opponents can accumulate 300, 400, or more chips. Running the table against high-bidding opponents produces the best draft position. This is intentional — it rewards winning, not record.
+
+**The odds floor is 7% for all 14 lottery teams** if a lottery is retained as an interim measure. But the full model removes the lottery entirely. Final chip standings among lottery teams are the draft order. Most chips picks first.
+
+**All 30 teams participate in the chip pool.** Playoff teams play for chips because their chip position affects the value of picks they own or owe from other franchises. A team holding a swap right on a lottery team's pick has direct incentive to bid aggressively against that team — denying them chips keeps the swappable pick higher. This gives playoff teams genuine stakes in chip window games that would otherwise be meaningless late-season contests.
+
+---
+
+## Why Game 60
+
+The chip window activates at game 60 — not upon elimination. With the play-in tournament keeping 20 of 30 teams in contention until late March, formal elimination almost never occurs before game 65, making elimination-based triggers impractical. More importantly, game 60 is precisely when tanking and load management behavior historically becomes organizationally visible. The chip clock intercepts this moment directly. Teams that were going to go quiet now have a public wager to announce every game.
+
+---
+
+## Why This Eliminates Tanking
+
+Under the current system, losing improves draft position. Under Bid Standardization, losing depletes chips. A team that loses every chip window game on minimum bids ends the season near zero chips and picks last among lottery teams — regardless of how bad their record is. The worst record in the league no longer guarantees the best pick. It guarantees nothing.
+
+The minimum wager rule closes the passive loophole. A team cannot bid zero and coast. Every game costs something. Deliberate losing is structurally identical to incompetent losing — both drain chips at the same rate, and neither produces draft upside.
+
+---
+
+## Roster Rules: G-League Call-Ups Within the Chip Window
+
+Teams operating within the chip window may call up players from their G-League affiliate on standard 10-day contracts without those players counting against the 15-man roster limit — analogous to September call-up rules in MLB. This applies only to players already within the organization's G-League affiliate system. External 10-day signings follow standard roster rules.
+
+The practical effect: a chip-depleted team can add depth and competitive players without forcing difficult roster decisions or waiving existing players under contract. The flexibility rewards organizational investment in affiliates and creates a legitimate pathway for fringe players to earn visibility in high-stakes late-season games. Teams already have the ability to sign 10-day players — what changes is the motivation. The player now has defined draft consequences attached to his performance.
+
+---
+
+## Pick Swaps, Protections, and Playoff Team Stakes
+
+NBA draft picks are routinely traded with attached conditions — swap rights, top-end protections, convey triggers tied to playoff outcomes. Under the current system, a playoff team playing a late-season game against a lottery team has limited stakes beyond seeding. Under Bid Standardization, that changes.
+
+A playoff team holding a swap right on a lottery team's pick wants that team to finish lower in chip standings — a worse chip position means a higher pick to swap into. A playoff team that owes a pick to another franchise wants chip chaos that buries their obligation. Both create calculable incentives for playoff teams in chip window games.
+
+Front offices will model these matchups. Beat reporters will cover them. The gamesmanship is public, legible, and tied to real draft capital.
+
+---
+
+## The Leaderboard
+
+The chip leaderboard is updated after every chip window game and displayed for all 30 teams. Fans can track:
+
+- Current chip total for every team
+- Each team's upcoming opponent and both teams' announced wagers
+- The pot size for each game
+- Draft position implications for lottery teams based on current standings
+- How close a team is to passing the team above them given remaining games and wager options
+
+The leaderboard functions like a NASCAR Chase or golf standings — position relative to the field matters more than absolute totals. A team sitting 40 chips behind third place with five games remaining knows exactly what combination of results closes the gap. That is the magic number. It is legible, followable, and generates daily coverage during a stretch of the season that currently produces none.
+
+Wager announcements at noon on game days become their own news cycle. A team announcing a 25-chip bid signals aggression. A team announcing 10 signals conservation or chip protection. Both are stories. Both drive engagement before tip-off.
+
+---
+
+## Matchup Stakes Created by the Chip Window
+
+The 22-game chip window creates four distinct matchup types, each with its own narrative:
+
+```
+Matchup Type                      Stakes
+--------------------------------  ------------------------------------------------
+Two lottery teams                 Direct draft position competition; both wagers
+                                  public; one team's gain is the other's loss
+Lottery team vs. play-in team     Seeding + chip accumulation in conflict;
+                                  play-in team must balance both
+Playoff team vs. lottery team     Pick swap and protection implications;
+                                  playoff team has financial stake in chip outcome
+Playoff team vs. playoff team     Pure chip economics; who owns what picks
+                                  from whom determines aggression level
+```
+
+---
+
+## Draft Order: Final Structure
+
+```
+Picks 1-14    Lottery teams, seeded by final chip window totals
+              Most chips = Pick 1. Record irrelevant.
+
+Picks 15-30   Playoff teams, seeded by regular season record
+              and postseason finish per current rules.
+```
+
+Play-in teams that miss the playoffs are treated as lottery teams and enter the chip-based draft seeding. Play-in teams that advance to the playoffs slot into picks 15-30 per current rules.
+
+---
+
+## What This Model Is
+
+Bid Standardization sits between two more radical positions: eliminating the draft entirely and allowing all incoming players to enter free agency, or retaining the current lottery with incremental reforms. It preserves the draft as a mechanism for talent distribution while severing the tanking incentive completely. Teams cannot game their way to a high pick. They have to win their way there.
+
+The chip window also transforms the least-watched stretch of the NBA season into a legitimate competition with defined stakes, daily news hooks, and emergent drama at every level of the standings. That is not a side effect of the model. It is the point.
