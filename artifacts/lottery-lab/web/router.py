@@ -130,6 +130,42 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
             "The double mechanic (≥ 100 chips) can further amplify a strong window performance."
         ),
     },
+    "The Wheel": {
+        "desc": (
+            "Every team cycles through all 30 pick positions on a fixed 30-year rotation. "
+            "No randomness — each team's draft slot is known years in advance. "
+            "Tanking is completely pointless because record has zero impact on draft position."
+        ),
+        "odds": None,
+        "odds_note": "Deterministic. Draft slot is pre-assigned by rotation; all teams pick 1st exactly once every 30 years.",
+    },
+    "Pre-2019 Legacy NBA": {
+        "desc": (
+            "The original NBA lottery system in use before 2019. The worst team receives 25% odds for pick #1, "
+            "the 2nd-worst 19.9%, the 3rd-worst 15.6%, tapering sharply to 0.5% at slot 14. "
+            "Only picks 1–3 are drawn by lottery; picks 4–14 follow record order."
+        ),
+        "odds": [25.0, 19.9, 15.6, 11.9, 8.8, 6.3, 4.3, 2.8, 1.7, 1.1, 0.8, 0.7, 0.6, 0.5],
+        "odds_note": "Authentic pre-2019 odds. Only the top 3 picks are drawn by lottery; pick 4+ go strictly by record.",
+    },
+    "Equal Odds": {
+        "desc": (
+            "All 14 lottery teams have exactly equal 7.14% odds for the #1 pick. "
+            "Picks 1–4 are drawn by equal-weight lottery; picks 5–14 go strictly by record (worst first). "
+            "Maximally random — record has no bearing whatsoever on landing a top-4 pick."
+        ),
+        "odds": [round(100 / 14, 1)] * 14,
+        "odds_note": "Picks 1–4 are drawn by equal-weight lottery from all 14 teams. Picks 5–14 go by record.",
+    },
+    "Top-4 Only Lottery": {
+        "desc": (
+            "Only the 4 worst teams by record enter a weighted lottery for picks 1–4. "
+            "The worst team gets the most lottery weight (40%), tapering to 10% for the 4th-worst. "
+            "Teams ranked 5–14 receive picks 5–14 in strict record order."
+        ),
+        "odds": [40.0, 30.0, 20.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "odds_note": "Only the 4 worst teams enter the lottery. Weights: 40/30/20/10% (worst to 4th-worst). Slots 5–14 get picks 5–14 by record.",
+    },
 }
 
 

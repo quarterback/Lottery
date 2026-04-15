@@ -1113,6 +1113,133 @@ class ChipWindow:
 
 
 # ---------------------------------------------------------------------------
+# System 10: The Wheel
+# ---------------------------------------------------------------------------
+
+class TheWheel:
+    name = "The Wheel"
+
+    def draft_order(self, history, constraints, rng):
+        season = history[-1]
+        lottery = _non_playoff_teams(season)  # worst first
+        year = constraints.current_year
+
+        # Each team's wheel slot for this year: (team_id + year) % 30
+        # Lower slot = earlier pick
+        def wheel_slot(tid):
+            return (tid + year) % 30
+
+        # Sort lottery teams by wheel slot ascending (lowest slot = pick 1)
+        sorted_by_slot = sorted(lottery, key=lambda t: wheel_slot(t[0]))
+        return [t[0] for t in sorted_by_slot]
+
+    def tank_incentive(self, team_id, standings, history):
+        # Completely deterministic — record has zero effect on draft position
+        return 0.0
+
+
+# ---------------------------------------------------------------------------
+# System 11: Pre-2019 Legacy NBA
+# ---------------------------------------------------------------------------
+
+# Original NBA lottery odds table (worst to best, 14 slots)
+LEGACY_NBA_ODDS = [25.0, 19.9, 15.6, 11.9, 8.8, 6.3, 4.3, 2.8, 1.7, 1.1, 0.8, 0.7, 0.6, 0.5]
+LEGACY_LOTTERY_PICKS = 3  # pre-2019 drew only 3 lottery picks
+
+
+class LegacyNBA:
+    name = "Pre-2019 Legacy NBA"
+
+    def draft_order(self, history, constraints, rng):
+        season = history[-1]
+        lottery = _non_playoff_teams(season)  # worst first
+        weights = {lottery[i][0]: LEGACY_NBA_ODDS[i] for i in range(len(lottery))}
+        lottery_picks = weighted_lottery_draw(weights, min(LEGACY_LOTTERY_PICKS, len(weights)), rng)
+        remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
+        wins_map = {t[0]: t[1] for t in lottery}
+        remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst first (picks 4+)
+        return lottery_picks + remaining_sorted
+
+    def tank_incentive(self, team_id, standings, history):
+        if not history:
+            return 0.6
+        rank = _rank_by_wins_asc(history[-1], team_id)
+        # 25% vs 19.9% vs 15.6% — big spread at top, huge incentive for #1 slot
+        if rank == 1:
+            return 0.95
+        elif rank <= 3:
+            return 0.85
+        elif rank <= 6:
+            return 0.55
+        elif rank <= 10:
+            return 0.25
+        return 0.1
+
+
+# ---------------------------------------------------------------------------
+# System 12: Equal Odds
+# ---------------------------------------------------------------------------
+
+class EqualOdds:
+    name = "Equal Odds"
+
+    def draft_order(self, history, constraints, rng):
+        season = history[-1]
+        lottery = _non_playoff_teams(season)  # worst first
+        # Picks 1-4 drawn by equal-weight lottery from all 14 teams.
+        # Picks 5-14 go strictly by record (worst first).
+        weights = {t[0]: 1.0 for t in lottery}
+        lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
+        remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
+        wins_map = {t[0]: t[1] for t in lottery}
+        remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst first
+        return lottery_picks + remaining_sorted
+
+    def tank_incentive(self, team_id, standings, history):
+        # Equal odds for all 14 teams — no benefit from losing
+        return 0.05
+
+
+# ---------------------------------------------------------------------------
+# System 13: Top-4 Only Lottery
+# ---------------------------------------------------------------------------
+
+class TopFourOnly:
+    name = "Top-4 Only Lottery"
+
+    def draft_order(self, history, constraints, rng):
+        season = history[-1]
+        lottery = _non_playoff_teams(season)  # worst first
+        # Only the 4 worst teams enter a weighted lottery for picks 1-4.
+        # Worst team gets the highest weight (rank 1=4pts, rank 2=3pts, rank 3=2pts, rank 4=1pt).
+        # Teams 5-14 receive picks 5-14 strictly by record.
+        top4 = lottery[:4]   # 4 worst teams (worst first)
+        rest = lottery[4:]   # remaining 10 teams
+
+        # Rank-based weights: worst team gets largest weight
+        weights = {top4[i][0]: float(4 - i) for i in range(len(top4))}
+        lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
+
+        wins_map = {t[0]: t[1] for t in lottery}
+        rest_sorted = sorted([t[0] for t in rest], key=lambda tid: wins_map[tid])  # worst first
+        return lottery_picks + rest_sorted
+
+    def tank_incentive(self, team_id, standings, history):
+        if not history:
+            return 0.4
+        rank = _rank_by_wins_asc(history[-1], team_id)
+        # Within pool: worst team has the best odds (40%), so there is incentive to be #1 worst.
+        # Teams 5-6 on the bubble have strong incentive to tank into the pool.
+        if rank == 1:
+            return 0.85  # best odds in pool (40%)
+        elif rank <= 4:
+            return 0.65  # in the pool, decreasing benefit
+        elif rank <= 6:
+            return 0.75  # on the bubble — strong incentive to tank in
+        return 0.05  # no benefit once outside top-4
+
+
+# ---------------------------------------------------------------------------
 # All systems registry
 # ---------------------------------------------------------------------------
 
@@ -1126,6 +1253,10 @@ ALL_SYSTEMS: list[LotterySystem] = [
     PureInversion(),
     GoldPlan(),
     ChipWindow(),
+    TheWheel(),
+    LegacyNBA(),
+    EqualOdds(),
+    TopFourOnly(),
 ]
 
 SYSTEM_MAP: dict[str, LotterySystem] = {s.name: s for s in ALL_SYSTEMS}
