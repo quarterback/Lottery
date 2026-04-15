@@ -116,16 +116,17 @@
       <text x="{{ effort_meta.mid_x }}" y="{{ effort_meta.pad_t - 1 }}"
             fill="#444" font-family="monospace" font-size="9" text-anchor="middle">mid-season</text>
 
-      {% for poly in effort_polylines %}
-      <polyline points="{{ poly.points }}"
-                fill="none" stroke="{{ poly.color }}"
-                stroke-width="1.5" opacity="0.9"/>
+      {% for bars in effort_bars %}
+      {% for r in bars %}
+      <rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}"
+            fill="{{ r.color }}" opacity="0.75" rx="1"/>
+      {% endfor %}
       {% endfor %}
     </svg>
     <div class="chart-legend">
-      {% for poly in effort_polylines %}
+      {% for bars in effort_bars %}
       <div class="legend-item">
-        <div class="legend-dot" style="background:{{ poly.color }}"></div>
+        <div class="legend-dot" style="background:{{ bars[0].color if bars else '#888' }}"></div>
         {{ results[loop.index0].system_name }}
       </div>
       {% endfor %}
@@ -160,16 +161,17 @@
       <text x="{{ win_dist_meta.cutoff_x }}" y="{{ win_dist_meta.pad_t - 1 }}"
             fill="#444" font-family="monospace" font-size="9" text-anchor="middle">playoff cut</text>
 
-      {% for poly in win_dist_polylines %}
-      <polyline points="{{ poly.points }}"
-                fill="none" stroke="{{ poly.color }}"
-                stroke-width="1.5" opacity="0.9"/>
+      {% for bars in win_dist_bars %}
+      {% for r in bars %}
+      <rect x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}"
+            fill="{{ r.color }}" opacity="0.75" rx="1"/>
+      {% endfor %}
       {% endfor %}
     </svg>
     <div class="chart-legend">
-      {% for poly in win_dist_polylines %}
+      {% for bars in win_dist_bars %}
       <div class="legend-item">
-        <div class="legend-dot" style="background:{{ poly.color }}"></div>
+        <div class="legend-dot" style="background:{{ bars[0].color if bars else '#888' }}"></div>
         {{ results[loop.index0].system_name }}
       </div>
       {% endfor %}

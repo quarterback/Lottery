@@ -210,17 +210,21 @@ class PlayInBoost:
     def draft_order(self, history, constraints, rng):
         season = history[-1]
         lottery = _non_playoff_teams(season)  # worst first
-        # Play-in teams: teams 13-16 in overall standings = roughly the last 2-4 lottery teams
-        # (best 2-4 non-playoff teams get boosted odds)
         n = len(lottery)
+        play_in_count = min(PLAY_IN_SLOTS, n)
+        floor_count = n - play_in_count
+        # Play-in teams (best non-playoff, indices floor_count..n-1) get the TOP odds.
+        # Floor teams (worst non-playoff, indices 0..floor_count-1) get the LOWER odds.
+        # This ensures play-in teams have equal-or-better odds than any floor team.
         weights = {}
         for i, (tid, wins, _) in enumerate(lottery):
-            rank = i + 1  # 1=worst
-            if rank >= n - 3:  # top 4 non-playoff = play-in teams
-                # Play-in boost: give them base NBA odds as if they were middle teams
-                weights[tid] = NBA_ODDS[6]  # ~7.5%
-            else:
-                weights[tid] = NBA_ODDS[min(i, len(NBA_ODDS) - 1)]
+            if i >= floor_count:  # play-in team
+                # Within play-in: best team gets highest odds (reverse within group)
+                within = (n - 1 - i)          # 0 = best play-in, play_in_count-1 = worst play-in
+                weights[tid] = NBA_ODDS[min(within, len(NBA_ODDS) - 1)]
+            else:  # floor team: gets odds starting at play_in_count offset
+                within = floor_count - 1 - i  # 0 = best floor, floor_count-1 = worst floor
+                weights[tid] = NBA_ODDS[min(play_in_count + within, len(NBA_ODDS) - 1)]
         lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
         wins_map = {t[0]: t[1] for t in lottery}

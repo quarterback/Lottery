@@ -178,6 +178,40 @@ def test_flat_bottom_uniform_incentive():
     assert flat_metrics.gini_top5 >= 0
 
 
+def test_play_in_boost_odds_ordering():
+    """Play-In Boost: play-in teams should get pick #1 more often than floor teams.
+    Under PlayInBoost, play-in teams have the highest lottery odds, so across many
+    seasons the 4 best non-playoff teams (play-in) should dominate the #1 pick.
+    """
+    from engine.lottery_sim import _non_playoff_teams, PLAY_IN_SLOTS
+    system = PlayInBoost()
+    # Use 200 seasons for a statistically stable signal (play-in teams have ~54.5% weight)
+    run = simulate_run(system, seasons=200, seed=42)
+
+    play_in_top1 = 0
+    floor_top1 = 0
+    for s_idx, draft_order in enumerate(run.draft_orders):
+        if not draft_order:
+            continue
+        pick1 = draft_order[0]
+        season = run.seasons[s_idx]
+        lottery = _non_playoff_teams(season)
+        n = len(lottery)
+        floor_ids = {t[0] for t in lottery[:n - PLAY_IN_SLOTS]}
+        play_in_ids = {t[0] for t in lottery[n - PLAY_IN_SLOTS:]}
+        if pick1 in play_in_ids:
+            play_in_top1 += 1
+        elif pick1 in floor_ids:
+            floor_top1 += 1
+
+    # Play-in teams collectively hold ~54.5% of lottery weight vs ~45.5% for floor teams.
+    # Over 200 seasons the play-in group should win more #1 picks than the floor group.
+    assert play_in_top1 > floor_top1, (
+        f"Play-In Boost: play-in teams got {play_in_top1} #1 picks vs "
+        f"floor teams' {floor_top1} — play-in teams should dominate over 200 seasons"
+    )
+
+
 def test_late_season_effort_semantics():
     """
     Effort metric uses bottom-6 teams only.
@@ -233,13 +267,12 @@ def test_draft_order_completeness():
 def test_two_system_comparison_rendering():
     """Router helpers produce a valid comparison table when two systems are simulated."""
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "web"))
-    from router import build_comparison_rows, make_effort_polyline, make_win_dist_polyline
+    from router import build_comparison_rows, make_effort_bars, make_win_dist_bars
 
     m0 = monte_carlo(CurrentNBA(), runs=5, seasons=5, seed=1)
     m1 = monte_carlo(PureInversion(), runs=5, seasons=5, seed=1)
 
     rows = build_comparison_rows(m0, m1)
-    # Should return one row per metric
     assert len(rows) > 0, "Comparison table is empty"
     for row in rows:
         assert "label" in row and "v0" in row and "v1" in row and "diff_class" in row, (
@@ -249,17 +282,18 @@ def test_two_system_comparison_rendering():
             f"Unexpected diff class: {row['diff_class']}"
         )
 
-    # effort polylines should produce valid SVG point strings for each system
-    for m in (m0, m1):
-        poly = make_effort_polyline(m.effort_by_week, "#fff")
-        assert "points" in poly and len(poly["points"]) > 0, "Empty effort polyline"
-        pts = poly["points"].split(" ")
-        assert len(pts) == WEEKS_PER_SEASON, f"Wrong point count: {len(pts)}"
+    # Effort bar rects: one rect per week, each with x/y/w/h/color
+    for s_idx, m in enumerate((m0, m1)):
+        bars = make_effort_bars(m.effort_by_week, "#fff", s_idx, 2)
+        assert len(bars) == WEEKS_PER_SEASON, f"Wrong bar count: {len(bars)}"
+        for b in bars:
+            assert all(k in b for k in ("x", "y", "w", "h", "color")), f"Malformed bar: {b}"
+            assert b["h"] >= 0, "Negative bar height"
 
-    # win distribution polylines
-    for m in (m0, m1):
-        wd = make_win_dist_polyline(m.avg_wins_by_rank, "#fff")
-        assert "points" in wd and len(wd["points"]) > 0, "Empty win dist polyline"
+    # Win distribution bar rects: one rect per rank (30 ranks)
+    for s_idx, m in enumerate((m0, m1)):
+        bars = make_win_dist_bars(m.avg_wins_by_rank, "#fff", s_idx, 2)
+        assert len(bars) == NUM_TEAMS, f"Wrong bar count: {len(bars)}"
 
 
 if __name__ == "__main__":
@@ -279,6 +313,9 @@ if __name__ == "__main__":
 
     test_monte_carlo_smoke()
     print("✓ Monte Carlo runs")
+
+    test_play_in_boost_odds_ordering()
+    print("✓ Play-In Boost: play-in teams get more #1 picks than floor teams")
 
     test_late_season_effort_semantics()
     print("✓ Late-season effort semantics (bottom-6 cohort, Pure Inversion > CurrentNBA)")

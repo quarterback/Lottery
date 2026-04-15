@@ -35,7 +35,8 @@ def make_bar_rows(metrics: MetricsBundle, top_n: int = 14) -> list[dict]:
     return rows[:top_n]
 
 
-def make_effort_polyline(week_efforts: list[float], color: str) -> dict:
+def make_effort_bars(week_efforts: list[float], color: str, series_idx: int, n_series: int) -> list[dict]:
+    """Return bar rect specs for the effort chart (one rect per week)."""
     chart_w, chart_h = 800, 180
     pad_l, pad_r, pad_t, pad_b = 36, 16, 12, 24
     inner_w = chart_w - pad_l - pad_r
@@ -43,12 +44,20 @@ def make_effort_polyline(week_efforts: list[float], color: str) -> dict:
     min_v, max_v = 0.4, 1.05
     span = max_v - min_v
     n = len(week_efforts)
-    points = []
+    group_w = inner_w / max(n, 1)
+    bar_w = group_w * 0.85 / max(n_series, 1)
+    x_offset = (group_w - bar_w * n_series) / 2 + series_idx * bar_w
+    bottom_y = pad_t + inner_h
+    rects = []
     for i, eff in enumerate(week_efforts):
-        x = pad_l + (i / max(n - 1, 1)) * inner_w
-        y = pad_t + inner_h * (1.0 - (max(min_v, min(max_v, eff)) - min_v) / span)
-        points.append(f"{x:.1f},{y:.1f}")
-    return {"points": " ".join(points), "color": color}
+        clamped = max(min_v, min(max_v, eff))
+        bar_h = inner_h * (clamped - min_v) / span
+        x = pad_l + i * group_w + x_offset
+        rects.append({
+            "x": round(x, 1), "y": round(bottom_y - bar_h, 1),
+            "w": round(max(bar_w - 1, 1), 1), "h": round(bar_h, 1), "color": color,
+        })
+    return rects
 
 
 def make_pick_svg_bar(pct: float, max_pct: float, color: str, width: int = 80) -> str:
@@ -95,19 +104,27 @@ def build_comparison_rows(m0: MetricsBundle, m1: MetricsBundle) -> list[dict]:
     return rows
 
 
-def make_win_dist_polyline(avg_wins_by_rank: list[float], color: str) -> dict:
+def make_win_dist_bars(avg_wins_by_rank: list[float], color: str, series_idx: int, n_series: int) -> list[dict]:
+    """Return bar rect specs for the win distribution chart (one rect per rank)."""
     chart_w, chart_h = 800, 180
     pad_l, pad_r, pad_t, pad_b = 36, 16, 12, 24
     inner_w = chart_w - pad_l - pad_r
     inner_h = chart_h - pad_t - pad_b
     max_v = float(GAMES_PER_SEASON)
     n = len(avg_wins_by_rank)
-    points = []
+    group_w = inner_w / max(n, 1)
+    bar_w = group_w * 0.85 / max(n_series, 1)
+    x_offset = (group_w - bar_w * n_series) / 2 + series_idx * bar_w
+    bottom_y = pad_t + inner_h
+    rects = []
     for i, wins in enumerate(avg_wins_by_rank):
-        x = pad_l + (i / max(n - 1, 1)) * inner_w
-        y = pad_t + inner_h * (1.0 - max(0.0, min(max_v, wins)) / max_v)
-        points.append(f"{x:.1f},{y:.1f}")
-    return {"points": " ".join(points), "color": color}
+        bar_h = inner_h * max(0.0, min(max_v, wins)) / max_v
+        x = pad_l + i * group_w + x_offset
+        rects.append({
+            "x": round(x, 1), "y": round(bottom_y - bar_h, 1),
+            "w": round(max(bar_w - 1, 1), 1), "h": round(bar_h, 1), "color": color,
+        })
+    return rects
 
 
 def build_win_dist_chart_meta() -> dict:
@@ -205,8 +222,9 @@ async def simulate(
     elapsed = round(time.perf_counter() - t0, 2)
 
     bar_rows_list = [make_bar_rows(m) for m in results]
-    effort_polylines = [
-        make_effort_polyline(m.effort_by_week, CHART_COLORS[i])
+    n_series = len(results)
+    effort_bars = [
+        make_effort_bars(m.effort_by_week, CHART_COLORS[i], i, n_series)
         for i, m in enumerate(results)
     ]
 
@@ -219,8 +237,8 @@ async def simulate(
             for row in rows
         ])
 
-    win_dist_polylines = [
-        make_win_dist_polyline(m.avg_wins_by_rank, CHART_COLORS[i])
+    win_dist_bars = [
+        make_win_dist_bars(m.avg_wins_by_rank, CHART_COLORS[i], i, n_series)
         for i, m in enumerate(results)
     ]
     win_dist_meta = build_win_dist_chart_meta()
@@ -321,9 +339,9 @@ async def simulate(
             "metric_cards": metric_cards,
             "pick_tables": pick_tables,
             "pick_chart_svg": pick_chart_svg,
-            "effort_polylines": effort_polylines,
+            "effort_bars": effort_bars,
             "effort_meta": effort_meta,
-            "win_dist_polylines": win_dist_polylines,
+            "win_dist_bars": win_dist_bars,
             "win_dist_meta": win_dist_meta,
             "elapsed": elapsed,
             "runs": runs,
