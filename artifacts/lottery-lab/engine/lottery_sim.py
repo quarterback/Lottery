@@ -728,7 +728,6 @@ def simulate_season(
 def simulate_run(
     system: LotterySystem,
     seasons: int = 15,
-    games_per_season: int = 82,
     seed: int | None = None,
 ) -> RunResult:
     rng = random.Random(seed)
