@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import json
 import random
 import time
 from pathlib import Path
 from fastapi import APIRouter, Request, Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from typing import Optional
 
+from engine.chip_window_sim import simulate_chip_window_league, result_to_json
 from engine.lottery_sim import (
     ALL_SYSTEMS,
     SYSTEM_MAP,
@@ -794,3 +796,29 @@ async def historical_run(
             "chip_lb": chip_lb,
         },
     )
+
+
+# ── Chip Window Simulator routes ─────────────────────────────────────────────
+
+@router.get("/chip-window", response_class=HTMLResponse)
+async def chip_window_page(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "chip_window.html",
+        {"default_seasons": 10, "default_seed": ""},
+    )
+
+
+@router.post("/chip-window/run", response_class=JSONResponse)
+async def chip_window_run(
+    request: Request,
+    seasons: int = Form(default=10),
+    seed: Optional[str] = Form(default=None),
+):
+    seasons = max(5, min(15, seasons))
+    seed_val: Optional[int] = None
+    if seed and seed.strip().isdigit():
+        seed_val = int(seed.strip())
+
+    result = simulate_chip_window_league(seasons=seasons, seed=seed_val)
+    return result_to_json(result)
