@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "mkdir -p public",
+  "buildCommand": "mkdir -p public && printf '<!doctype html><meta http-equiv=refresh content=\"0;url=/\">' > public/index.html",
   "outputDirectory": "public",
   "installCommand": "echo skip-node-install",
   "functions": {
