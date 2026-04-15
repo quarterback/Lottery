@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Lottery Lab — Results{% endblock %}
+
+{% block content %}
+<div class="mt-24">
+
+  <div class="results-header">
+    <span class="results-title">Simulation Results</span>
+    <span class="results-meta">{{ runs }} runs × {{ seasons }} seasons · {{ elapsed }}s</span>
+    <a href="/" class="btn btn-secondary" style="margin-left:auto;padding:6px 14px;font-size:11px;">← New Run</a>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px;">
+    {% for r in results %}
+    <span class="system-badge badge-{{ loop.index0 }}">{{ r.system_name }}</span>
+    {% endfor %}
+  </div>
+
+  <!-- ── Metrics ─────────────────────────────────────── -->
+  {% if is_comparison %}
+  <div class="section-title">Metric Comparison</div>
+  <div class="table-wrap mb-24">
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align:left">Metric</th>
+          <th><span class="system-badge badge-0" style="font-size:10px">{{ results[0].system_name }}</span></th>
+          <th><span class="system-badge badge-1" style="font-size:10px">{{ results[1].system_name }}</span></th>
+          <th>Δ (2 − 1)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in comparison_rows %}
+        <tr>
+          <td>{{ row.label }}</td>
+          <td>{{ row.v0 }}</td>
+          <td>{{ row.v1 }}</td>
+          <td class="{{ row.diff_class }}">{{ row.diff_str }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="notice notice-info" style="font-size:11px;margin-bottom:24px;">
+    Δ = System 2 − System 1. <span class="diff-better">Green</span> = better outcome.
+    <span class="diff-worse">Red</span> = worse. Better: higher effort, lower repeat picks, lower Gini,
+    fewer tankers, lower σ wins, lower avg wins for top-3 recipients.
+  </p>
+
+  {% else %}
+  <!-- Single system metric cards -->
+  <div class="section-title">Key Metrics — {{ results[0].system_name }}</div>
+  <div class="metrics-grid">
+    {% for card in metric_cards %}
+    <div class="metric-card">
+      <div class="metric-label">{{ card.label }}</div>
+      <div class="metric-value {{ card.cls }}">{{ card.value }}</div>
+      <div class="metric-sub">{{ card.sub }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ── Pick Distribution Bar Charts ───────────────── -->
+  <div class="section-title mt-32">Top-5 Pick Distribution</div>
+  <div class="{{ 'comparison-grid' if is_comparison else '' }}">
+    {% for svg_data in pick_chart_svg %}
+    {% set idx = loop.index0 %}
+    <div class="chart-wrap">
+      <div class="chart-title">
+        <span class="system-badge badge-{{ idx }}" style="font-size:10px">{{ results[idx].system_name }}</span>
+        — % of all top-5 picks received
+      </div>
+      <svg viewBox="0 0 {{ svg_data.total_w }} {{ svg_data.chart_svg_h }}"
+           style="width:100%;max-width:{{ svg_data.total_w }}px;display:block;overflow:visible">
+        {% for bar in svg_data.bars %}
+        {% set y = loop.index0 * (svg_data.bar_h + svg_data.gap) %}
+        <text x="0" y="{{ y + svg_data.bar_h - 3 }}"
+              fill="#888" font-family="monospace" font-size="10">{{ bar.name }}</text>
+        <rect x="{{ svg_data.label_w }}" y="{{ y }}"
+              width="{{ bar.bw }}" height="{{ svg_data.bar_h }}"
+              fill="{{ svg_data.color }}" opacity="0.85" rx="1"/>
+        <text x="{{ svg_data.label_w + bar.bw + 5 }}" y="{{ y + svg_data.bar_h - 3 }}"
+              fill="#e8e8e8" font-family="monospace" font-size="10">{{ "%.2f"|format(bar.pct) }}%</text>
+        {% endfor %}
+      </svg>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- ── Effort Over Season Line Chart ──────────────── -->
+  <div class="section-title mt-24">Team Effort Over the Season</div>
+  <div class="chart-wrap">
+    <div class="chart-title">
+      Avg effort multiplier per week — bottom-6 teams
+      <span style="color:var(--fg-faint);font-size:10px">(1.0 = full effort · below 1.0 = tanking)</span>
+    </div>
+    <svg viewBox="0 0 {{ effort_meta.chart_w }} {{ effort_meta.chart_h }}"
+         style="width:100%;max-width:{{ effort_meta.chart_w }}px;display:block">
+      {% for g in effort_meta.grid %}
+      <line x1="{{ effort_meta.pad_l }}" y1="{{ g.y }}"
+            x2="{{ effort_meta.chart_w - 16 }}" y2="{{ g.y }}"
+            stroke="#2a2a2a" stroke-width="1"/>
+      <text x="{{ effort_meta.pad_l - 4 }}" y="{{ g.y + 3 }}"
+            fill="#555" font-family="monospace" font-size="9" text-anchor="end">{{ g.v }}</text>
+      {% endfor %}
+
+      {% for wl in effort_meta.week_labels %}
+      <text x="{{ wl.x }}" y="{{ effort_meta.chart_h - 6 }}"
+            fill="#555" font-family="monospace" font-size="9" text-anchor="middle">{{ wl.label }}</text>
+      {% endfor %}
+
+      <line x1="{{ effort_meta.mid_x }}" y1="{{ effort_meta.pad_t }}"
+            x2="{{ effort_meta.mid_x }}" y2="{{ effort_meta.chart_h - 24 }}"
+            stroke="#333" stroke-width="1" stroke-dasharray="3,3"/>
+      <text x="{{ effort_meta.mid_x }}" y="{{ effort_meta.pad_t - 1 }}"
+            fill="#444" font-family="monospace" font-size="9" text-anchor="middle">mid-season</text>
+
+      {% for poly in effort_polylines %}
+      <polyline points="{{ poly.points }}"
+                fill="none" stroke="{{ poly.color }}"
+                stroke-width="1.5" opacity="0.9"/>
+      {% endfor %}
+    </svg>
+    <div class="chart-legend">
+      {% for poly in effort_polylines %}
+      <div class="legend-item">
+        <div class="legend-dot" style="background:{{ poly.color }}"></div>
+        {{ results[loop.index0].system_name }}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ── Pick Distribution Tables ────────────────────── -->
+  <div class="section-title mt-24">Pick Distribution Detail</div>
+  <div class="{{ 'comparison-grid' if is_comparison else '' }}">
+    {% for table_rows in pick_tables %}
+    {% set idx = loop.index0 %}
+    <div>
+      <div class="mb-8">
+        <span class="system-badge badge-{{ idx }}">{{ results[idx].system_name }}</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th style="text-align:left">Team</th>
+              <th>% of top-5 picks</th>
+              <th>Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in table_rows %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td>{{ row.name }}</td>
+              <td>{{ "%.2f"|format(row.pct) }}%</td>
+              <td>{{ row.bar_svg | safe }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- ── Run Again ────────────────────────────────────── -->
+  <div class="mt-32" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+    <a href="/" class="btn btn-primary">← Configure New Run</a>
+    <form method="POST" action="/simulate" id="rerun-form" style="display:inline;">
+      <input type="hidden" name="runs" value="{{ runs }}">
+      <input type="hidden" name="seasons" value="{{ seasons }}">
+      {% for s in selected_systems %}
+      <input type="hidden" name="systems" value="{{ s }}">
+      {% endfor %}
+      <button type="submit" class="btn btn-secondary"
+        onclick="document.getElementById('rerun-spinner').style.display='flex'">
+        Re-run Same Config
+      </button>
+    </form>
+    <div id="rerun-spinner" style="display:none;align-items:center;gap:8px;">
+      <div class="spinner"></div>
+      <span style="font-size:11px;color:var(--fg-dim)">Simulating…</span>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

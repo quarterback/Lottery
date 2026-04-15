@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Lottery Lab — Configure Simulation{% endblock %}
+
+{% block content %}
+<div class="mt-24">
+  <p class="notice notice-info">
+    Select up to two lottery systems and run Monte Carlo simulations to compare their effects on tanking behavior, competitive balance, and draft equity.
+  </p>
+
+  <form method="POST" action="/simulate" id="sim-form">
+
+    <!-- System Selection -->
+    <div class="mt-24 mb-16">
+      <div class="section-title">Select Systems (max 2 for comparison)</div>
+      <div class="checkbox-grid" id="system-grid">
+
+        {% set descriptions = {
+          "Current NBA": "Bottom-3 get 14% odds each. Status quo.",
+          "Flat Bottom": "All lottery teams get equal odds. No bottom-out incentive.",
+          "Play-In Boost": "Play-in teams get equal-or-better odds. Making the play-in is the reward.",
+          "UEFA Coefficient": "Rolling 3-year weighted score sets odds. Kills one-year tanking.",
+          "RCL": "Multi-year coefficient + h2h bonus + hard caps. No #1 more than once in 5 years.",
+          "Lottery Tournament": "Bottom-8 play single-elim. Tournament winner gets the #1 pick.",
+          "Pure Inversion": "Best non-playoff team picks first. Rewards competitive failure.",
+          "Gold Plan (PWHL)": "Post-elimination wins decide order. Real-world PWHL system."
+        } %}
+
+        {% for system in systems %}
+        <label class="checkbox-item" id="label-{{ loop.index0 }}">
+          <input type="checkbox" name="systems" value="{{ system }}"
+            onchange="handleCheck(this)"
+            {% if loop.index0 == 0 %}checked{% endif %}>
+          <div>
+            <div class="cb-name">{{ system }}</div>
+            <div class="cb-tag">{{ descriptions.get(system, '') }}</div>
+          </div>
+        </label>
+        {% endfor %}
+
+      </div>
+    </div>
+
+    <!-- Parameters -->
+    <div class="mt-32 mb-16">
+      <div class="section-title">Simulation Parameters</div>
+      <div class="form-grid">
+        <div class="field">
+          <label for="runs">Monte Carlo runs</label>
+          <input type="number" id="runs" name="runs" value="50" min="5" max="500" step="5">
+          <span class="field-hint">5–500. More runs = more accurate, slower.</span>
+        </div>
+        <div class="field">
+          <label for="seasons">Seasons per run</label>
+          <input type="number" id="seasons" name="seasons" value="15" min="3" max="30" step="1">
+          <span class="field-hint">3–30. Longer = better long-run stats.</span>
+        </div>
+        <div class="field">
+          <label for="seed">Random seed (optional)</label>
+          <input type="text" id="seed" name="seed" placeholder="e.g. 42">
+          <span class="field-hint">Leave blank for random. Same seed = same results.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="mt-24" style="display:flex;align-items:center;gap:16px;">
+      <button type="submit" class="btn btn-primary submit-btn" onclick="startSim()">
+        Run Simulation →
+      </button>
+      <div class="loading">
+        <div class="spinner"></div>
+        <span>Simulating… this may take a few seconds</span>
+      </div>
+    </div>
+
+  </form>
+
+  <!-- System reference table -->
+  <div class="mt-32">
+    <div class="section-title">System Reference</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th style="text-align:left">System</th>
+            <th style="text-align:left">Mechanic</th>
+            <th style="text-align:left">Real-World?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>Current NBA</td><td>Bottom-3 get 14% for #1, descending after</td><td>✓ NBA (current)</td></tr>
+          <tr><td>2</td><td>Flat Bottom</td><td>Equal odds for all 14 lottery teams</td><td>—</td></tr>
+          <tr><td>3</td><td>Play-In Boost</td><td>Play-in teams get same or better odds than worse teams</td><td>—</td></tr>
+          <tr><td>4</td><td>UEFA Coefficient</td><td>3-year rolling weighted score sets odds</td><td>Inspired by UEFA</td></tr>
+          <tr><td>5</td><td>RCL</td><td>Multi-year coeff + H2H bonus + hard caps</td><td>—</td></tr>
+          <tr><td>6</td><td>Lottery Tournament</td><td>Bottom-8 single-elim; winner gets #1</td><td>—</td></tr>
+          <tr><td>7</td><td>Pure Inversion</td><td>Best non-playoff team picks first</td><td>—</td></tr>
+          <tr><td>8</td><td>Gold Plan (PWHL)</td><td>Post-elimination wins = draft order</td><td>✓ PWHL (live)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  function handleCheck(checkbox) {
+    const allChecked = document.querySelectorAll('input[name="systems"]:checked');
+    if (allChecked.length > 2) {
+      checkbox.checked = false;
+    }
+    document.querySelectorAll('.checkbox-item').forEach(label => {
+      const cb = label.querySelector('input');
+      label.classList.toggle('checked', cb.checked);
+    });
+  }
+
+  function startSim() {
+    document.body.classList.add('simulating');
+  }
+
+  // Init checked state
+  document.querySelectorAll('.checkbox-item').forEach(label => {
+    const cb = label.querySelector('input');
+    label.classList.toggle('checked', cb.checked);
+  });
+</script>
+{% endblock %}

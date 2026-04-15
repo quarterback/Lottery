@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Lottery Lab{% endblock %}</title>
+  <style>
+    /* ── Custom properties ──────────────────────────────── */
+    :root {
+      --bg:      #0a0a0a;
+      --bg-alt:  #141414;
+      --bg-2:    #1c1c1c;
+      --fg:      #e8e8e8;
+      --fg-dim:  #888;
+      --fg-faint:#444;
+      --accent:  #ff8c00;
+      --accent-dim: #a85c00;
+      --green:   #4ade80;
+      --red:     #f87171;
+      --blue:    #60a5fa;
+      --border:  #2a2a2a;
+      --border-2:#333;
+      --font:    'Berkeley Mono', 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+      --fs:      12px;
+      --fs-sm:   11px;
+      --fs-lg:   14px;
+      --fs-xl:   18px;
+      --radius:  2px;
+    }
+
+    /* ── Reset ──────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: var(--fs); background: var(--bg); color: var(--fg); }
+    body {
+      font-family: var(--font);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 12px 0;
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-inner {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+    }
+    .logo {
+      font-size: var(--fs-lg);
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .logo span { color: var(--fg-dim); }
+    .tagline {
+      font-size: var(--fs-sm);
+      color: var(--fg-dim);
+    }
+    .header-right {
+      margin-left: auto;
+      font-size: var(--fs-sm);
+      color: var(--fg-faint);
+    }
+
+    /* ── Main ───────────────────────────────────────────── */
+    main { padding: 32px 0 64px; }
+
+    /* ── Section titles ─────────────────────────────────── */
+    .section-title {
+      font-size: var(--fs-sm);
+      color: var(--fg-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Forms ──────────────────────────────────────────── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px 32px;
+    }
+    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label {
+      font-size: var(--fs-sm);
+      color: var(--fg-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .field input[type="number"],
+    .field input[type="text"],
+    .field select {
+      background: var(--bg-alt);
+      border: 1px solid var(--border-2);
+      color: var(--fg);
+      font-family: var(--font);
+      font-size: var(--fs);
+      padding: 8px 10px;
+      border-radius: var(--radius);
+      width: 100%;
+    }
+    .field input:focus,
+    .field select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .field-hint {
+      font-size: var(--fs-sm);
+      color: var(--fg-faint);
+    }
+
+    /* ── Checkbox grid ──────────────────────────────────── */
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px;
+    }
+    .checkbox-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .checkbox-item:hover { border-color: var(--accent-dim); }
+    .checkbox-item input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 14px;
+      height: 14px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .checkbox-item.checked { border-color: var(--accent); background: #1a0f00; }
+    .cb-name {
+      font-size: var(--fs);
+      color: var(--fg);
+      line-height: 1.4;
+    }
+    .cb-tag {
+      font-size: 10px;
+      color: var(--fg-dim);
+      margin-top: 2px;
+    }
+
+    /* ── Buttons ────────────────────────────────────────── */
+    .btn {
+      display: inline-block;
+      padding: 10px 24px;
+      font-family: var(--font);
+      font-size: var(--fs);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-radius: var(--radius);
+      border: none;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+    }
+    .btn-primary:hover { background: #ffaa33; }
+    .btn-secondary {
+      background: var(--bg-alt);
+      color: var(--fg);
+      border: 1px solid var(--border-2);
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Tables ─────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--fs-sm);
+    }
+    th {
+      background: var(--bg-2);
+      color: var(--fg-dim);
+      font-weight: 400;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 8px 10px;
+      text-align: right;
+      border-bottom: 1px solid var(--border-2);
+    }
+    th:first-child { text-align: left; }
+    td {
+      padding: 6px 10px;
+      text-align: right;
+      border-bottom: 1px solid var(--border);
+      color: var(--fg);
+    }
+    td:first-child { text-align: left; color: var(--fg-dim); }
+    tr:hover td { background: var(--bg-alt); }
+
+    /* ── Metric cards ───────────────────────────────────── */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .metric-card {
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+    }
+    .metric-label {
+      font-size: 10px;
+      color: var(--fg-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+    }
+    .metric-value {
+      font-size: var(--fs-xl);
+      color: var(--fg);
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .metric-value.good { color: var(--green); }
+    .metric-value.bad  { color: var(--red); }
+    .metric-value.accent { color: var(--accent); }
+    .metric-sub {
+      font-size: var(--fs-sm);
+      color: var(--fg-faint);
+      margin-top: 2px;
+    }
+
+    /* ── Comparison diff highlight ──────────────────────── */
+    .diff-better { color: var(--green); }
+    .diff-worse  { color: var(--red); }
+    .diff-same   { color: var(--fg-dim); }
+
+    /* ── Inline SVG charts ──────────────────────────────── */
+    .chart-wrap {
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+    .chart-title {
+      font-size: var(--fs-sm);
+      color: var(--fg-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+    .chart-legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--fs-sm);
+      color: var(--fg-dim);
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Result section layout ──────────────────────────── */
+    .results-header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .results-title {
+      font-size: var(--fs-lg);
+      color: var(--fg);
+      font-weight: 700;
+    }
+    .results-meta {
+      font-size: var(--fs-sm);
+      color: var(--fg-faint);
+    }
+
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 840px) { .comparison-grid { grid-template-columns: 1fr; } }
+
+    .system-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      font-size: var(--fs-sm);
+      border-radius: var(--radius);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .badge-0 { background: #1a0f00; color: var(--accent); border: 1px solid var(--accent-dim); }
+    .badge-1 { background: #001a10; color: var(--green); border: 1px solid #2a6640; }
+
+    /* ── Notices ────────────────────────────────────────── */
+    .notice {
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: var(--fs-sm);
+      margin-bottom: 16px;
+    }
+    .notice-warn {
+      background: #1a1200;
+      border: 1px solid #3a2a00;
+      color: #ccaa44;
+    }
+    .notice-info {
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      color: var(--fg-dim);
+    }
+
+    /* ── Progress indicator ─────────────────────────────── */
+    .loading { display: none; }
+    body.simulating .loading { display: flex; }
+    body.simulating .submit-btn { display: none; }
+    .loading {
+      align-items: center;
+      gap: 10px;
+      color: var(--fg-dim);
+      font-size: var(--fs-sm);
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid var(--border-2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    /* ── Spacers ────────────────────────────────────────── */
+    .mt-8  { margin-top: 8px; }
+    .mt-16 { margin-top: 16px; }
+    .mt-24 { margin-top: 24px; }
+    .mt-32 { margin-top: 32px; }
+    .mb-8  { margin-bottom: 8px; }
+    .mb-16 { margin-bottom: 16px; }
+    .mb-24 { margin-bottom: 24px; }
+    .gap-4 { gap: 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="header-inner">
+        <span class="logo">Lottery<span>//</span>Lab</span>
+        <span class="tagline">NBA draft lottery scenario simulator</span>
+        <div class="header-right">8 systems · Monte Carlo engine</div>
+      </div>
+    </div>
+  </header>
+  <main>
+    <div class="container">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</body>
+</html>

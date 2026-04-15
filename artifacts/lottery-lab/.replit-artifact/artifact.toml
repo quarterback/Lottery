@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Lottery Lab"
+version = "1.0.0"
+id = "artifacts/lottery-lab"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21381
+
+[services.development]
+run = "pnpm --filter @workspace/lottery-lab run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/lottery-lab", "run", "build" ]
+publicDir = "artifacts/lottery-lab/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21381"
+BASE_PATH = "/"
