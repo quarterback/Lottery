@@ -62,8 +62,9 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
             "each team's lottery weight. One bad season barely moves the needle — you need sustained "
             "futility to earn top odds. This kills one-year tanking but rewards genuine rebuilds."
         ),
-        "odds": None,
-        "odds_note": "Variable by 3-year history. Approximate range: 2%–18%.",
+        # Representative after 3+ seasons of team divergence (approximately)
+        "odds": [17.5, 16.5, 14.5, 12.0, 9.5, 7.5, 5.5, 4.0, 3.0, 2.5, 2.0, 2.0, 1.5, 2.0],
+        "odds_note": "Approximate — actual odds vary by each team's 3-year performance history.",
     },
     "RCL": {
         "desc": (
@@ -71,8 +72,9 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
             "teams. Hard caps enforce fairness: no team can receive the #1 pick more than once in "
             "5 years, or a top-3 pick more than twice in 5 years."
         ),
-        "odds": None,
-        "odds_note": "Variable — capped by history. Teams hitting caps are excluded from those slots.",
+        # Representative; capped teams have weight redistributed
+        "odds": [16.0, 15.0, 13.5, 11.5, 9.5, 7.5, 6.0, 4.5, 3.5, 2.5, 2.0, 2.0, 2.0, 4.5],
+        "odds_note": "Approximate — teams capped on #1 or top-3 picks are excluded from those slots and their weight is redistributed.",
     },
     "Lottery Tournament": {
         "desc": (
@@ -80,8 +82,9 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
             "The tournament winner earns pick #1. Teams 9–14 get picks 9–14 by record. "
             "You need to be in the bottom 8 AND win games to land the top pick."
         ),
-        "odds": None,
-        "odds_note": "Bottom 8 enter tournament. Better-record teams have a slight edge within each matchup.",
+        # Approximate tournament win probabilities (slightly favors worse records)
+        "odds": [18.0, 16.0, 14.0, 13.0, 12.0, 11.0, 9.0, 7.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "odds_note": "Slots 1–8 enter the tournament. Slots 9–14 cannot win pick #1. Values are approximate win-probability estimates.",
     },
     "Pure Inversion": {
         "desc": (
@@ -89,8 +92,9 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
             "last. This completely inverts the tanking incentive — losing hurts your draft position. "
             "Every team should try hard all season."
         ),
-        "odds": None,
-        "odds_note": "Deterministic. Best record among non-playoff teams = Pick #1.",
+        # Fully deterministic: only slot 14 (best non-playoff) gets pick 1
+        "odds": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0],
+        "odds_note": "Deterministic. Only the best non-playoff team (slot 14) gets pick #1.",
     },
     "Gold Plan (PWHL)": {
         "desc": (
@@ -98,8 +102,9 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
             "from playoff contention. Teams that keep competing hard after elimination are rewarded. "
             "This system is used in real life by the PWHL."
         ),
-        "odds": None,
-        "odds_note": "Deterministic. Most post-elimination wins = Pick #1.",
+        # Approximate: mid-table lottery teams eliminated mid-season often accumulate the most post-elim wins
+        "odds": [5.5, 6.5, 8.0, 9.0, 9.0, 9.0, 8.5, 8.0, 7.5, 6.5, 6.0, 5.5, 5.0, 4.5],
+        "odds_note": "Approximate — actual odds depend on when each team is eliminated and post-elimination performance, not record directly.",
     },
 }
 
@@ -107,11 +112,21 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
 # ── Pre-computation helpers ────────────────────────────────────────────────
 
 def make_bar_rows(metrics: MetricsBundle, top_n: int = 14) -> list[dict]:
+    """Return rows sorted by pick-1% descending. Each row includes all 5 pick slots."""
     rows = []
     for team_id in range(NUM_TEAMS):
-        pct = metrics.pick_distribution.get(team_id, [0.0])[0]
-        rows.append({"name": NBA_TEAM_NAMES[team_id], "pct": round(pct, 3)})
-    rows.sort(key=lambda r: r["pct"], reverse=True)
+        slots = metrics.pick_distribution.get(team_id, [0.0] * 5)
+        pick1 = slots[0] if slots else 0.0
+        rows.append({
+            "name": NBA_TEAM_NAMES[team_id],
+            "pct": round(pick1, 2),           # primary sort / bar chart value = pick-1%
+            "pick1_pct": round(slots[0] if len(slots) > 0 else 0.0, 2),
+            "pick2_pct": round(slots[1] if len(slots) > 1 else 0.0, 2),
+            "pick3_pct": round(slots[2] if len(slots) > 2 else 0.0, 2),
+            "pick4_pct": round(slots[3] if len(slots) > 3 else 0.0, 2),
+            "pick5_pct": round(slots[4] if len(slots) > 4 else 0.0, 2),
+        })
+    rows.sort(key=lambda r: r["pick1_pct"], reverse=True)
     return rows[:top_n]
 
 
@@ -268,25 +283,22 @@ def build_effort_chart_meta() -> dict:
 def build_standings_table(metrics: MetricsBundle, color: str) -> list[dict]:
     """Build standings table rows sorted by avg wins descending."""
     rows = []
-    max_pick1 = max(metrics.pick1_by_team.values(), default=1.0) or 1.0
-    max_top5 = max(
+    max_pick1 = max(
         (metrics.pick_distribution.get(tid, [0.0])[0] for tid in range(NUM_TEAMS)),
         default=1.0,
     ) or 1.0
     for tid in range(NUM_TEAMS):
         avg_w = metrics.avg_wins_by_team.get(tid, 0.0)
         avg_l = round(GAMES_PER_SEASON - avg_w, 1)
-        pick1 = metrics.pick1_by_team.get(tid, 0.0)
-        top5 = round(metrics.pick_distribution.get(tid, [0.0])[0], 2)
-        is_lottery = avg_w < (GAMES_PER_SEASON * PLAYOFF_SPOTS / NUM_TEAMS * 1.1)
+        slots = metrics.pick_distribution.get(tid, [0.0] * 5)
+        pick1 = slots[0] if slots else 0.0
+        top5_sum = sum(slots)  # total % across all 5 picks (each slot sums to 100 across teams)
         rows.append({
             "name": NBA_TEAM_NAMES[tid],
             "avg_wins": avg_w,
             "avg_losses": avg_l,
-            "pick1_pct": pick1,
-            "top5_pct": top5,
-            "is_lottery": is_lottery,
-            "pick1_bar": make_pick_svg_bar(pick1, max_pick1, color, 50),
+            "pick1_pct": round(pick1, 2),
+            "top5_pct": round(top5_sum, 2),
         })
     rows.sort(key=lambda r: r["avg_wins"], reverse=True)
     return rows
@@ -340,25 +352,17 @@ async def simulate(
         for i, m in enumerate(results)
     ]
 
-    # Enhanced pick tables with #1 pick column
+    # Pick tables: 5-column per-slot distribution (sortable via JS in template)
     pick_tables: list[list[dict]] = []
     for idx, m in enumerate(results):
         color = CHART_COLORS[idx]
-        rows_raw = bar_rows_list[idx]
-        max_pct = rows_raw[0]["pct"] if rows_raw else 1.0
-        max_pick1 = max(
-            (m.pick1_by_team.get(tid, 0.0) for tid in range(NUM_TEAMS)),
-            default=1.0,
-        ) or 1.0
+        rows_raw = bar_rows_list[idx]  # already sorted by pick1_pct desc
+        max_pick1 = rows_raw[0]["pick1_pct"] if rows_raw else 1.0
         table_rows = []
         for row in rows_raw:
-            tid = NBA_TEAM_NAMES.index(row["name"])
-            pick1_pct = m.pick1_by_team.get(tid, 0.0)
             table_rows.append({
                 **row,
-                "pick1_pct": pick1_pct,
-                "bar_svg": make_pick_svg_bar(row["pct"], max_pct, color),
-                "pick1_bar": make_pick_svg_bar(pick1_pct, max_pick1, color, 50),
+                "bar_svg": make_pick_svg_bar(row["pick1_pct"], max(max_pick1, 0.01), color),
             })
         pick_tables.append(table_rows)
 

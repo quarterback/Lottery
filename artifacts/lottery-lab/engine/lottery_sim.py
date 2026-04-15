@@ -845,6 +845,14 @@ def compute_metrics(run: RunResult, teams: list[Team]) -> MetricsBundle:
                 top5_counts[pick] += 1
     gini_val = _gini(list(top5_counts.values()))
 
+    # --- Per-slot pick distribution (picks 1-5) ---
+    pick_counts_per_slot: dict[int, list[int]] = {tid: [0, 0, 0, 0, 0] for tid in team_ids}
+    for order in draft_orders:
+        for slot_idx in range(min(5, len(order))):
+            pick_tid = order[slot_idx]
+            if pick_tid in pick_counts_per_slot:
+                pick_counts_per_slot[pick_tid][slot_idx] += 1
+
     # --- Tank cycles ---
     tank_threshold = 0.7
     tank_cycles_per_season = []
@@ -878,10 +886,10 @@ def compute_metrics(run: RunResult, teams: list[Team]) -> MetricsBundle:
                     break
     avg_top3_wins = sum(top3_wins) / len(top3_wins) if top3_wins else 0.0
 
-    # --- Pick distribution (pct of top-5 picks per team) ---
-    total_top5 = sum(top5_counts.values())
+    # --- Pick distribution per slot (% of seasons where team got picks 1-5) ---
+    total_seasons_slots = max(len(draft_orders), 1)
     pick_dist = {
-        tid: [top5_counts[tid] / total_top5 * 100 if total_top5 > 0 else 0.0]
+        tid: [round(pick_counts_per_slot[tid][i] / total_seasons_slots * 100, 2) for i in range(5)]
         for tid in team_ids
     }
 
@@ -973,11 +981,14 @@ def monte_carlo(
         week_vals = [m.effort_by_week[week_idx] for m in all_metrics if week_idx < len(m.effort_by_week)]
         avg_effort_by_week.append(sum(week_vals) / len(week_vals) if week_vals else 1.0)
 
-    # Average pick_distribution (by team_id position)
+    # Average pick_distribution per slot (5 slots per team)
     avg_pick_dist: dict[int, list[float]] = {}
     for i in range(NUM_TEAMS):
-        pcts = [m.pick_distribution.get(i, [0.0])[0] for m in all_metrics]
-        avg_pick_dist[i] = [sum(pcts) / len(pcts)]
+        slot_avgs = []
+        for slot_idx in range(5):
+            pcts = [m.pick_distribution.get(i, [0.0] * 5)[slot_idx] for m in all_metrics]
+            slot_avgs.append(round(sum(pcts) / len(pcts), 2) if pcts else 0.0)
+        avg_pick_dist[i] = slot_avgs
 
     # Average avg_wins_by_rank
     avg_wins_by_rank: list[float] = []

@@ -172,7 +172,7 @@
     <div class="chart-wrap">
       <div class="chart-title">
         <span class="system-badge badge-{{ idx }}" style="font-size:10px">{{ results[idx].system_name }}</span>
-        — % of top-5 picks received (lottery teams)
+        — % of seasons with pick #1 (lottery teams)
       </div>
       <svg viewBox="0 0 {{ svg_data.total_w }} {{ svg_data.chart_svg_h }}"
            style="width:100%;max-width:{{ svg_data.total_w }}px;display:block;overflow:visible">
@@ -277,6 +277,9 @@
 
   <!-- ── Pick Distribution Detail Tables ────────────────── -->
   <div class="section-title mt-24">Pick Distribution Detail</div>
+  <p style="font-size:11px;color:var(--fg-faint);margin-bottom:12px">
+    % of simulated seasons in which each team received each pick. Click a column header to sort.
+  </p>
   <div class="{{ 'comparison-grid' if is_comparison else '' }}">
     {% for table_rows in pick_tables %}
     {% set idx = loop.index0 %}
@@ -285,25 +288,29 @@
         <span class="system-badge badge-{{ idx }}">{{ results[idx].system_name }}</span>
       </div>
       <div class="table-wrap">
-        <table>
+        <table class="pick-detail-table" id="pick-table-{{ idx }}" data-sort-col="0" data-sort-dir="desc">
           <thead>
             <tr>
-              <th style="text-align:left">Team</th>
-              <th>#1 Pick%</th>
-              <th>Top-5%</th>
-              <th>Share</th>
+              <th style="text-align:left;cursor:default">Team</th>
+              <th onclick="sortPickTable('pick-table-{{ idx }}',1)" title="Sort by Pick 1%" style="cursor:pointer;color:var(--accent)">Pick 1% ↕</th>
+              <th onclick="sortPickTable('pick-table-{{ idx }}',2)" title="Sort by Pick 2%" style="cursor:pointer">Pick 2% ↕</th>
+              <th onclick="sortPickTable('pick-table-{{ idx }}',3)" title="Sort by Pick 3%" style="cursor:pointer">Pick 3% ↕</th>
+              <th onclick="sortPickTable('pick-table-{{ idx }}',4)" title="Sort by Pick 4%" style="cursor:pointer">Pick 4% ↕</th>
+              <th onclick="sortPickTable('pick-table-{{ idx }}',5)" title="Sort by Pick 5%" style="cursor:pointer">Pick 5% ↕</th>
+              <th>Bar</th>
             </tr>
           </thead>
           <tbody>
             {% for row in table_rows %}
             <tr>
               <td style="text-align:left">{{ row.name }}</td>
-              <td>
-                {% if row.pick1_pct > 0 %}
-                <span style="color:var(--accent)">{{ "%.1f"|format(row.pick1_pct) }}%</span>
-                {% else %}—{% endif %}
+              <td data-v="{{ row.pick1_pct }}">
+                {% if row.pick1_pct > 0 %}<span style="color:var(--accent)">{{ "%.1f"|format(row.pick1_pct) }}%</span>{% else %}—{% endif %}
               </td>
-              <td>{{ "%.2f"|format(row.pct) }}%</td>
+              <td data-v="{{ row.pick2_pct }}">{% if row.pick2_pct > 0 %}{{ "%.1f"|format(row.pick2_pct) }}%{% else %}—{% endif %}</td>
+              <td data-v="{{ row.pick3_pct }}">{% if row.pick3_pct > 0 %}{{ "%.1f"|format(row.pick3_pct) }}%{% else %}—{% endif %}</td>
+              <td data-v="{{ row.pick4_pct }}">{% if row.pick4_pct > 0 %}{{ "%.1f"|format(row.pick4_pct) }}%{% else %}—{% endif %}</td>
+              <td data-v="{{ row.pick5_pct }}">{% if row.pick5_pct > 0 %}{{ "%.1f"|format(row.pick5_pct) }}%{% else %}—{% endif %}</td>
               <td>{{ row.bar_svg | safe }}</td>
             </tr>
             {% endfor %}
@@ -313,6 +320,30 @@
     </div>
     {% endfor %}
   </div>
+
+  <script>
+  function sortPickTable(tableId, colIdx) {
+    const table = document.getElementById(tableId);
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const prevCol = parseInt(table.dataset.sortCol);
+    let dir = table.dataset.sortDir === 'desc' ? 'asc' : 'desc';
+    if (prevCol !== colIdx) dir = 'desc';
+    table.dataset.sortCol = colIdx;
+    table.dataset.sortDir = dir;
+    rows.sort((a, b) => {
+      const aVal = parseFloat(a.cells[colIdx]?.dataset.v ?? 0);
+      const bVal = parseFloat(b.cells[colIdx]?.dataset.v ?? 0);
+      return dir === 'desc' ? bVal - aVal : aVal - bVal;
+    });
+    rows.forEach(r => tbody.appendChild(r));
+    // Update header indicators
+    table.querySelectorAll('thead th').forEach((th, i) => {
+      th.textContent = th.textContent.replace(/ [↑↓]$/, '');
+      if (i === colIdx) th.textContent += dir === 'desc' ? ' ↓' : ' ↑';
+    });
+  }
+  </script>
 
   <!-- ── Run Again ────────────────────────────────────────── -->
   <div class="mt-32" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
