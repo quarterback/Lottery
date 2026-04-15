@@ -134,13 +134,14 @@
     <span class="results-meta">Bid Standardization · 22-game chip window</span>
   </div>
   <p style="font-size:var(--fs-sm);color:var(--fg-dim);line-height:1.7;margin-bottom:24px;max-width:760px">
-    Activates at <b>game 60</b> for all non-top-12 teams. Each team starts with
-    <b>100 chips</b> and must wager at least 10 per game (10 or 25).
-    A <span style="color:var(--green)">win</span> returns the wager;
-    a <span style="color:var(--red)">loss</span> permanently deducts it.
-    Teams finishing with &gt;100 chips may <b>double</b> — forfeit 100 chips to
-    double the balance. Final lottery odds are proportional to chips, floored at
-    current NBA record-based odds. <b>Tanking is structurally impossible.</b>
+    Activates at <b>game 60</b> for all 30 teams. Each team starts with
+    <b>100 chips</b> and wagers 10 or 25 per game. Winner gains the opponent's wager;
+    loser loses their own — chips can go negative.
+    Each <span style="color:var(--accent)">lottery team</span> may use their
+    <b>double</b> once on any home game — no chip minimum required. Their wager doubles
+    for that game; the opponent may bid aggressively in response.
+    Draft order is determined by final chip totals (most chips = Pick 1), floored at
+    record-based NBA odds. <b>Tanking is structurally impossible.</b>
   </p>
 
   <!-- ── Control panel ───────────────────────────────────── -->
@@ -211,8 +212,8 @@
       <div>
         <div class="section-title">Season Standings — Chip Window Results</div>
         <p style="font-size:11px;color:var(--fg-faint);margin-bottom:10px">
-          Safe Playoff teams skip the chip window.
-          Play-in teams get a +7.5 chip consolation if they miss the playoffs.
+          All 30 teams participate. Safe Playoff teams bid conservatively; ~25% hold pick-swap rights and bid aggressively.
+          Play-in teams receive a +7.5 chip consolation if they miss the playoffs.
         </p>
         <div class="table-wrap">
           <table id="standings-table">
@@ -236,9 +237,8 @@
       <div>
         <div class="section-title">Chip Window Trajectories</div>
         <p style="font-size:11px;color:var(--fg-faint);margin-bottom:10px">
-          Chip count over the 22-game window per team.
-          Dashed line = starting chips (100). Only chip-pool teams shown.
-          Trajectories are pre-double; the <span class="doubled-badge">2×</span> mechanic applies at season end.
+          Chip totals over the 22-game window. Dashed line = 100 starting chips.
+          The <span class="doubled-badge">2×</span> badge marks nights a team declared their double (wager doubled for that game only).
         </p>
         <div class="chart-wrap" style="padding:12px">
           <svg id="traj-svg" viewBox="0 0 560 280" style="width:100%;display:block"></svg>
@@ -287,7 +287,7 @@
           <div style="margin-bottom:4px">Wager: <b>10</b> (low) or <b>25</b> (high)</div>
           <div style="margin-bottom:4px">Win → chips returned &nbsp;✓</div>
           <div style="margin-bottom:4px">Loss → chips deducted &nbsp;✗</div>
-          <div style="margin-bottom:14px"><span class="doubled-badge">2×</span> &gt;100 chips → double mechanic</div>
+          <div style="margin-bottom:14px"><span class="doubled-badge">2×</span> Lottery teams: double wager once on any home game</div>
           <div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-faint);margin-bottom:4px">Odds floor</div>
           <div>Chip-depleted teams retain their record-based NBA lottery floor. Chips are <i>upside</i> above that baseline.</div>
         </div>
