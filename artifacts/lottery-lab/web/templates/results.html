@@ -132,6 +132,50 @@
     </div>
   </div>
 
+  <!-- ── Win Distribution (Competitive Balance) ─────── -->
+  <div class="section-title mt-24">Win Distribution — Competitive Balance</div>
+  <div class="chart-wrap">
+    <div class="chart-title">
+      Avg wins by standings rank (rank 1 = best team · rank 30 = worst)
+      <span style="color:var(--fg-faint);font-size:10px">(flatter curve = more balanced league)</span>
+    </div>
+    <svg viewBox="0 0 {{ win_dist_meta.chart_w }} {{ win_dist_meta.chart_h }}"
+         style="width:100%;max-width:{{ win_dist_meta.chart_w }}px;display:block">
+      {% for g in win_dist_meta.grid %}
+      <line x1="{{ win_dist_meta.pad_l }}" y1="{{ g.y }}"
+            x2="{{ win_dist_meta.chart_w - 16 }}" y2="{{ g.y }}"
+            stroke="#2a2a2a" stroke-width="1"/>
+      <text x="{{ win_dist_meta.pad_l - 4 }}" y="{{ g.y + 3 }}"
+            fill="#555" font-family="monospace" font-size="9" text-anchor="end">{{ g.v }}</text>
+      {% endfor %}
+
+      {% for rl in win_dist_meta.rank_labels %}
+      <text x="{{ rl.x }}" y="{{ win_dist_meta.chart_h - 6 }}"
+            fill="#555" font-family="monospace" font-size="9" text-anchor="middle">{{ rl.label }}</text>
+      {% endfor %}
+
+      <line x1="{{ win_dist_meta.cutoff_x }}" y1="{{ win_dist_meta.pad_t }}"
+            x2="{{ win_dist_meta.cutoff_x }}" y2="{{ win_dist_meta.chart_h - 24 }}"
+            stroke="#333" stroke-width="1" stroke-dasharray="3,3"/>
+      <text x="{{ win_dist_meta.cutoff_x }}" y="{{ win_dist_meta.pad_t - 1 }}"
+            fill="#444" font-family="monospace" font-size="9" text-anchor="middle">playoff cut</text>
+
+      {% for poly in win_dist_polylines %}
+      <polyline points="{{ poly.points }}"
+                fill="none" stroke="{{ poly.color }}"
+                stroke-width="1.5" opacity="0.9"/>
+      {% endfor %}
+    </svg>
+    <div class="chart-legend">
+      {% for poly in win_dist_polylines %}
+      <div class="legend-item">
+        <div class="legend-dot" style="background:{{ poly.color }}"></div>
+        {{ results[loop.index0].system_name }}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
   <!-- ── Pick Distribution Tables ────────────────────── -->
   <div class="section-title mt-24">Pick Distribution Detail</div>
   <div class="{{ 'comparison-grid' if is_comparison else '' }}">

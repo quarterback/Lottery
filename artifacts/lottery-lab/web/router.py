@@ -14,6 +14,8 @@ from engine.lottery_sim import (
     NBA_TEAM_NAMES,
     NUM_TEAMS,
     WEEKS_PER_SEASON,
+    GAMES_PER_SEASON,
+    PLAYOFF_SPOTS,
 )
 
 router = APIRouter()
@@ -89,6 +91,51 @@ def build_comparison_rows(m0: MetricsBundle, m1: MetricsBundle) -> list[dict]:
             "diff_str": diff_str,
         })
     return rows
+
+
+def make_win_dist_polyline(avg_wins_by_rank: list[float], color: str) -> dict:
+    chart_w, chart_h = 800, 180
+    pad_l, pad_r, pad_t, pad_b = 36, 16, 12, 24
+    inner_w = chart_w - pad_l - pad_r
+    inner_h = chart_h - pad_t - pad_b
+    max_v = float(GAMES_PER_SEASON)
+    n = len(avg_wins_by_rank)
+    points = []
+    for i, wins in enumerate(avg_wins_by_rank):
+        x = pad_l + (i / max(n - 1, 1)) * inner_w
+        y = pad_t + inner_h * (1.0 - max(0.0, min(max_v, wins)) / max_v)
+        points.append(f"{x:.1f},{y:.1f}")
+    return {"points": " ".join(points), "color": color}
+
+
+def build_win_dist_chart_meta() -> dict:
+    chart_w, chart_h = 800, 180
+    pad_l, pad_r, pad_t, pad_b = 36, 16, 12, 24
+    inner_w = chart_w - pad_l - pad_r
+    inner_h = chart_h - pad_t - pad_b
+    max_v = float(GAMES_PER_SEASON)
+
+    grid = []
+    for v in [20, 30, 40, 50, 60, 70]:
+        gy = pad_t + inner_h * (1.0 - v / max_v)
+        grid.append({"v": str(v), "y": round(gy, 1)})
+
+    rank_labels = []
+    for rank in [1, 5, 10, 15, 16, 20, 25, 30]:
+        gx = pad_l + ((rank - 1) / max(NUM_TEAMS - 1, 1)) * inner_w
+        rank_labels.append({"label": str(rank), "x": round(gx, 1)})
+
+    cutoff_x = round(pad_l + ((PLAYOFF_SPOTS - 1) / max(NUM_TEAMS - 1, 1)) * inner_w, 1)
+
+    return {
+        "chart_w": chart_w,
+        "chart_h": chart_h,
+        "pad_l": pad_l,
+        "pad_t": pad_t,
+        "cutoff_x": cutoff_x,
+        "grid": grid,
+        "rank_labels": rank_labels,
+    }
 
 
 def build_effort_chart_meta() -> dict:
@@ -169,6 +216,12 @@ async def simulate(
             {**row, "bar_svg": make_pick_svg_bar(row["pct"], max_pct, color)}
             for row in rows
         ])
+
+    win_dist_polylines = [
+        make_win_dist_polyline(m.avg_wins_by_rank, CHART_COLORS[i])
+        for i, m in enumerate(results)
+    ]
+    win_dist_meta = build_win_dist_chart_meta()
 
     effort_meta = build_effort_chart_meta()
     comparison_rows = build_comparison_rows(results[0], results[1]) if len(results) == 2 else []
@@ -268,6 +321,8 @@ async def simulate(
             "pick_chart_svg": pick_chart_svg,
             "effort_polylines": effort_polylines,
             "effort_meta": effort_meta,
+            "win_dist_polylines": win_dist_polylines,
+            "win_dist_meta": win_dist_meta,
             "elapsed": elapsed,
             "runs": runs,
             "seasons": seasons,

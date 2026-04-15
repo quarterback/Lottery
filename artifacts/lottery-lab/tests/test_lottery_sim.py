@@ -65,6 +65,12 @@ def _run_system_smoke(system, seed=42, seasons=3):
     assert metrics.competitive_balance >= 0
     assert metrics.avg_wins_top3_recipients >= 0
     assert len(metrics.effort_by_week) == WEEKS_PER_SEASON
+    assert len(metrics.avg_wins_by_rank) == NUM_TEAMS
+    # Win distribution should be monotone non-increasing (rank 1 = best = most wins)
+    for i in range(len(metrics.avg_wins_by_rank) - 1):
+        assert metrics.avg_wins_by_rank[i] >= metrics.avg_wins_by_rank[i + 1] - 2, (
+            f"{system.name}: avg_wins_by_rank not monotone at rank {i+1}"
+        )
 
     return run, metrics
 
@@ -102,7 +108,7 @@ def test_gold_plan_smoke():
 
 
 def test_rcl_hard_caps():
-    """RCL system should not give #1 pick to same team more than once in 5 years."""
+    """RCL system: no #1 pick more than once, no top-3 pick more than twice in any 5-year window."""
     system = RCL()
     run = simulate_run(system, seasons=10, seed=0)
     draft_orders = run.draft_orders
@@ -111,10 +117,23 @@ def test_rcl_hard_caps():
     for i in range(len(draft_orders)):
         window = draft_orders[max(0, i - 4): i + 1]
         top1_picks = [o[0] for o in window if o]
-        # In a 5-year window, no team should appear more than once as #1
         for team_id in set(top1_picks):
             count = top1_picks.count(team_id)
             assert count <= 1, f"Team {team_id} got #1 pick {count} times in 5-year window"
+
+    # Check no team gets a top-3 pick more than twice in any 5-year window
+    for i in range(len(draft_orders)):
+        window = draft_orders[max(0, i - 4): i + 1]
+        top3_picks: list[int] = []
+        for order in window:
+            if order:
+                top3_picks.extend(order[:3])
+        for team_id in set(top3_picks):
+            count = top3_picks.count(team_id)
+            assert count <= 2, (
+                f"Team {team_id} got top-3 pick {count} times in 5-year window "
+                f"(window i={i})"
+            )
 
 
 def test_pure_inversion_order():
@@ -180,7 +199,7 @@ if __name__ == "__main__":
         print(f"✓ {system.name}")
 
     test_rcl_hard_caps()
-    print("✓ RCL hard caps enforced")
+    print("✓ RCL hard caps enforced (top-1 + top-3)")
 
     test_pure_inversion_order()
     print("✓ Pure inversion order correct")

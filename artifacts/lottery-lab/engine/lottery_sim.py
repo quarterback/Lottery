@@ -51,6 +51,7 @@ class MetricsBundle:
     avg_wins_top3_recipients: float    # avg wins of teams that received top-3 picks
     pick_distribution: dict[int, list[float]]  # team_id -> [pct of top-5 picks received]
     effort_by_week: list[float]        # avg effort multiplier per week across all seasons
+    avg_wins_by_rank: list[float]      # avg wins for rank-1..NUM_TEAMS (best to worst)
 
 
 @dataclass
@@ -354,7 +355,8 @@ def _rcl_apply_caps(weights: dict[int, float], constraints: DraftConstraints) ->
         recent_top3 = [y for y in top3_years if constraints.current_year - y < 5]
         cap_top3 = len(recent_top3) >= 2
 
-        if not cap_top1:
+        # Pick #1 is also a top-3 pick, so both caps apply to the #1 slot
+        if not cap_top1 and not cap_top3:
             top1_eligible[team_id] = w
         if not cap_top3:
             top3_eligible[team_id] = w
@@ -675,8 +677,8 @@ def simulate_season(
         matchups = []
         for i in range(0, len(team_ids) - 1, 2):
             matchups.append((team_ids[i], team_ids[i + 1]))
-        # Play multiple rounds to hit week_games count
-        rounds = max(1, week_games // len(matchups)) if matchups else 1
+        # Each round gives every team exactly one game; need week_games rounds
+        rounds = week_games if matchups else 0
 
         for _ in range(rounds):
             for a_id, b_id in matchups:
@@ -882,6 +884,14 @@ def compute_metrics(run: RunResult, teams: list[Team]) -> MetricsBundle:
                 week_effs.extend(effort_log[week_idx])
         effort_by_week.append(sum(week_effs) / len(week_effs) if week_effs else 1.0)
 
+    # --- Win distribution by rank (avg wins of rank-1..NUM_TEAMS teams) ---
+    rank_wins: list[list[float]] = [[] for _ in range(NUM_TEAMS)]
+    for season in seasons:
+        sorted_wins = sorted([w for _, w, _ in season.standings], reverse=True)
+        for rank, wins in enumerate(sorted_wins):
+            rank_wins[rank].append(float(wins))
+    avg_wins_by_rank = [round(sum(r) / len(r), 1) if r else 0.0 for r in rank_wins]
+
     return MetricsBundle(
         system_name=run.system_name,
         late_season_effort=round(late_season_effort, 4),
@@ -892,6 +902,7 @@ def compute_metrics(run: RunResult, teams: list[Team]) -> MetricsBundle:
         avg_wins_top3_recipients=round(avg_top3_wins, 2),
         pick_distribution=pick_dist,
         effort_by_week=[round(e, 4) for e in effort_by_week],
+        avg_wins_by_rank=avg_wins_by_rank,
     )
 
 
@@ -933,6 +944,12 @@ def monte_carlo(
         pcts = [m.pick_distribution.get(i, [0.0])[0] for m in all_metrics]
         avg_pick_dist[i] = [sum(pcts) / len(pcts)]
 
+    # Average avg_wins_by_rank
+    avg_wins_by_rank: list[float] = []
+    for rank in range(NUM_TEAMS):
+        vals = [m.avg_wins_by_rank[rank] for m in all_metrics if rank < len(m.avg_wins_by_rank)]
+        avg_wins_by_rank.append(round(sum(vals) / len(vals), 1) if vals else 0.0)
+
     return MetricsBundle(
         system_name=system.name,
         late_season_effort=round(avg("late_season_effort"), 4),
@@ -943,6 +960,7 @@ def monte_carlo(
         avg_wins_top3_recipients=round(avg("avg_wins_top3_recipients"), 2),
         pick_distribution=avg_pick_dist,
         effort_by_week=[round(e, 4) for e in avg_effort_by_week],
+        avg_wins_by_rank=avg_wins_by_rank,
     )
 
 
