@@ -697,6 +697,23 @@ function renderTraj(highlightIdx) {
 }
 
 /* ═══════════════════════════════════════
+   SWING STATS — biggest gain & worst loss
+═══════════════════════════════════════ */
+function swingStats(traj) {
+  if (!traj || traj.length < 2) {
+    return { bestGain: null, worstLoss: null, bestIdx: -1, worstIdx: -1 };
+  }
+  let bestGain = -Infinity, worstLoss = Infinity;
+  let bestIdx  = -1,        worstIdx  = -1;
+  for (let i = 1; i < traj.length; i++) {
+    const delta = traj[i] - traj[i - 1];
+    if (delta > bestGain)  { bestGain  = delta; bestIdx  = i; }
+    if (delta < worstLoss) { worstLoss = delta; worstIdx = i; }
+  }
+  return { bestGain, worstLoss, bestIdx, worstIdx };
+}
+
+/* ═══════════════════════════════════════
    TEAM DETAIL PANEL
 ═══════════════════════════════════════ */
 function openTeamDetail(team) {
@@ -713,9 +730,20 @@ function openTeamDetail(team) {
   document.getElementById('tdp-pers-desc').textContent = pm.desc;
   document.getElementById('tdp-personality').style.borderLeft = '3px solid ' + pm.color;
 
+  /* Swing stats */
+  const sw = swingStats(team.chip_trajectory);
+
   /* Stats row */
   const chipWins  = team.chip_wins  != null ? team.chip_wins  : '—';
   const chipLoss  = team.chip_losses != null ? team.chip_losses : '—';
+  const bestSign   = sw.bestGain  != null && sw.bestGain  >= 0 ? '+' : '';
+  const worstSign  = sw.worstLoss != null && sw.worstLoss >= 0 ? '+' : '';
+  const bestNight  = sw.bestGain  !== null && sw.bestIdx  >= 0
+    ? `<span style="color:var(--green)">${bestSign}${sw.bestGain.toFixed(1)}</span> <span style="font-size:9px;color:var(--fg-faint)">(G${60 + sw.bestIdx + 1})</span>`
+    : '—';
+  const worstNight = sw.worstLoss !== null && sw.worstIdx >= 0
+    ? `<span style="color:var(--red)">${worstSign}${sw.worstLoss.toFixed(1)}</span> <span style="font-size:9px;color:var(--fg-faint)">(G${60 + sw.worstIdx + 1})</span>`
+    : '—';
   document.getElementById('tdp-stats').innerHTML = `
     <div class="tdp-stat">
       <div class="tdp-stat-label">Chips (now)</div>
@@ -728,6 +756,14 @@ function openTeamDetail(team) {
     <div class="tdp-stat">
       <div class="tdp-stat-label">Chip W–L</div>
       <div class="tdp-stat-value" style="font-size:12px">${chipWins}–${chipLoss}</div>
+    </div>
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Best Night</div>
+      <div class="tdp-stat-value" style="font-size:12px">${bestNight}</div>
+    </div>
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Worst Night</div>
+      <div class="tdp-stat-value" style="font-size:12px">${worstNight}</div>
     </div>
     ${team.status === 'Lottery' ? `
     <div class="tdp-stat">
@@ -742,14 +778,14 @@ function openTeamDetail(team) {
   `;
 
   /* Mini sparkline */
-  renderDetailSparkline(team, pm.color);
+  renderDetailSparkline(team, pm.color, sw);
 
   const overlay = document.getElementById('team-detail-overlay');
   overlay.style.display = 'flex';
   requestAnimationFrame(() => overlay.classList.add('open'));
 }
 
-function renderDetailSparkline(team, color) {
+function renderDetailSparkline(team, color, sw) {
   const svg = document.getElementById('tdp-sparkline');
   svg.innerHTML = '';
   const ns = 'http://www.w3.org/2000/svg';
@@ -795,6 +831,26 @@ function renderDetailSparkline(team, color) {
   if (ps.dash) path.setAttribute('stroke-dasharray', ps.dash);
   svg.appendChild(path);
 
+  /* Swing markers — best night (green ▲) and worst night (red ▼) */
+  if (sw) {
+    if (sw.bestIdx >= 0 && sw.bestIdx < traj.length) {
+      const bx = sx(sw.bestIdx), by2 = sy(traj[sw.bestIdx]);
+      const tri = document.createElementNS(ns, 'polygon');
+      const r = 4;
+      tri.setAttribute('points', `${bx},${by2 - r} ${bx - r},${by2 + r} ${bx + r},${by2 + r}`);
+      tri.setAttribute('fill', '#4ade80'); tri.setAttribute('opacity', '0.95');
+      svg.appendChild(tri);
+    }
+    if (sw.worstIdx >= 0 && sw.worstIdx < traj.length) {
+      const wx = sx(sw.worstIdx), wy = sy(traj[sw.worstIdx]);
+      const tri = document.createElementNS(ns, 'polygon');
+      const r = 4;
+      tri.setAttribute('points', `${wx},${wy + r} ${wx - r},${wy - r} ${wx + r},${wy - r}`);
+      tri.setAttribute('fill', '#f87171'); tri.setAttribute('opacity', '0.95');
+      svg.appendChild(tri);
+    }
+  }
+
   /* Current-game marker */
   const gi = curGame - 1;
   if (gi >= 0 && gi < traj.length) {
@@ -810,6 +866,19 @@ function renderDetailSparkline(team, color) {
     vl.setAttribute('stroke-dasharray', '3,2'); vl.setAttribute('opacity', '0.6');
     svg.appendChild(vl);
   }
+
+  /* Sparkline legend for swing markers */
+  const wrap = svg.parentElement;
+  let swLegend = wrap.querySelector('.sw-legend');
+  if (!swLegend) {
+    swLegend = document.createElement('div');
+    swLegend.className = 'sw-legend';
+    swLegend.style.cssText = 'display:flex;gap:12px;margin-top:5px;font-size:10px;color:var(--fg-dim)';
+    wrap.appendChild(swLegend);
+  }
+  swLegend.innerHTML = sw && sw.bestIdx >= 0
+    ? `<span style="color:#4ade80">▲ Best Night</span> <span style="color:#f87171">▼ Worst Night</span>`
+    : '';
 }
 
 function closeTeamDetail(event) {
