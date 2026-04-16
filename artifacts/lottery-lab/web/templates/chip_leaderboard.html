@@ -119,10 +119,35 @@
     <div class="traj-section">
       <div class="traj-title">Chip Trajectories — All Pool Teams</div>
       <svg id="traj-svg" height="200" viewBox="0 0 900 200" preserveAspectRatio="none"></svg>
-      <div id="traj-legend" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px"></div>
+      <div id="traj-pers-legend" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:6px;margin-bottom:2px"></div>
+      <div id="traj-legend" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px"></div>
     </div>
 
   </div><!-- /main-content -->
+
+  <!-- Team detail panel -->
+  <div class="team-detail-overlay" id="team-detail-overlay" onclick="closeTeamDetail(event)">
+    <div class="team-detail-panel" onclick="event.stopPropagation()">
+      <div class="tdp-header">
+        <div>
+          <div class="tdp-team-name" id="tdp-name"></div>
+          <div class="tdp-record" id="tdp-record"></div>
+        </div>
+        <button class="tdp-close" onclick="closeTeamDetail()">&times;</button>
+      </div>
+      <div class="tdp-personality" id="tdp-personality">
+        <div>
+          <div id="tdp-pers-pill"></div>
+        </div>
+        <div class="tdp-pers-desc" id="tdp-pers-desc"></div>
+      </div>
+      <div class="tdp-stats" id="tdp-stats"></div>
+      <div class="tdp-sparkline-wrap">
+        <div class="tdp-sparkline-title">Chip Trajectory — All 22 Nights</div>
+        <svg id="tdp-sparkline" height="70" viewBox="0 0 480 70" preserveAspectRatio="none" style="width:100%;display:block;border-radius:4px;background:var(--bg-2)"></svg>
+      </div>
+    </div>
+  </div>
 
   <!-- Bottom meta -->
   <div class="bottom-bar" id="bottom-bar" style="display:none">
@@ -140,6 +165,42 @@ let activeTab = 'standings';
 const GAMES   = 22;
 const START_CHIPS = 100;
 const DOUBLE_THRESH = 100;
+
+/* ── Bidding personality metadata ── */
+function personalityMeta(p) {
+  switch (p) {
+    case 'bold':
+      return {
+        label: 'Bold', pillCls: 'pill-bold', color: '#fb923c',
+        desc: 'Bold teams bid 25–50% more than their base strategy. Bigger swings in both directions — high ceiling, high floor risk.'
+      };
+    case 'cautious':
+      return {
+        label: 'Cautious', pillCls: 'pill-cautious', color: '#34d399',
+        desc: 'Cautious teams bid 20–40% less than base. Steadier trajectory with fewer dramatic gains — but avoids catastrophic chip loss.'
+      };
+    case 'volatile':
+      return {
+        label: 'Volatile', pillCls: 'pill-volatile', color: '#c084fc',
+        desc: 'Volatile teams randomly flip between bold and cautious each game. Unpredictable trajectory — the wildcard of the chip window.'
+      };
+    default:
+      return {
+        label: 'Standard', pillCls: 'pill-standard', color: '#94a3b8',
+        desc: 'Standard teams bid proportionally to their chip stack (15–40%). No personality modifier — balanced, momentum-driven play.'
+      };
+  }
+}
+
+/* ── Trajectory line style per personality ── */
+function trajPersonalityStyle(p) {
+  switch (p) {
+    case 'bold':     return { width: '2.5', dash: null,  opacity: '0.88' };
+    case 'cautious': return { width: '1.0', dash: null,  opacity: '0.55' };
+    case 'volatile': return { width: '1.8', dash: '6,3', opacity: '0.80' };
+    default:         return { width: '1.5', dash: null,  opacity: '0.70' };
+  }
+}
 
 /* ── Pick-circle colour by pick number ── */
 function pickColor(n) {
@@ -249,8 +310,11 @@ function renderStandings(gameIdx, nightIdx) {
     const isDouble  = m && (isHome ? m.home_double : m.away_double);
     const doubled   = gameIdx === 21 && t.doubled;
 
+    const pm = personalityMeta(t.bidding_personality || 'standard');
     const row = document.createElement('div');
     row.className = 'st-row';
+    row.title = 'Click for personality details';
+    row.addEventListener('click', () => openTeamDetail(t));
     row.innerHTML = `
       <div>
         <div class="pos-circle" style="background:${pc.bg};color:${pc.fg};border:1px solid ${pc.border}">
@@ -259,8 +323,9 @@ function renderStandings(gameIdx, nightIdx) {
       </div>
       <div>
         <div class="team-name">${t.name}${doubled ? ' <span class="doubled-badge-sm">2×</span>' : ''}</div>
-        <div class="team-sub">
+        <div class="team-sub" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
           <span class="lb-status-pill pill-lottery">${t.strategy}</span>
+          <span class="lb-status-pill ${pm.pillCls}">${pm.label}</span>
         </div>
       </div>
       <div class="rec-cell">${t.final_wins}–${t.final_losses}</div>
@@ -298,8 +363,11 @@ function renderStandings(gameIdx, nightIdx) {
     const ownWager = m ? (isHome ? m.home_wager : m.away_wager).toFixed(1) : '—';
     const swapLbl  = t.is_pick_swap_holder ? ' <span style="color:#f5c518;font-size:8px">[SWAP]</span>' : '';
 
+    const opm = personalityMeta(t.bidding_personality || 'standard');
     const row = document.createElement('div');
     row.className = 'st-row other-row';
+    row.title = 'Click for personality details';
+    row.addEventListener('click', () => openTeamDetail(t));
     row.innerHTML = `
       <div>
         <div class="pos-circle" style="background:var(--bg-2);color:var(--fg-dim);border:1px solid var(--border)">
@@ -308,7 +376,10 @@ function renderStandings(gameIdx, nightIdx) {
       </div>
       <div>
         <div class="team-name">${t.name}${swapLbl}</div>
-        <div class="team-sub"><span class="lb-status-pill ${pillCls}">${pillLbl}</span></div>
+        <div class="team-sub" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+          <span class="lb-status-pill ${pillCls}">${pillLbl}</span>
+          <span class="lb-status-pill ${opm.pillCls}">${opm.label}</span>
+        </div>
       </div>
       <div class="rec-cell">${t.final_wins}–${t.final_losses}</div>
       <div class="chips-bar-col">
@@ -543,7 +614,7 @@ function renderTraj(highlightIdx) {
     svg.appendChild(lbl);
   }
 
-  /* Team paths */
+  /* Team paths — styled by bidding personality */
   const colors = ['#ff8c00','#60a5fa','#f5c518','#4ade80','#f87171','#c084fc','#22d3ee',
                    '#fb923c','#a3e635','#e879f9','#34d399','#fbbf24','#818cf8','#f472b6',
                    '#6ee7b7','#fca5a5','#a5b4fc','#93c5fd'];
@@ -551,16 +622,31 @@ function renderTraj(highlightIdx) {
     const traj = t.chip_trajectory;
     if (!traj || traj.length === 0) return;
     const color = colors[i % colors.length];
+    const ps = trajPersonalityStyle(t.bidding_personality || 'standard');
+
+    /* Only draw up to the highlighted game */
+    const drawTo = Math.min(highlightIdx + 1, traj.length);
     let d = '';
-    traj.forEach((c, gi) => {
-      const x = trajX(gi), y = trajY(c, minC, maxC);
+    for (let gi = 0; gi < drawTo; gi++) {
+      const x = trajX(gi), y = trajY(traj[gi], minC, maxC);
       d += (gi === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
-    });
+    }
     const path = document.createElementNS(ns, 'path');
     path.setAttribute('d', d); path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', color); path.setAttribute('stroke-width', '1.5');
-    path.setAttribute('opacity', '0.7');
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', ps.width);
+    path.setAttribute('opacity', ps.opacity);
+    if (ps.dash) path.setAttribute('stroke-dasharray', ps.dash);
     svg.appendChild(path);
+
+    /* Endpoint dot at current game */
+    if (drawTo > 0) {
+      const ex = trajX(drawTo - 1), ey = trajY(traj[drawTo - 1], minC, maxC);
+      const dot = document.createElementNS(ns, 'circle');
+      dot.setAttribute('cx', ex); dot.setAttribute('cy', ey); dot.setAttribute('r', '3');
+      dot.setAttribute('fill', color); dot.setAttribute('opacity', '0.9');
+      svg.appendChild(dot);
+    }
   });
 
   /* Highlight current-game marker */
@@ -574,16 +660,163 @@ function renderTraj(highlightIdx) {
     svg.appendChild(vl);
   }
 
-  /* Legend */
+  /* Legend — shows team name + personality pill */
   const legend = document.getElementById('traj-legend');
   legend.innerHTML = '';
   pool.forEach((t, i) => {
     const color = colors[i % colors.length];
+    const pm = personalityMeta(t.bidding_personality || 'standard');
+    const ps = trajPersonalityStyle(t.bidding_personality || 'standard');
     const el = document.createElement('div');
-    el.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:10px;color:var(--fg-dim)';
-    el.innerHTML = `<span style="display:inline-block;width:16px;height:2px;background:${color};border-radius:1px"></span>${t.name}`;
+    el.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:10px;color:var(--fg-dim);cursor:pointer';
+    el.title = 'Click for details';
+    el.innerHTML = `
+      <span style="display:inline-block;width:16px;height:${parseFloat(ps.width) > 1.5 ? 3 : 2}px;
+        background:${color};border-radius:1px;${ps.dash ? 'border-top:2px dashed '+color+';background:none;height:0;' : ''}"></span>
+      ${t.name}
+      <span class="lb-status-pill ${pm.pillCls}" style="font-size:8px">${pm.label}</span>
+    `;
+    el.addEventListener('click', () => openTeamDetail(t));
     legend.appendChild(el);
   });
+
+  /* Personality style legend */
+  const persLegend = document.getElementById('traj-pers-legend');
+  if (persLegend) {
+    persLegend.innerHTML = `
+      <span style="font-size:9px;color:var(--fg-faint);margin-right:6px">Line style:</span>
+      <span style="font-size:9px;color:var(--fg-dim)"><b>Bold</b> = thick</span>
+      <span style="font-size:9px;color:var(--fg-faint);margin:0 4px">·</span>
+      <span style="font-size:9px;color:var(--fg-dim)"><b>Cautious</b> = thin</span>
+      <span style="font-size:9px;color:var(--fg-faint);margin:0 4px">·</span>
+      <span style="font-size:9px;color:var(--fg-dim)"><b>Volatile</b> = dashed</span>
+      <span style="font-size:9px;color:var(--fg-faint);margin:0 4px">·</span>
+      <span style="font-size:9px;color:var(--fg-dim)"><b>Standard</b> = normal</span>
+    `;
+  }
+}
+
+/* ═══════════════════════════════════════
+   TEAM DETAIL PANEL
+═══════════════════════════════════════ */
+function openTeamDetail(team) {
+  const pm = personalityMeta(team.bidding_personality || 'standard');
+  const gameIdx = curGame - 1;
+  const chips   = chipsAt(team, gameIdx);
+
+  document.getElementById('tdp-name').textContent   = team.name;
+  document.getElementById('tdp-record').textContent =
+    team.final_wins + '–' + team.final_losses + ' · ' + (team.status || '');
+
+  document.getElementById('tdp-pers-pill').innerHTML =
+    `<span class="lb-status-pill ${pm.pillCls}" style="font-size:12px;padding:3px 8px">${pm.label}</span>`;
+  document.getElementById('tdp-pers-desc').textContent = pm.desc;
+  document.getElementById('tdp-personality').style.borderLeft = '3px solid ' + pm.color;
+
+  /* Stats row */
+  const chipWins  = team.chip_wins  != null ? team.chip_wins  : '—';
+  const chipLoss  = team.chip_losses != null ? team.chip_losses : '—';
+  document.getElementById('tdp-stats').innerHTML = `
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Chips (now)</div>
+      <div class="tdp-stat-value" style="color:${chips >= 100 ? 'var(--green)' : 'var(--red)'}">${chips != null ? chips.toFixed(1) : '—'}</div>
+    </div>
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Strategy</div>
+      <div class="tdp-stat-value" style="font-size:12px">${team.strategy || '—'}</div>
+    </div>
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Chip W–L</div>
+      <div class="tdp-stat-value" style="font-size:12px">${chipWins}–${chipLoss}</div>
+    </div>
+    ${team.status === 'Lottery' ? `
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Draft Odds</div>
+      <div class="tdp-stat-value" style="font-size:12px">${team.lottery_odds != null ? team.lottery_odds.toFixed(1) + '%' : '—'}</div>
+    </div>` : ''}
+    ${team.doubled ? `
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Doubled</div>
+      <div class="tdp-stat-value" style="font-size:12px">Night ${team.double_night}</div>
+    </div>` : ''}
+  `;
+
+  /* Mini sparkline */
+  renderDetailSparkline(team, pm.color);
+
+  const overlay = document.getElementById('team-detail-overlay');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => overlay.classList.add('open'));
+}
+
+function renderDetailSparkline(team, color) {
+  const svg = document.getElementById('tdp-sparkline');
+  svg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+  const W = 480, H = 70, PL = 28, PR = 8, PT = 6, PB = 18;
+  const traj = team.chip_trajectory;
+  if (!traj || traj.length === 0) return;
+
+  const allVals = lbData ? lbData.teams.filter(t => t.in_chip_pool).flatMap(t => t.chip_trajectory) : traj;
+  const minC = Math.min(...allVals, 0) - 5;
+  const maxC = Math.max(...allVals, 200) + 5;
+  const sx  = gi => PL + (gi / (GAMES - 1)) * (W - PL - PR);
+  const sy  = c  => PT + (1 - (c - minC) / (maxC - minC || 1)) * (H - PT - PB);
+
+  /* 100-chip baseline */
+  const by = sy(100);
+  const bl = document.createElementNS(ns, 'line');
+  bl.setAttribute('x1', PL); bl.setAttribute('x2', W - PR);
+  bl.setAttribute('y1', by); bl.setAttribute('y2', by);
+  bl.setAttribute('stroke', '#ccaa44'); bl.setAttribute('stroke-width', '0.8');
+  bl.setAttribute('stroke-dasharray', '3,3'); bl.setAttribute('opacity', '0.4');
+  svg.appendChild(bl);
+
+  /* X-axis labels */
+  [0, 5, 10, 15, 21].forEach(gi => {
+    const lbl = document.createElementNS(ns, 'text');
+    lbl.setAttribute('x', sx(gi)); lbl.setAttribute('y', H - 4);
+    lbl.setAttribute('text-anchor', 'middle'); lbl.setAttribute('fill', '#555');
+    lbl.setAttribute('font-size', '8'); lbl.textContent = 'G' + (60 + gi + 1);
+    svg.appendChild(lbl);
+  });
+
+  /* Chip trajectory path */
+  const ps = trajPersonalityStyle(team.bidding_personality || 'standard');
+  let d = '';
+  traj.forEach((c, gi) => {
+    d += (gi === 0 ? 'M' : 'L') + sx(gi).toFixed(1) + ',' + sy(c).toFixed(1);
+  });
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute('d', d); path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', color);
+  path.setAttribute('stroke-width', parseFloat(ps.width) > 1.5 ? '2' : ps.width);
+  path.setAttribute('opacity', '0.9');
+  if (ps.dash) path.setAttribute('stroke-dasharray', ps.dash);
+  svg.appendChild(path);
+
+  /* Current-game marker */
+  const gi = curGame - 1;
+  if (gi >= 0 && gi < traj.length) {
+    const mx = sx(gi), my = sy(traj[gi]);
+    const dot = document.createElementNS(ns, 'circle');
+    dot.setAttribute('cx', mx); dot.setAttribute('cy', my); dot.setAttribute('r', '4');
+    dot.setAttribute('fill', color); dot.setAttribute('opacity', '1');
+    svg.appendChild(dot);
+    const vl = document.createElementNS(ns, 'line');
+    vl.setAttribute('x1', mx); vl.setAttribute('x2', mx);
+    vl.setAttribute('y1', PT); vl.setAttribute('y2', H - PB);
+    vl.setAttribute('stroke', 'var(--accent)'); vl.setAttribute('stroke-width', '1');
+    vl.setAttribute('stroke-dasharray', '3,2'); vl.setAttribute('opacity', '0.6');
+    svg.appendChild(vl);
+  }
+}
+
+function closeTeamDetail(event) {
+  if (event && event.target !== document.getElementById('team-detail-overlay')) return;
+  const overlay = document.getElementById('team-detail-overlay');
+  overlay.classList.remove('open');
+  setTimeout(() => { overlay.style.display = 'none'; }, 220);
 }
 
 /* ═══════════════════════════════════════
