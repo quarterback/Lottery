@@ -264,11 +264,12 @@ def simulate_chip_window_league(
             night_pairings.append(pairs)
 
         # ── Chip window simulation (night-by-night) ──────────────────────────
-        chips:       dict[int, float] = {i: STARTING_CHIPS for i in ids}
-        dbl_tracker: dict[int, bool]  = {i: False          for i in ids}
-        trajectories: dict[int, list[float]] = {i: [] for i in ids}
-        chip_wins:   dict[int, int]   = {i: 0   for i in ids}
-        chip_losses: dict[int, int]   = {i: 0   for i in ids}
+        chips:        dict[int, float]       = {i: STARTING_CHIPS for i in ids}
+        dbl_tracker:  dict[int, bool]        = {i: False          for i in ids}
+        trajectories: dict[int, list[float]] = {i: []             for i in ids}
+        chip_wins:    dict[int, int]         = {i: 0              for i in ids}
+        chip_losses:  dict[int, int]         = {i: 0              for i in ids}
+        opp_wagers:   dict[int, list[float]] = {i: []             for i in ids}
 
         full_schedule: list[list[dict]] = []
 
@@ -282,40 +283,28 @@ def simulate_chip_window_league(
                 home_chips_before = chips[home_id]
                 away_chips_before = chips[away_id]
 
-                # ── Double declaration (lottery teams, any home game, no chip floor) ──
+                # ── Double declaration ────────────────────────────────────────
+                # Rule: only the HOME team can declare a double; away team never
+                # declares. Each lottery team may declare exactly once per season
+                # on any home game (no chip-floor requirement).
                 home_dbl = (
                     not dbl_tracker[home_id]
                     and home_td["status"] == STATUS_LOTTERY
                 )
-                away_dbl = (
-                    not dbl_tracker[away_id]
-                    and away_td["status"] == STATUS_LOTTERY
-                )
-                # Only home team can declare at home; if both eligible, home wins
-                if away_dbl and not home_dbl:
-                    # Away declaring double at an away game — not allowed per paper
-                    away_dbl = False
+                away_dbl = False   # away team is never the declarer
+
                 if home_dbl:
-                    dbl_tracker[home_id] = True
-                    home_td["doubled"]     = True
+                    dbl_tracker[home_id]    = True
+                    home_td["doubled"]      = True
                     home_td["double_night"] = night_idx
-                if away_dbl:
-                    dbl_tracker[away_id] = True
-                    away_td["doubled"]     = True
-                    away_td["double_night"] = night_idx
 
                 # ── Wagers ───────────────────────────────────────────────────
-                home_base = _pick_bet(chips[home_id], home_td["strategy"], rng)
-                away_base = _pick_bet(chips[away_id], away_td["strategy"], rng)
+                home_base  = _pick_bet(chips[home_id], home_td["strategy"], rng)
+                away_base  = _pick_bet(chips[away_id], away_td["strategy"], rng)
 
+                # Double: home wager doubles; away responds with fixed max (BIG_BET)
                 home_wager = home_base * 2.0 if home_dbl else home_base
-                away_wager = away_base * 2.0 if away_dbl else away_base
-
-                # Opponent responds to a double with an aggressive bid (proportional to their stack)
-                if home_dbl:
-                    away_wager = _pick_bet(chips[away_id], "aggressive", rng)
-                if away_dbl:
-                    home_wager = _pick_bet(chips[home_id], "aggressive", rng)
+                away_wager = BIG_BET         if home_dbl else away_base
 
                 pot = home_wager + away_wager
 
@@ -336,6 +325,10 @@ def simulate_chip_window_league(
                     winner_id = away_id
                     chip_wins[away_id]   += 1
                     chip_losses[home_id] += 1
+
+                # Track what each team's opponent wagered (for opponent_wagers list)
+                opp_wagers[home_id].append(round(away_wager, 1))
+                opp_wagers[away_id].append(round(home_wager, 1))
 
                 # ── Build narrative (client can use directly) ─────────────────
                 narrative = _build_narrative(
@@ -386,6 +379,13 @@ def simulate_chip_window_league(
                     trajectories[td["id"]][-1] = chips[td["id"]]
 
         # ── Finalize team chip data ──────────────────────────────────────────
+        # Build tonight lookup from final chip-window night (night 22 = schedule[-1])
+        final_night = full_schedule[-1] if full_schedule else []
+        tonight_by_team: dict[int, dict] = {}
+        for m in final_night:
+            tonight_by_team[m["home_id"]] = m
+            tonight_by_team[m["away_id"]] = m
+
         for td in team_data:
             tid = td["id"]
             td["chips_end"]       = round(chips[tid], 1)
@@ -394,7 +394,24 @@ def simulate_chip_window_league(
             td["chip_losses"]     = chip_losses[tid]
             td["final_wins"]      = td["wins_60"] + chip_wins[tid]
             td["final_losses"]    = td["losses_60"] + chip_losses[tid]
+            td["opponent_wagers"] = opp_wagers[tid]
             total_chips_sum[tid] += td["chips_end"]
+
+            # tonight_* fields — based on the final night of the chip window (G82)
+            m = tonight_by_team.get(tid)
+            if m:
+                is_home = m["home_id"] == tid
+                td["tonight_opponent"]  = m["away_name"]  if is_home else m["home_name"]
+                td["tonight_wager"]     = round(m["home_wager"]  if is_home else m["away_wager"], 1)
+                td["tonight_opp_wager"] = round(m["away_wager"]  if is_home else m["home_wager"], 1)
+                td["tonight_pot"]       = round(m["pot"], 1)
+                td["tonight_double"]    = m["home_double"] if is_home else False
+            else:
+                td["tonight_opponent"]  = None
+                td["tonight_wager"]     = None
+                td["tonight_opp_wager"] = None
+                td["tonight_pot"]       = None
+                td["tonight_double"]    = False
 
         # ── Lottery odds (max(0,chips) for weight; negative → floor only) ────
         lottery_teams = [td for td in team_data if td["status"] == STATUS_LOTTERY]
@@ -577,8 +594,16 @@ def result_to_json(result: SimResult) -> dict:
                 "chip_pick":        td.get("chip_pick"),
                 "chip_gap_up":      td.get("chip_gap_up"),
                 "chip_gap_up_team": td.get("chip_gap_up_team"),
-                "chip_gap_down":    td.get("chip_gap_down"),
+                "chip_gap_down":      td.get("chip_gap_down"),
                 "chip_gap_down_team": td.get("chip_gap_down_team"),
+                # tonight_* fields (from final chip-window night, G82)
+                "tonight_opponent":   td.get("tonight_opponent"),
+                "tonight_wager":      td.get("tonight_wager"),
+                "tonight_opp_wager":  td.get("tonight_opp_wager"),
+                "tonight_pot":        td.get("tonight_pot"),
+                "tonight_double":     td.get("tonight_double", False),
+                # per-night opponent wager amounts (22 values, one per night)
+                "opponent_wagers":    td.get("opponent_wagers", []),
             })
 
         seasons_json.append({
