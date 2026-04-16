@@ -110,8 +110,18 @@ def _pick_bet(chips: float, strategy: str, rng: random.Random,
 
 def _effective_odds(chip_teams: list[dict]) -> dict[int, float]:
     """Compute final lottery odds for lottery-eligible teams.
-    Floor = record-based NBA odds. Upside = proportional chip weight.
-    Negative chips → max(0, chips) for weight (floor odds only, no upside).
+
+    Two-pool structure:
+    - Floor pool (50%): the 5 worst-record lottery teams each receive a guaranteed
+      10% floor. This block is fixed regardless of chip performance.
+    - Chip pool (50%): distributed proportionally by chip totals among all lottery
+      teams. Negative chips clip to 0 for weighting purposes.
+
+    Final odds = chip_share (of 50%) + floor (10% if bottom-5, else 0%).
+    The two pools sum to 100%; no renormalization needed.
+
+    Effect: worst teams can only add to their 10% floor via chip wins — they
+    cannot fall below it. Teams ranked 6–14 earn only what their chips provide.
     """
     lottery_sorted = sorted(
         [t for t in chip_teams if t["status"] == STATUS_LOTTERY],
@@ -121,29 +131,32 @@ def _effective_odds(chip_teams: list[dict]) -> dict[int, float]:
     if n == 0:
         return {}
 
-    floor_weights = {lottery_sorted[i]["id"]: NBA_ODDS[i] for i in range(n)}
-    total_floor = sum(NBA_ODDS[:n])
+    FLOOR_COUNT = 5     # bottom 5 worst-record teams get a guaranteed floor
+    FLOOR_PCT   = 10.0  # 10% per team = 50% of total pool reserved
+    CHIP_POOL   = 50.0  # remaining 50% distributed by chip performance
 
-    # Chips weight: use max(0, chips) so negative chips don't penalize further
+    # Chip-proportional share of the 50% chip pool
     eff_chips = [max(0.0, t["chips_end"]) for t in lottery_sorted]
     total_chips = sum(eff_chips)
-
     if total_chips > 0.0:
-        chip_weights = {
-            lottery_sorted[i]["id"]: eff_chips[i] / total_chips * total_floor
+        chip_share = {
+            lottery_sorted[i]["id"]: eff_chips[i] / total_chips * CHIP_POOL
             for i in range(n)
         }
     else:
-        chip_weights = {t["id"]: 0.0 for t in lottery_sorted}
+        chip_share = {lottery_sorted[i]["id"]: CHIP_POOL / n for i in range(n)}
 
-    effective = {
-        tid: max(floor_weights[tid], chip_weights.get(tid, 0.0))
-        for tid in floor_weights
+    # Guaranteed floor for the 5 worst-record teams
+    floor = {
+        lottery_sorted[i]["id"]: FLOOR_PCT if i < FLOOR_COUNT else 0.0
+        for i in range(n)
     }
-    total_eff = sum(effective.values())
-    if total_eff > 0:
-        return {tid: round(w / total_eff * 100.0, 2) for tid, w in effective.items()}
-    return {tid: 0.0 for tid in floor_weights}
+
+    # Final = floor + chip share (sums to 100%, no renorm needed)
+    return {
+        tid: round(floor[tid] + chip_share[tid], 2)
+        for tid in floor
+    }
 
 
 # ── Data classes ─────────────────────────────────────────────────────────────

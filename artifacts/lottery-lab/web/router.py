@@ -120,17 +120,19 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
             "Each lottery team may use their double once on any home game: "
             "their wager doubles for that game, and the opponent can respond by bidding aggressively. "
             "No chip threshold required — any lottery team can declare their double whenever they choose. "
-            "Draft order among lottery teams is determined by final chip totals (most chips = Pick 1), "
-            "floored at record-based NBA odds. Tanking is structurally impossible: losing costs chips "
-            "at the same rate regardless of intent. Every late-season game carries chip stakes — "
+            "Draft odds use a two-pool structure: 50% is reserved as a guaranteed 10% floor for each "
+            "of the 5 worst-record teams — no chip result can take them below that. The remaining 50% "
+            "is distributed proportionally by chip totals across all 14 lottery teams. Teams ranked "
+            "6–14 earn only what their chips provide. Tanking is structurally impossible: losing costs "
+            "chips at the same rate regardless of intent. Every late-season game carries chip stakes — "
             "a public leaderboard turns garbage time into must-watch TV."
         ),
-        "odds": [14.0, 14.0, 13.5, 12.0, 10.0, 8.5, 7.0, 5.5, 4.0, 3.0, 2.5, 2.0, 1.5, 2.5],
+        "odds": [10.5, 10.5, 10.5, 10.5, 10.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.5, 7.5, 8.5],
         "odds_note": (
-            "Dynamic — odds depend on each team's chip total after the 22-game window, not just "
-            "their record. Teams that deplete their chips fall to their Current NBA floor; "
-            "teams that win during the window can climb the odds board. The double mechanic "
-            "(usable on any home game, no chip minimum) can flip a team's draft position in one night."
+            "Two-pool structure: slots 1–5 (worst records) each have a guaranteed 10% floor that "
+            "chip results cannot reduce. The remaining 50% is allocated by chip totals — teams with "
+            "better records and more wins during the window earn a larger share. Approximate values "
+            "shown; actual odds shift each simulation based on the full field's chip performance."
         ),
     },
     "The Wheel": {

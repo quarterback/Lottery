@@ -1150,20 +1150,27 @@ class ChipWindow:
             win_prob = wins / total if total > 0 else 0.30
             raw_chips[tid] = self._simulate_chips(win_prob, rng)
 
-        # Floor: NBA_ODDS for the team's draft-rank position
-        floor_weights = {lottery[i][0]: NBA_ODDS[i] for i in range(n)}
+        # Two-pool odds structure:
+        # - Floor pool (50%): bottom-5 worst-record teams get 10% each (guaranteed).
+        # - Chip pool (50%): distributed proportionally by raw chip totals to all teams.
+        # Final weight = chip_share + floor. Sums to 100; no renorm needed.
+        FLOOR_COUNT = 5
+        FLOOR_PCT   = 10.0
+        CHIP_POOL   = 50.0
 
-        # Scale raw chips to the same magnitude as NBA_ODDS so they're comparable
         total_chips = sum(raw_chips.values())
-        total_floor = sum(NBA_ODDS[:n])
         if total_chips > 0:
-            chip_weights = {tid: c / total_chips * total_floor for tid, c in raw_chips.items()}
+            chip_weights = {tid: c / total_chips * CHIP_POOL for tid, c in raw_chips.items()}
         else:
-            chip_weights = {tid: 0.0 for tid in raw_chips}
+            chip_weights = {tid: CHIP_POOL / n for tid in raw_chips}
 
-        # Effective weight = max(floor, chip-derived) — floor prevents double punishment
+        floor_weights = {
+            lottery[i][0]: FLOOR_PCT if i < FLOOR_COUNT else 0.0
+            for i in range(n)
+        }
+
         effective_weights = {
-            tid: max(floor_weights[tid], chip_weights.get(tid, 0.0))
+            tid: floor_weights[tid] + chip_weights.get(tid, 0.0)
             for tid in floor_weights
         }
 

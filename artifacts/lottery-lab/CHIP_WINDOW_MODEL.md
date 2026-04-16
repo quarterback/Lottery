@@ -85,14 +85,23 @@ The double night is selected randomly before the window opens, not reactively by
 
 ## Draft Odds Calculation
 
-At the end of the 22-night window, lottery odds are computed as follows:
+At the end of the 22-night window, lottery odds are computed using a two-pool structure:
 
-1. Lottery teams are sorted by final chip total (most chips = Pick 1 rank)
-2. Each team's floor is their current NBA lottery odds for their draft slot (worst record = highest floor)
-3. Effective weight for the proportional pool = `max(0, chips_end)` — negative chips clip to zero and receive floor odds only
-4. Final odds = `max(floor_odds, proportional_chip_share)`
+**Pool 1 — Guaranteed floor (50% of total odds):**  
+The 5 worst-record lottery teams each receive a guaranteed **10% floor** (5 × 10% = 50%). This block is fully reserved and cannot be diluted by chip performance — neither by the team's own chip total nor by any other team's chip accumulation.
 
-Teams that deplete their chips to zero or negative receive the odds they would have earned under the current NBA system. They cannot fall below that floor. Teams that accumulate chips above their starting position can exceed their floor odds proportionally.
+**Pool 2 — Chip performance pool (50% of total odds):**  
+The remaining 50% is distributed proportionally among all 14 lottery teams based on their final chip totals. A team's chip share = `max(0, chips_end) / total_field_chips × 50%`. Negative chips clip to zero for weighting; those teams contribute nothing to the denominator but still receive a zero chip share.
+
+**Final odds = floor (10% if bottom-5, else 0%) + chip share (of 50%)**
+
+The two pools sum to 100%; no renormalization is needed.
+
+**Key effects:**
+- Bottom-5 teams can only go **up** from 10% via chip wins — they cannot fall below it regardless of how poorly they perform in the window.
+- Teams ranked 6–14 in the lottery earn **only what their chips provide** — there is no guaranteed floor. A team with poor chip performance can receive near-0% odds.
+- Strong chip performance by a bottom-5 team compounds: 10% floor plus a proportional share of the chip pool, potentially reaching 14–18%+ in a dominant season.
+- The chip pool rewards relative performance — earning chips is meaningless unless you earn more than your opponents.
 
 ---
 
@@ -247,7 +256,8 @@ Chip ranks used in narratives are computed from live chip totals at the start of
 | Double mechanic | One pre-selected home game per lottery team; no chip minimum |
 | Double opponent response | Fixed 25 chips |
 | Chip floor during window | None (chips can go negative) |
-| Draft odds floor | Record-based current NBA odds |
+| Draft odds floor | 10% guaranteed for the 5 worst-record teams; 0% floor for teams ranked 6–14 |
+| Chip pool (lottery odds) | 50% of total odds reserved as floors; 50% distributed proportionally by chips |
 | Hot streak frequency | ~20% of lottery + play-in teams |
 | Hot streak boost | +8–15% win probability |
 | Hot streak length | 5–8 consecutive nights |
@@ -273,7 +283,7 @@ The original "Bid Standardization" paper described a simpler mechanic. The simul
 | Win returns your wager, loss deducts it | Pot mechanic: winner gains opponent's wager, loser loses own wager |
 | Double requires finishing with >100 chips | Double is pre-assigned home night, no chip threshold |
 | Play-In consolation bonus (+7.5 chips) | Removed — chips are purely match-based |
-| Floor at 0 chips | Floor at current NBA odds; chips can go negative during window |
+| Floor at 0 chips | Floor at 10% for the 5 worst-record teams; teams 6–14 have no floor. Chips can go negative during window; floor only applies at odds calculation. |
 | Single strategy (bet big or small) | Three strategies: aggressive, standard, conservative |
 | No variance beyond win probability | Four variance mechanics: hot streaks, personalities, fatigue, rally |
 | No pick-swap modeling | ~25% of playoff teams modeled as swap-aware |
