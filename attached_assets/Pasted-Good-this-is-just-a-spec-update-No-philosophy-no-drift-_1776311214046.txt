@@ -1,0 +1,171 @@
+Good—this is just a spec update. No philosophy, no drift. Clean it so your engine stops producing ties and stops thinking in “odds.”
+
+---
+
+# AI ENGINE UPDATE (FINAL VERSION)
+
+## Core shift
+
+**Stop treating outputs as probabilities.
+Treat them as weighted rankings that resolve into draft order.**
+
+You are not simulating a lottery anymore.
+You are generating a **deterministic ordering with weighted randomness only at the top**.
+
+---
+
+# 1. INPUTS
+
+For each lottery team:
+
+* `wins`
+* `chips`
+* `record_rank` (1 = worst)
+
+---
+
+# 2. CHIP RANK → SLOT ASSIGNMENT (NOT ODDS)
+
+Replace “percentages” with **slot weights**
+
+```
+rank_weights = [
+  40,  # 1
+  20,  # 2
+  10,  # 3
+  9,   # 4
+  8,   # 5
+  5,   # 6
+  3,   # 7
+  2,   # 8
+  1,   # 9
+  0.5, # 10
+  0.3, # 11
+  0.2, # 12
+  0.1, # 13
+  0.05 # 14
+]
+```
+
+Important:
+
+* These are **not normalized**
+* They are just **relative draw strength**
+
+---
+
+# 3. FLOOR RULE (HARD CONSTRAINT)
+
+```
+if record_rank <= 5:
+    weight = max(weight, 10)
+```
+
+No redistribution
+No renormalization
+No scaling
+
+This avoids the flattening problem you were hitting earlier.
+
+---
+
+# 4. DRAFT RESOLUTION (KEY CHANGE)
+
+You do **sequential weighted selection without replacement**
+
+Pseudocode:
+
+```
+teams = all lottery teams
+draft_order = []
+
+while teams not empty:
+    pick = weighted_random_choice(teams, weight)
+    draft_order.append(pick)
+    remove pick from teams
+```
+
+---
+
+# 5. TIE HANDLING (ONLY IF NEEDED)
+
+You should almost never hit ties now, but if you do:
+
+1. higher chips
+2. worse record
+3. coin flip
+
+---
+
+# 6. WHAT THE ENGINE RETURNS
+
+NOT:
+
+* percentages
+* odds tables
+
+ONLY:
+
+```
+1. UTA
+2. CHI
+3. MEM
+4. POR
+5. SAS
+...
+```
+
+---
+
+# 7. WHY THIS FIXES YOUR ISSUE
+
+### Before (broken)
+
+* floor injects mass
+* renormalization compresses
+* everything collapses into ties
+
+### Now
+
+* weights stay separated
+* floor only lifts, never compresses
+* ordering remains intact
+
+---
+
+# 8. WHAT THIS PRODUCES (BEHAVIOR)
+
+* Chip winner usually gets #1 (but not guaranteed)
+* Bottom 5 always competitive (never drop out)
+* Mid teams can jump to the top
+* No artificial clustering
+
+This is much closer to how the NBA lottery *feels* already, just without the hidden ping-pong layer ([Tankathon][1])
+
+---
+
+# 9. IMPORTANT IMPLEMENTATION NOTE
+
+Do NOT:
+
+* normalize weights to 100
+* convert to percentages
+* average anything
+
+Just:
+
+> weights → draw → remove → repeat
+
+---
+
+# Bottom line
+
+Your system works once you:
+
+* stop thinking in odds
+* stop renormalizing
+* treat it as a **weighted draft queue**
+
+That’s the missing piece your engine needed.
+
+[1]: https://www.tankathon.com/?utm_source=chatgpt.com "Tankathon | 2026 NBA Draft Order & Lottery Simulator"
