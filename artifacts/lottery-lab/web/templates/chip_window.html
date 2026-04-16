@@ -13,8 +13,8 @@
     Activates at <b>game 60</b> for all 30 teams. Starting chips are assigned by quintile:
     worst 6 teams begin with <b>100 chips</b>, next 6 with 80, middle 6 with 60, next 6 with 40,
     and the best 6 with 20 — giving bad teams more firepower without rewarding additional losing.
-    Chips are clamped at <b>10 minimum</b>. Every team may declare a <b>double</b> on their
-    pre-assigned home night — no status restriction. The 14 lottery teams' final chip totals
+    Chips are clamped at <b>10 minimum</b>. Every team gets one <b>double</b> to use during the window —
+    they declare it by choosing which home game to apply it to. The 14 lottery teams' final chip totals
     determine draft order directly: <b>most chips = Pick 1</b>, fewest = Pick 14.
     No lottery draw. Ties are broken by worse record. <b>Tanking is structurally impossible.</b>
   </p>
@@ -95,19 +95,18 @@
       <div>
         <div class="section-title">Chip Window Standings</div>
         <p style="font-size:11px;color:var(--fg-faint);margin-bottom:10px">
-          All 30 teams participate. Safe Playoff teams bid conservatively; ~25% hold pick-swap rights and bid aggressively.
-          Drag the <b>Game Window</b> slider to see standings evolve G61→G82.
+          All 30 teams participate. Click column headers to sort. Drag the <b>Game Window</b> slider to see standings evolve G61→G82.
         </p>
         <div class="table-wrap">
           <table id="standings-table">
             <thead>
-              <tr>
-                <th style="text-align:left">#</th>
+              <tr id="standings-header-row">
+                <th class="sortable-th" data-sort="rank" style="text-align:left" onclick="setSort('rank')"># <span class="sort-arrow" id="sort-arrow-rank">↑</span></th>
                 <th style="text-align:left">Team</th>
-                <th style="text-align:left">Status</th>
+                <th class="sortable-th" data-sort="status" style="text-align:left" onclick="setSort('status')">Status <span class="sort-arrow" id="sort-arrow-status"></span></th>
                 <th>60-G</th>
                 <th>G82</th>
-                <th style="min-width:120px">Chips <span style="font-weight:400;color:var(--fg-faint);font-size:9px">(+/− last game)</span></th>
+                <th class="sortable-th" data-sort="chips" style="min-width:120px" onclick="setSort('chips')">Chips <span class="sort-arrow" id="sort-arrow-chips"></span> <span style="font-weight:400;color:var(--fg-faint);font-size:9px">(+/− last game)</span></th>
                 <th style="text-align:left">Tonight</th>
                 <th>Pick</th>
               </tr>
@@ -163,7 +162,7 @@
         <div class="section-title">Legend</div>
         <div style="background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:16px;font-size:11px;color:var(--fg-dim);line-height:1.9">
           <div style="margin-bottom:8px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-faint)">Status</div>
-          <div style="margin-bottom:6px"><span class="cw-pill cw-safe">Safe Playoff</span> — top 12, conservative bids (~25% pick-swap holders bid aggressively)</div>
+          <div style="margin-bottom:6px"><span class="cw-pill cw-safe">Safe Playoff</span> — top 12, bid conservatively (not competing for picks)</div>
           <div style="margin-bottom:6px"><span class="cw-pill cw-playin">Play-In</span> — seeds 13–20, always aggressive bids</div>
           <div style="margin-bottom:14px"><span class="cw-pill cw-lottery">Lottery</span> — bottom 14, user strategy, chip standings determine draft pick</div>
           <div style="margin-bottom:8px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-faint)">Wagers</div>
@@ -172,7 +171,7 @@
           <div style="margin-bottom:4px">Win → gain opponent's wager</div>
           <div style="margin-bottom:4px">Loss → lose own wager (floored at 10)</div>
           <div style="margin-bottom:4px"><span style="color:#f5c518;font-size:11px">⚡</span> Upset bonus: lower-record winner earns +(<i>opp wins − your wins</i>) bonus chips</div>
-          <div style="margin-bottom:14px"><span class="doubled-badge">2×</span> Any team: double wager once on pre-assigned home game</div>
+          <div style="margin-bottom:14px"><span class="doubled-badge">2×</span> Any team gets one double per window — declared by choosing which home game to apply it to</div>
           <div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-faint);margin-bottom:4px">Draft order</div>
           <div>Most chips = Pick 1 · Fully deterministic — no lottery draw · Ties broken by worse record</div>
         </div>
@@ -188,6 +187,25 @@ let simData = null;
 let currentSeason = 1;
 let currentGame = 22;   // 1-22 position within chip window (22 = final)
 let matchupCache = {};  // matchupCache[seasonNum][nightIdx][teamId] = matchup obj
+let sortField = 'rank'; // 'rank' | 'chips' | 'status'
+let sortDir   = 1;      // 1 = asc, -1 = desc
+
+function setSort(field) {
+  if (sortField === field) {
+    sortDir *= -1;
+  } else {
+    sortField = field;
+    sortDir = 1; // all fields start ascending; for chips formula (b-a), that means most-first
+  }
+  // Update arrow indicators
+  ['rank','chips','status'].forEach(f => {
+    const el = document.getElementById('sort-arrow-' + f);
+    if (!el) return;
+    if (f === sortField) el.textContent = sortDir === 1 ? '↑' : '↓';
+    else el.textContent = '';
+  });
+  renderSeason(currentSeason, currentGame);
+}
 
 const STRATEGY_HINTS = {
   standard:     'Proportional: bid 15–40% of stack (scales with chips, min 10)',
@@ -348,8 +366,21 @@ function renderSeason(seasonNum, gameNum) {
   });
   lotteryByChips.forEach((t, i) => { t.chip_rank_now = i + 1; });
 
-  // Render standings sorted by final_rank (overall league rank)
-  const sorted = [...teams].sort((a, b) => a.final_rank - b.final_rank);
+  // Render standings sorted by active sort field
+  const STATUS_ORDER = { 'Lottery': 0, 'Play-In': 1, 'Safe Playoff': 2 };
+  const sorted = [...teams].sort((a, b) => {
+    if (sortField === 'chips') {
+      if (b.chips_now !== a.chips_now) return sortDir * (b.chips_now - a.chips_now);
+      return a.final_rank - b.final_rank;
+    }
+    if (sortField === 'status') {
+      const sd = (STATUS_ORDER[a.status] ?? 3) - (STATUS_ORDER[b.status] ?? 3);
+      if (sd !== 0) return sortDir * sd;
+      return a.final_rank - b.final_rank;
+    }
+    // 'rank' (default)
+    return sortDir * (a.final_rank - b.final_rank);
+  });
   const tbody = document.getElementById('standings-tbody');
   tbody.innerHTML = '';
 
@@ -415,8 +446,7 @@ function renderSeason(seasonNum, gameNum) {
       // (we'll put the pick in the odds column for lottery teams)
     }
 
-    const nameCell = `${td.name}${isChamp ? '<span class="champion-star">★</span>' : ''}
-      ${td.is_pick_swap_holder ? '<span style="font-size:9px;color:var(--blue);margin-left:3px">SWAP</span>' : ''}`;
+    const nameCell = `${td.name}${isChamp ? '<span class="champion-star">★</span>' : ''}`;
 
     tr.innerHTML = `
       <td style="color:var(--fg-faint)">${td.final_rank}</td>

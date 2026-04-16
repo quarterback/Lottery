@@ -576,6 +576,10 @@ summary:hover { color: var(--accent); }
 .cw-playin  { background: #001a2a; color: #60a5fa; border: 1px solid #1e4060; }
 .cw-lottery { background: #190d00; color: #ff8c00; border: 1px solid #a85c00; }
 
+.sortable-th { cursor: pointer; user-select: none; }
+.sortable-th:hover { color: var(--accent); }
+.sort-arrow { font-size: 9px; color: var(--accent); margin-left: 2px; }
+
 .cw-chips-bar-wrap { display: flex; align-items: center; gap: 6px; }
 .cw-chips-bar { height: 8px; border-radius: 1px; display: inline-block; min-width: 2px; }
 
