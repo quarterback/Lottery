@@ -292,6 +292,15 @@ def simulate_chip_window_league(
         for night_idx, pairs in enumerate(night_pairings):
             night_results: list[dict] = []
 
+            # ── Live lottery chip rankings for narrative context (pre-night chips) ──
+            lottery_sorted_now = sorted(
+                [t["id"] for t in team_data if t["status"] == STATUS_LOTTERY],
+                key=lambda tid: -chips[tid],
+            )
+            running_ranks: dict[int, int] = {
+                tid: i + 1 for i, tid in enumerate(lottery_sorted_now)
+            }
+
             for slot_idx, (home_id, away_id) in enumerate(pairs):
                 home_td = team_by_id[home_id]
                 away_td = team_by_id[away_id]
@@ -357,13 +366,14 @@ def simulate_chip_window_league(
                 opp_wagers[home_id].append(round(away_wager, 1))
                 opp_wagers[away_id].append(round(home_wager, 1))
 
-                # ── Build narrative (client can use directly) ─────────────────
+                # ── Build narrative using live chip rankings (pre-night) ──────
                 narrative = _build_narrative(
                     home_td, away_td,
                     home_chips_before, away_chips_before,
                     home_wager, away_wager,
                     home_dbl, away_dbl,
                     night_idx,
+                    running_ranks,
                 )
 
                 night_results.append({
@@ -398,12 +408,7 @@ def simulate_chip_window_league(
             for tid in ids:
                 trajectories[tid].append(round(chips[tid], 1))
 
-        # ── Play-in consolation for teams that missed playoffs ───────────────
-        for td in team_data:
-            if td["status"] == STATUS_PLAYIN and chips[td["id"]] <= DOUBLE_THRESHOLD:
-                chips[td["id"]] = round(chips[td["id"]] + PLAY_IN_BONUS, 1)
-                if trajectories[td["id"]]:
-                    trajectories[td["id"]][-1] = chips[td["id"]]
+        # (Play-in consolation bonus removed — chips are purely match-based)
 
         # ── Finalize team chip data ──────────────────────────────────────────
         # Build tonight lookup from final chip-window night (night 22 = schedule[-1])
@@ -534,21 +539,25 @@ def _build_narrative(
     home_wager: float, away_wager: float,
     home_dbl: bool, away_dbl: bool,
     night_idx: int,
+    running_ranks: dict[int, int] | None = None,
 ) -> str:
-    """Generate a short game narrative string."""
+    """Generate a short game narrative string.
+
+    running_ranks: live chip rankings computed at the start of this night
+    (lottery teams only; keyed by team id → 1-indexed rank among lottery teams).
+    """
     home_name = home_td["name"]
     away_name = away_td["name"]
-    home_rank = home_td.get("chip_draft_rank")
-    away_rank = away_td.get("chip_draft_rank")
+    home_id   = home_td["id"]
+    away_id   = away_td["id"]
+    # Use live running ranks (accurate at game time) — not end-of-season chip_draft_rank
+    home_rank = (running_ranks or {}).get(home_id)
+    away_rank = (running_ranks or {}).get(away_id)
 
     if home_dbl:
         if home_rank and home_rank > 1:
             return f"Double game — {home_name} moves to #{home_rank - 1} if they win"
         return f"Double game — {home_name} playing for chip position"
-    if away_dbl:
-        if away_rank and away_rank > 1:
-            return f"Double declared by {away_name} — playing for Pick #{away_rank - 1}"
-        return f"Double declared — {away_name} plays for chip position"
 
     home_is_lottery = home_td["status"] == STATUS_LOTTERY
     away_is_lottery = away_td["status"] == STATUS_LOTTERY
