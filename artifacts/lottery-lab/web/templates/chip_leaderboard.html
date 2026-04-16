@@ -436,7 +436,7 @@ function renderStandings(gameIdx, nightIdx) {
     if (opp) {
       const at  = isHome ? 'vs' : '@';
       const dbl = isDbl ? `<span class="lb-double-badge">2\u00d7</span>` : '';
-      tonightHtml = `<span style="font-weight:600">${Math.round(wager)} ${at} ${teamAbbr(opp)}</span>${dbl}`;
+      tonightHtml = `<span>${Math.round(wager)} ${at} ${teamAbbr(opp)}</span>${dbl}`;
     } else {
       tonightHtml = `<span style="color:var(--fg-faint);font-size:11px">off</span>`;
     }
