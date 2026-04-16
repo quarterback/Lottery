@@ -1,5 +1,4 @@
-[app]
-name = "lottery-lab"
+app = "lottery-lab"
 primary_region = "iad"
 
 [build]
