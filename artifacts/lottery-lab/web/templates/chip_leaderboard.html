@@ -19,8 +19,9 @@
       </div>
     </div>
     <p style="font-size:12px;color:var(--fg-dim);line-height:1.65;margin-top:12px;margin-bottom:0;max-width:720px">
-      Every team wagers chips on each game from 61 through 82. Win and you take the opponent's stake.
-      Lose and you forfeit your own. Lottery teams' final chip totals <b>are the draft order</b> — Pick 1 goes to the most chips, Pick 14 to the fewest. No lottery draw.
+      Every team wagers chips on each game from 61 through 82. Win and you take the opponent's stake; lose and you forfeit your own.
+      Each team has one <b>double</b>: the home team declares which game — both wager normally, but the <b>winner earns 2× chips</b> that night.
+      Lottery teams' final chip totals <b>are the draft order</b> — Pick 1 goes to the most chips, Pick 14 to the fewest. No lottery draw.
       Playoff and play-in teams are in the chip pool too (their wins affect pots) but they don't compete for picks.
       The leaderboard shows all 30 teams during the window; on game 82 it locks to the 14 confirmed lottery teams only.
     </p>
@@ -548,6 +549,7 @@ function renderTonight(nightIdx) {
         </div>
         <div class="gc-pot">
           <span class="wager-dot"></span>Pot: <b>${m.pot.toFixed(1)} chips</b>
+          ${isDoubleGame ? ` &nbsp;<span style="font-size:9px;color:#ccaa44;font-weight:700">2× night — winner earns double</span>` : ''}
           ${m.upset_bonus > 0 ? ` &nbsp;<span style="font-size:9px;color:#f5c518;font-weight:700">⚡ Upset Bonus: +${m.upset_bonus} chips to winner</span>` : ''}
         </div>
         <div class="gc-narrative">${m.narrative}</div>

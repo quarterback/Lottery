@@ -13,8 +13,9 @@
     Activates at <b>game 60</b> for all 30 teams. Starting chips are assigned by record rank:
     worst 3 → <b>140</b>, next 3 → 120, next 3 → 100, next 3 → 80, next 6 → 60,
     next 6 → 40, best 6 → 20 — giving the weakest teams the most firepower.
-    Chips are clamped at <b>10 minimum</b>. Every team gets one <b>double</b> to use during the window —
-    they declare it by choosing which home game to apply it to. The 14 lottery teams' final chip totals
+    Chips are clamped at <b>10 minimum</b>. Every team gets one <b>double</b> — declared by choosing which
+    home game to apply it. That night both teams wager normally, but the <b>winner earns 2× chips</b>
+    (double the opponent's wager). The 14 lottery teams' final chip totals
     determine draft order directly: <b>most chips = Pick 1</b>, fewest = Pick 14.
     No lottery draw. Ties are broken by worse record. <b>Tanking is structurally impossible.</b>
   </p>
@@ -120,7 +121,7 @@
       <div>
         <div class="section-title">Chip Window Trajectories</div>
         <p style="font-size:11px;color:var(--fg-faint);margin-bottom:10px">
-          Chip totals over the 22-game window. Teams start at their quintile chips (20–100).
+          Chip totals over the 22-game window. Teams start at their record-rank chips (20–140).
           Vertical marker = current game. <span class="doubled-badge">2×</span> = double declared that night.
         </p>
         <div class="chart-wrap" style="padding:12px">
@@ -171,7 +172,7 @@
           <div style="margin-bottom:4px">Win → gain opponent's wager</div>
           <div style="margin-bottom:4px">Loss → lose own wager (floored at 10)</div>
           <div style="margin-bottom:4px"><span style="color:#f5c518;font-size:11px">⚡</span> Upset bonus: lower-record winner earns +(<i>opp wins − your wins</i>) bonus chips</div>
-          <div style="margin-bottom:14px"><span class="doubled-badge">2×</span> Any team gets one double per window — declared by choosing which home game to apply it to</div>
+          <div style="margin-bottom:14px"><span class="doubled-badge">2×</span> One double per team — home team picks which game. Both wager normally; winner earns 2× opponent's wager that night</div>
           <div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-faint);margin-bottom:4px">Draft order</div>
           <div>Most chips = Pick 1 · Fully deterministic — no lottery draw · Ties broken by worse record</div>
         </div>

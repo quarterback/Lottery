@@ -176,8 +176,9 @@ def simulate_chip_window_league(
       (net); loser loses own wager. Chips clamped at MIN_BET (10) — never negative.
     ─ Analytics bidding: bets use 2-decimal precision to minimise ties.
       Ties in final chip totals are broken by worse record (fewer wins).
-    ─ Double: any team may declare on their pre-assigned home night; no status
-      restriction. Opponent auto-responds with BIG_BET (25).
+    ─ Double: home team may declare their pre-assigned home night as the double.
+      Both teams wager normally; the winner earns 2× the opponent's wager (payout
+      multiplier only). Loser's own deduction stays at 1×.
     ─ Draft order: 14 lottery teams sorted by chips DESC → Pick 1–14.
       Fully deterministic. Picks 15–30 by record.
     ─ Strategy assignments:
@@ -437,9 +438,10 @@ def simulate_chip_window_league(
                 away_base  = _pick_bet(chips[away_id], away_strat, rng,
                                        away_td["bidding_personality"])
 
-                # Double: home wager doubles; away responds with fixed max (BIG_BET = 25)
-                home_wager = home_base * 2.0 if home_dbl else home_base
-                away_wager = BIG_BET         if home_dbl else away_base
+                # Double is a payout multiplier only — both teams wager normally.
+                # The home team declares which home game to use; winner gets 2× opponent's wager.
+                home_wager = home_base
+                away_wager = away_base
 
                 pot = home_wager + away_wager
 
@@ -476,16 +478,17 @@ def simulate_chip_window_league(
 
                 home_won = rng.random() < p_home
 
-                # ── Pot mechanic: winner += opp_wager, loser -= own_wager ────
-                # Chips are clamped at MIN_BET (10) — teams can always bid next game.
+                # ── Pot mechanic: winner += opp_wager (×2 on double night) ──
+                # loser -= own_wager (always 1×). Chips clamped at MIN_BET (10).
+                dbl_mult = 2.0 if home_dbl else 1.0
                 if home_won:
-                    chips[home_id] += away_wager
+                    chips[home_id] += away_wager * dbl_mult
                     chips[away_id]  = max(MIN_BET, chips[away_id] - away_wager)
                     winner_id = home_id
                     chip_wins[home_id]   += 1
                     chip_losses[away_id] += 1
                 else:
-                    chips[away_id] += home_wager
+                    chips[away_id] += home_wager * dbl_mult
                     chips[home_id]  = max(MIN_BET, chips[home_id] - home_wager)
                     winner_id = away_id
                     chip_wins[away_id]   += 1
@@ -731,8 +734,8 @@ def _build_narrative(
 
     if home_dbl:
         if home_rank and home_rank > 1:
-            return f"Double game — {home_name} moves to #{home_rank - 1} if they win"
-        return f"Double game — {home_name} playing for chip position"
+            return f"Double night — winner earns 2× chips · {home_name} moves to #{home_rank - 1} if they win"
+        return f"Double night — winner earns 2× chips · {home_name} declared the double"
 
     # Playoff fatigue — highest priority for safe-playoff games
     if home_fatigue and home_td["status"] == STATUS_SAFE:
