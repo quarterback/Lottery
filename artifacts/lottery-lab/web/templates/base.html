@@ -179,16 +179,16 @@
     /* ── Header ─────────────────────────────────────────── */
     header {
       border-bottom: 1px solid var(--border);
-      padding: 12px 0;
+      padding: 10px 0 0;
       background: var(--bg);
       position: sticky;
       top: 0;
       z-index: 100;
     }
-    .header-inner {
+    .header-top {
       display: flex;
-      align-items: baseline;
-      gap: 16px;
+      align-items: center;
+      gap: 12px;
     }
     .logo {
       font-size: var(--fs-lg);
@@ -196,17 +196,59 @@
       color: var(--accent);
       letter-spacing: 0.05em;
       text-transform: uppercase;
+      white-space: nowrap;
     }
     .logo span { color: var(--fg-dim); }
-    .tagline {
+    .header-meta {
       font-size: var(--fs-sm);
-      color: var(--fg-dim);
+      color: var(--fg-faint);
+      white-space: nowrap;
     }
     .header-right {
       margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
       font-size: var(--fs-sm);
       color: var(--fg-faint);
+      flex-shrink: 0;
     }
+
+    /* ── Primary nav (always visible) ───────────────────── */
+    .header-nav {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      margin-top: 8px;
+      border-top: 1px solid var(--border);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .header-nav::-webkit-scrollbar { display: none; }
+    .nav-link {
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 14px;
+      font-family: var(--font);
+      font-size: 10px;
+      color: var(--fg-dim);
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+      transition: color 0.12s, border-color 0.12s;
+      margin-bottom: -1px;
+    }
+    .nav-link:hover { color: var(--accent); text-decoration: none; }
+    .nav-link.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 700;
+    }
+    /* tagline kept for backward compat but hidden — nav replaces it */
+    .tagline { display: none !important; }
 
     /* ── Main ───────────────────────────────────────────── */
     main { padding: 32px 0 64px; }
@@ -598,8 +640,8 @@
     /* ── Mobile-specific overrides ───────────────────────── */
     @media (max-width: 640px) {
       .container { padding: 0 12px; }
-      .header-inner { flex-wrap: wrap; gap: 6px; }
-      .tagline { display: none; }
+      .header-meta { display: none; }
+      .nav-link { padding: 8px 12px; font-size: 10px; }
       .results-header {
         flex-wrap: wrap;
         gap: 8px;
@@ -608,17 +650,18 @@
       .metrics-grid { grid-template-columns: 1fr; }
       main { padding: 20px 0 48px; }
     }
+    @media (max-width: 400px) {
+      .theme-switch label { display: none; }
+    }
   </style>
 </head>
 <body>
   <header>
     <div class="container">
-      <div class="header-inner">
+      <div class="header-top">
         <a href="/" class="logo" style="text-decoration:none">Lottery<span>//</span>Lab</a>
-        <a href="/chip-window" class="tagline" style="color:var(--accent-dim);text-decoration:none;font-size:var(--fs-sm)" title="Chip Window Simulator">Chip Window ↗</a>
-        <a href="/leaderboard" class="tagline" style="color:var(--accent-dim);text-decoration:none;font-size:var(--fs-sm);margin-left:12px" title="Public Chip Window Standings">Leaderboard ↗</a>
+        <span class="header-meta" id="header-meta-text">13 systems · Monte Carlo</span>
         <div class="header-right">
-          13 systems · Monte Carlo engine
           <span class="theme-switch">
             <label for="theme-select">Theme</label>
             <select id="theme-select" aria-label="Color theme">
@@ -631,6 +674,11 @@
           </span>
         </div>
       </div>
+      <nav class="header-nav" aria-label="Main navigation">
+        <a href="/" class="nav-link" data-nav="home">Simulator</a>
+        <a href="/chip-window" class="nav-link" data-nav="chip-window">Chip Window</a>
+        <a href="/leaderboard" class="nav-link" data-nav="leaderboard">Leaderboard</a>
+      </nav>
     </div>
   </header>
   <main>
@@ -649,6 +697,16 @@
         var next = select.value;
         document.documentElement.setAttribute('data-theme', next);
         try { localStorage.setItem('lotterylab-theme', next); } catch (e) {}
+      });
+    })();
+
+    // Active nav link: highlight the link matching the current path.
+    (function () {
+      var path = window.location.pathname.replace(/\/$/, '') || '/';
+      document.querySelectorAll('.nav-link').forEach(function (a) {
+        var href = (a.getAttribute('href') || '').replace(/\/$/, '') || '/';
+        var match = (href === '/' ? path === '/' : path === href || path.startsWith(href + '/'));
+        if (match) a.classList.add('active');
       });
     })();
   </script>
