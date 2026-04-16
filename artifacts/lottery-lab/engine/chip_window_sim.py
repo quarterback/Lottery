@@ -34,6 +34,14 @@ STATUS_LOTTERY = "Lottery"
 
 VALID_STRATEGIES = ("standard", "aggressive", "conservative")
 
+# ── Lottery behavior shift ───────────────────────────────────────────────────
+# At game 60, lottery teams stop tanking and start trying: they call up G-League
+# guys, sign veterans, and actually compete.  This injects a random per-team
+# talent boost that applies ONLY during the 22 chip-window games.
+# Sampled uniform [min, max] talent points per team — different for each season.
+LOTTERY_SHIFT_MIN = 4.0   # most conservative turnaround
+LOTTERY_SHIFT_MAX = 12.0  # most aggressive culture change
+
 # Placeholder tip-off slots (cycled for 15 games/night)
 _TIP_TIMES = [
     "7:00 PM ET", "7:30 PM ET", "7:30 PM ET", "8:00 PM ET", "8:00 PM ET",
@@ -223,6 +231,7 @@ def simulate_chip_window_league(
                 "fatigue_nights":      [],
                 "rally_mode":          False,
                 "rally_mode_night":    None,
+                "behavior_shift":      0.0,   # talent boost during chip window (lottery only)
             })
 
         # ── Classify status by wins through game 60 ──────────────────────────
@@ -234,6 +243,15 @@ def simulate_chip_window_league(
                 td["status"] = STATUS_PLAYIN
             else:
                 td["status"] = STATUS_LOTTERY
+
+        # ── Lottery behavior shift — random per team, per season ────────────
+        # Lottery teams stop tanking at game 60 and start competing.
+        # Each team draws its own shift from [LOTTERY_SHIFT_MIN, LOTTERY_SHIFT_MAX].
+        for td in team_data:
+            if td["status"] == STATUS_LOTTERY:
+                td["behavior_shift"] = round(
+                    rng.uniform(LOTTERY_SHIFT_MIN, LOTTERY_SHIFT_MAX), 1
+                )
 
         # ── Quintile starting chips (all 30 teams, worst → best record at G60) ──
         # Groups of 6: worst 6 → 100, next 6 → 80, middle 6 → 60, next 6 → 40, best 6 → 20.
@@ -416,7 +434,11 @@ def simulate_chip_window_league(
                 away_fatigue = night_idx in away_td["fatigue_nights"]
 
                 # ── Head-to-head outcome (with variance adjustments) ──────────
-                p_home = _h2h_prob(home_td["talent"], away_td["talent"])
+                # Lottery teams get an effective talent boost: they're actually
+                # trying to win now (G-League call-ups, vet signings, real effort).
+                home_eff = home_td["talent"] + home_td.get("behavior_shift", 0.0)
+                away_eff = away_td["talent"] + away_td.get("behavior_shift", 0.0)
+                p_home = _h2h_prob(home_eff, away_eff)
                 # Hot streak boost
                 if home_hs:
                     p_home = min(0.95, p_home + home_td["hot_streak_boost"])
@@ -806,6 +828,7 @@ def result_to_json(result: SimResult) -> dict:
                 "rally_mode":          td.get("rally_mode", False),
                 "rally_mode_night":    td.get("rally_mode_night"),
                 "total_upset_bonus":   td.get("total_upset_bonus", 0.0),
+                "behavior_shift":      td.get("behavior_shift", 0.0),
             })
 
         seasons_json.append({

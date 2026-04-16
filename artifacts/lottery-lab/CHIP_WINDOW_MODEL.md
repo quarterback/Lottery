@@ -133,7 +133,28 @@ This is fully deterministic — no lottery draw, no weighted randomness, no ping
 
 ## Variance Mechanics
 
-Four variance mechanics model real-world noise in the chip window. These are always active regardless of user strategy selection.
+Five variance mechanics model real-world noise in the chip window. These are always active regardless of user strategy selection.
+
+### 0. Lottery behavior shift (on-court play)
+
+At game 60, lottery teams stop tanking and start competing. They call up G-League players, sign veterans, and actually try to win. This is the most fundamental input assumption: the sim uses static season-long win rates that reflect passive losing, not the behavioral shift that the chip window itself induces.
+
+To model this, each lottery team draws a random **effective talent boost** at the start of each season's chip window:
+
+- Range: +4.0 to +12.0 talent points (uniform random, independent per team)  
+- Applied only to chip window games (nights 1–22); does not affect season-record bookkeeping  
+- Play-in and safe-playoff teams receive no shift (they're already motivated — play-in teams are fighting for seeds, playoff teams are playing for real)
+
+**Effect on win probability** (logistic scale=14):
+
+| Raw talent | Shift | Effective | Win % vs 50-talent team |
+|-----------|-------|-----------|------------------------|
+| 28 (worst) | +10 | 38 | 30% → was 15% |
+| 35 (bad) | +7 | 42 | 36% → was 22% |
+| 42 (middling) | +6 | 48 | 46% → was 35% |
+| 45 (fringe) | +8 | 53 | 57% → was 43% |
+
+The shift does not make bad teams good. A talent-28 team with a +10 shift still loses 70% of chip window games against average competition — but they're no longer losing 85% of them. The model is correct; the input assumptions about how bad teams play in the window are what changed.
 
 ### 1. Bidding personality
 
