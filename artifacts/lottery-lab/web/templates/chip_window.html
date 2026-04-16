@@ -230,7 +230,7 @@
         <!-- 6: Timing Distribution -->
         <div class="an-panel">
           <div class="an-panel-title">Double Declaration Timing</div>
-          <p class="an-panel-desc">Which chip window game lottery teams chose to declare their double across all simulated seasons.</p>
+          <p class="an-panel-desc">Which game lottery teams chose to declare their double (orange = early G61–71, blue = late G72–82) with avg draft pick for each cohort.</p>
           <svg id="an-timing-svg" viewBox="0 0 400 130" style="width:100%;display:block"></svg>
         </div>
 
@@ -757,12 +757,25 @@ function renderAnalytics() {
     });
   });
 
-  // ── 6. Double declaration timing ──────────────────────────────
+  // ── 6. Double declaration timing + early/late split ──────────
   const doubleByNight = Array(22).fill(0);
+  const earlyPicks = [], latePicks = []; // nights 0-10 = early, 11-21 = late
   allSeasons.forEach(s => {
-    s.teams.filter(t => t.status === 'Lottery' && t.doubled && t.double_night >= 0)
-      .forEach(t => { doubleByNight[t.double_night]++; });
+    s.teams.filter(t => t.status === 'Lottery' && t.doubled && t.double_night >= 0).forEach(t => {
+      doubleByNight[t.double_night]++;
+      if (t.chip_draft_rank != null) {
+        if (t.double_night <= 10) earlyPicks.push(t.chip_draft_rank);
+        else latePicks.push(t.chip_draft_rank);
+      }
+    });
   });
+  const avgPick = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+  const timingMeta = {
+    earlyAvgPick: avgPick(earlyPicks),
+    lateAvgPick:  avgPick(latePicks),
+    earlyCount:   earlyPicks.length,
+    lateCount:    latePicks.length,
+  };
 
   // ── Render each panel ─────────────────────────────────────────
   anRenderDoubleEff(doubleRows);
@@ -770,7 +783,7 @@ function renderAnalytics() {
   anRenderSwings(swings.slice(0, 5));
   anRenderPersonality(persRows);
   anRenderScatter(scatterDots);
-  anRenderTiming(doubleByNight);
+  anRenderTiming(doubleByNight, timingMeta);
 }
 
 function anRenderDoubleEff(rows) {
@@ -913,14 +926,19 @@ function anRenderScatter(dots) {
   svg.innerHTML = html;
 }
 
-function anRenderTiming(byNight) {
+function anRenderTiming(byNight, meta) {
   const svg = document.getElementById('an-timing-svg');
   if (!svg) return;
   const W = 400, H = 130, PL = 28, PR = 10, PT = 8, PB = 24;
   const iW = W - PL - PR, iH = H - PT - PB;
   const maxCnt = Math.max(1, ...byNight);
   const barW = iW / 22;
+  const midX = PL + 11 * barW; // split line between nights 0-10 and 11-21
   let html = '';
+  // Early / late region shading
+  html += `<rect x="${PL}" y="${PT}" width="${(midX - PL).toFixed(1)}" height="${iH}" fill="var(--accent)" opacity="0.03"/>`;
+  html += `<rect x="${midX.toFixed(1)}" y="${PT}" width="${(W - PR - midX).toFixed(1)}" height="${iH}" fill="var(--blue)" opacity="0.03"/>`;
+  html += `<line x1="${midX.toFixed(1)}" y1="${PT}" x2="${midX.toFixed(1)}" y2="${PT+iH}" stroke="var(--border-2)" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>`;
   // Y grid
   [0, Math.ceil(maxCnt/2), maxCnt].forEach(v => {
     const y = PT + (1 - v/maxCnt)*iH;
@@ -935,7 +953,8 @@ function anRenderTiming(byNight) {
     const bh = (cnt/maxCnt)*iH;
     const y  = PT + iH - bh;
     const hi = cnt === maxCnt;
-    html += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" fill="${hi ? 'var(--accent)' : 'var(--accent-dim)'}" opacity="0.85" rx="1"/>`;
+    const isEarly = ni <= 10;
+    html += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" fill="${isEarly ? 'var(--accent)' : 'var(--blue)'}" opacity="${hi ? 0.9 : 0.65}" rx="1"/>`;
     if (cnt >= 2) html += `<text x="${(x+bw/2).toFixed(1)}" y="${(y-2).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="middle">${cnt}</text>`;
   });
   // X labels
@@ -944,6 +963,26 @@ function anRenderTiming(byNight) {
     html += `<text x="${x.toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="middle">G${61+ni}</text>`;
   });
   svg.innerHTML = html;
+
+  // Early vs late summary below chart
+  const wrap = svg.parentElement;
+  let sumEl = wrap.querySelector('.an-timing-summary');
+  if (!sumEl) { sumEl = document.createElement('div'); sumEl.className = 'an-timing-summary'; wrap.appendChild(sumEl); }
+  if (meta) {
+    const fmt = v => v != null ? v.toFixed(1) : '—';
+    const earlyCol = meta.earlyAvgPick != null && meta.lateAvgPick != null
+      ? (meta.earlyAvgPick < meta.lateAvgPick ? 'var(--green)' : meta.earlyAvgPick > meta.lateAvgPick ? 'var(--red)' : 'var(--fg-dim)')
+      : 'var(--fg-dim)';
+    const lateCol = meta.earlyAvgPick != null && meta.lateAvgPick != null
+      ? (meta.lateAvgPick < meta.earlyAvgPick ? 'var(--green)' : meta.lateAvgPick > meta.earlyAvgPick ? 'var(--red)' : 'var(--fg-dim)')
+      : 'var(--fg-dim)';
+    sumEl.innerHTML = `<div style="display:flex;gap:16px;margin-top:8px;font-size:10px;flex-wrap:wrap">
+      <span style="color:var(--fg-faint)">Early double (G61–71):</span>
+      <span>n=${meta.earlyCount} · avg pick <span style="color:${earlyCol};font-weight:600">${fmt(meta.earlyAvgPick)}</span></span>
+      <span style="color:var(--fg-faint)">Late double (G72–82):</span>
+      <span>n=${meta.lateCount} · avg pick <span style="color:${lateCol};font-weight:600">${fmt(meta.lateAvgPick)}</span></span>
+    </div>`;
+  }
 }
 
 // ── CSV export ────────────────────────────────────────────────────────────────
