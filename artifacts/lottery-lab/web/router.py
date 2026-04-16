@@ -127,7 +127,7 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
             "chips at the same rate regardless of intent. Every late-season game carries chip stakes — "
             "a public leaderboard turns garbage time into must-watch TV."
         ),
-        "odds": [10.5, 10.5, 10.5, 10.5, 10.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.5, 7.5, 8.5],
+        "odds": [10.5, 10.5, 10.5, 10.5, 10.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.5, 7.5, 8.0],
         "odds_note": (
             "Two-pool structure: slots 1–5 (worst records) each have a guaranteed 10% floor that "
             "chip results cannot reduce. The remaining 50% is allocated by chip totals — teams with "

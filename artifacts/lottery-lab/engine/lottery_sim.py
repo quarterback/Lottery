@@ -1032,14 +1032,20 @@ class ChipWindow:
     """
     Bid Standardization / Chip Window — proposed anti-tanking system.
 
-    Activates at game 60 for all teams outside the top-6 seeds. Each team
-    starts with 100 chips and must wager at least 10 chips per remaining game
-    (options: 10 or 25). A win returns the wagered chips; a loss permanently
-    deducts them. Teams with ≥ 100 chips at season end may exercise a one-time
-    double: forfeit 100 chips to double the remaining balance. Final lottery
-    odds are proportional to chip totals, with a floor equal to the odds each
-    team would receive under the Current NBA system. Tanking is structurally
-    impossible — losing depletes chips regardless of intent.
+    Activates at game 60 for all 30 teams. Each team starts with 100 chips and
+    wagers chips per game using one of three strategies (aggressive / standard /
+    conservative). Winner gains the opponent's wager; loser loses their own wager.
+    Chips can go negative during the window.
+
+    Draft odds use a two-pool structure:
+    - Floor pool (50%): the 5 worst-record lottery teams each receive a guaranteed
+      10% floor. This block cannot be diluted by chip performance.
+    - Chip pool (50%): distributed proportionally by final chip totals among all
+      14 lottery teams. Negative chips clip to zero for weighting.
+    Final odds = chip_share + floor (10% if bottom-5, else 0%).
+
+    Tanking is structurally impossible — losing depletes chips regardless of intent,
+    and no chip result can improve a team's standing through losing.
 
     Reference: "The Chip Window" by Ron Bronson (April 2026).
     """
