@@ -17,10 +17,11 @@ DOUBLE_THRESHOLD = 100.0   # reference line for trajectory chart only; NOT a dou
 PLAY_IN_BONUS = 7.5        # consolation for play-in teams that miss playoffs
 
 # Starting chips by record rank at game 60 (worst → best):
-# Ranks 1-3 → 140, 4-6 → 120, 7-12 → 80, 13-18 → 60, 19-24 → 40, 25-30 → 20
+# Ranks 1-3 → 140, 4-6 → 120, 7-9 → 100, 10-12 → 80, 13-18 → 60, 19-24 → 40, 25-30 → 20
 def _chips_for_rank(rank_0: int) -> float:
     if rank_0 < 3:   return 140.0
     if rank_0 < 6:   return 120.0
+    if rank_0 < 9:   return 100.0
     if rank_0 < 12:  return 80.0
     if rank_0 < 18:  return 60.0
     if rank_0 < 24:  return 40.0
@@ -170,7 +171,7 @@ def simulate_chip_window_league(
     ─ 22-night chip window: each night, 30 teams are randomly paired into
       15 head-to-head matchups. Home/away is randomly assigned.
     ─ Starting chips by record at G60:
-        Worst 3 → 140, next 3 → 120, next 6 → 80, next 6 → 60, next 6 → 40, best 6 → 20.
+        Worst 3 → 140, next 3 → 120, next 3 → 100, next 3 → 80, next 6 → 60, next 6 → 40, best 6 → 20.
     ─ Pot mechanic: both teams announce wagers; winner gains opponent's wager
       (net); loser loses own wager. Chips clamped at MIN_BET (10) — never negative.
     ─ Analytics bidding: bets use 2-decimal precision to minimise ties.
@@ -274,7 +275,7 @@ def simulate_chip_window_league(
             td["behavior_shift"] = round(rng.uniform(lo, hi), 1)
 
         # ── Starting chips (all 30 teams, worst → best record at G60) ────────
-        # Worst 3 → 140, next 3 → 120, next 6 → 80, next 6 → 60, next 6 → 40, best 6 → 20.
+        # Worst 3 → 140, next 3 → 120, next 3 → 100, next 3 → 80, next 6 → 60, next 6 → 40, best 6 → 20.
         # Ties in wins_60 broken by more losses (worse) → lower rank → more chips,
         # then by team id (stable deterministic tie-break).
         by_wins_asc = sorted(
