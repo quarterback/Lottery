@@ -201,6 +201,12 @@ header {
   white-space: nowrap;
 }
 .logo span { color: var(--fg-faint); }
+.logo-ball {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0 4px -1px;
+  flex-shrink: 0;
+}
 .header-meta {
   font-size: var(--fs-sm);
   color: var(--fg-faint);
