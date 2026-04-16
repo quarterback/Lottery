@@ -241,9 +241,11 @@ def simulate_chip_window_league(
             if td["status"] == STATUS_PLAYIN:
                 td["strategy"] = "aggressive"
             elif td["status"] == STATUS_SAFE:
-                # ~25% of safe-playoff teams model pick-swap exposure → aggressive
+                # ~25% of safe-playoff teams model pick-swap exposure.
+                # Their BASE strategy is conservative; they go aggressive only
+                # when matched against a lottery opponent (handled per-matchup below).
                 td["is_pick_swap_holder"] = rng.random() < 0.25
-                td["strategy"] = "aggressive" if td["is_pick_swap_holder"] else "conservative"
+                td["strategy"] = "conservative"
             else:
                 td["strategy"] = strategy   # lottery: user-chosen
 
@@ -262,6 +264,20 @@ def simulate_chip_window_league(
                 away = b if home == a else a
                 pairs.append((home, away))
             night_pairings.append(pairs)
+
+        # ── Pre-select each lottery team's double game (one home game, randomly) ─
+        # Each lottery team picks exactly one home game across the 22 nights.
+        # We scan all pairings up front and choose randomly among home-game nights.
+        double_night_plan: dict[int, int] = {}
+        for tid in ids:
+            td = team_by_id[tid]
+            if td["status"] == STATUS_LOTTERY:
+                home_nights = [
+                    ni for ni, pairs in enumerate(night_pairings)
+                    if any(home == tid for home, away in pairs)
+                ]
+                if home_nights:
+                    double_night_plan[tid] = rng.choice(home_nights)
 
         # ── Chip window simulation (night-by-night) ──────────────────────────
         chips:        dict[int, float]       = {i: STARTING_CHIPS for i in ids}
@@ -284,12 +300,13 @@ def simulate_chip_window_league(
                 away_chips_before = chips[away_id]
 
                 # ── Double declaration ────────────────────────────────────────
-                # Rule: only the HOME team can declare a double; away team never
-                # declares. Each lottery team may declare exactly once per season
-                # on any home game (no chip-floor requirement).
+                # Rule: only the HOME lottery team can declare; each team's
+                # double night was pre-selected randomly from their home games.
+                # Away team never declares (only home team has this right).
                 home_dbl = (
-                    not dbl_tracker[home_id]
-                    and home_td["status"] == STATUS_LOTTERY
+                    home_td["status"] == STATUS_LOTTERY
+                    and double_night_plan.get(home_id) == night_idx
+                    and not dbl_tracker[home_id]   # safety — only once
                 )
                 away_dbl = False   # away team is never the declarer
 
@@ -298,11 +315,21 @@ def simulate_chip_window_league(
                     home_td["doubled"]      = True
                     home_td["double_night"] = night_idx
 
-                # ── Wagers ───────────────────────────────────────────────────
-                home_base  = _pick_bet(chips[home_id], home_td["strategy"], rng)
-                away_base  = _pick_bet(chips[away_id], away_td["strategy"], rng)
+                # ── Effective strategy per matchup ────────────────────────────
+                # Pick-swap holders are conservative by default but go aggressive
+                # when they face a lottery opponent (protecting their draft position).
+                home_strat = home_td["strategy"]
+                away_strat = away_td["strategy"]
+                if home_td["is_pick_swap_holder"] and away_td["status"] == STATUS_LOTTERY:
+                    home_strat = "aggressive"
+                if away_td["is_pick_swap_holder"] and home_td["status"] == STATUS_LOTTERY:
+                    away_strat = "aggressive"
 
-                # Double: home wager doubles; away responds with fixed max (BIG_BET)
+                # ── Wagers ───────────────────────────────────────────────────
+                home_base  = _pick_bet(chips[home_id], home_strat, rng)
+                away_base  = _pick_bet(chips[away_id], away_strat, rng)
+
+                # Double: home wager doubles; away responds with fixed max (BIG_BET = 25)
                 home_wager = home_base * 2.0 if home_dbl else home_base
                 away_wager = BIG_BET         if home_dbl else away_base
 

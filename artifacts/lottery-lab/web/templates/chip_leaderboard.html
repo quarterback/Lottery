@@ -542,11 +542,12 @@ function renderTonight(nightIdx) {
   if (!lbData) return;
   const night = lbData.schedule[nightIdx] || [];
 
+  // Lottery matchups: at least one lottery team
   const lotteryGames  = night.filter(m =>
     m.home_status === 'Lottery' || m.away_status === 'Lottery');
+  // Playoff stake games: at least one safe playoff team (includes lottery vs playoff)
   const playoffGames  = night.filter(m =>
-    (m.home_status === 'Safe Playoff' || m.away_status === 'Safe Playoff') &&
-    m.home_status !== 'Lottery' && m.away_status !== 'Lottery');
+    m.home_status === 'Safe Playoff' || m.away_status === 'Safe Playoff');
 
   /* Footnote */
   document.getElementById('tonight-footnote').textContent =
