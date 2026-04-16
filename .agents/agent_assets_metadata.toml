@@ -12,3 +12,9 @@ id = "NRVsE1m3xeIaviMa5Arts"
 uri = "file://artifacts/lottery-lab/web/static/lottery-ball.svg"
 type = "image"
 title = "Lottery Ball SVG (standalone)"
+
+[[outputs]]
+id = "6VOZgHJe8GEJ1dZdTe2n2"
+uri = "file://artifacts/lottery-lab/CHIP_WINDOW_MODEL.md"
+type = "text"
+title = "Chip Window — Model Reference"
