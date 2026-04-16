@@ -20,9 +20,9 @@
     </div>
     <p style="font-size:12px;color:var(--fg-dim);line-height:1.65;margin-top:12px;margin-bottom:0;max-width:720px">
       Every team wagers chips on each remaining game — winner gains the opponent's stake, loser loses their own.
-      Teams bet proportionally to their stack (min: 10 chips). Lottery teams may declare a
-      <b>double</b> on any home game. Draft odds: bottom-5 worst-record teams hold a guaranteed
-      <b>10% floor</b>; all 14 lottery teams compete for a 50% chip pool by final totals. No tanking advantage.
+      Chips are clamped at 10 minimum. Starting chips by quintile: worst 6 → 100, next 6 → 80, middle 6 → 60, next 6 → 40, best 6 → 20.
+      Any team may declare a <b>double</b> on their pre-assigned home night.
+      Draft order is fully deterministic: most chips = Pick 1, fewest chips = Pick 14. Ties broken by worse record.
     </p>
   </div>
 
@@ -768,8 +768,8 @@ function openTeamDetail(team) {
     </div>
     ${team.status === 'Lottery' ? `
     <div class="tdp-stat">
-      <div class="tdp-stat-label">Draft Odds</div>
-      <div class="tdp-stat-value" style="font-size:12px">${team.lottery_odds != null ? team.lottery_odds.toFixed(1) + '%' : '—'}</div>
+      <div class="tdp-stat-label">Draft Pick</div>
+      <div class="tdp-stat-value" style="font-size:12px">${team.chip_pick != null ? '#' + team.chip_pick : '—'}</div>
     </div>` : ''}
     ${team.doubled ? `
     <div class="tdp-stat">

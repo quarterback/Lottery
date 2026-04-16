@@ -1032,17 +1032,15 @@ class ChipWindow:
     """
     Bid Standardization / Chip Window — proposed anti-tanking system.
 
-    Activates at game 60 for all 30 teams. Each team starts with 100 chips and
-    wagers chips per game using one of three strategies (aggressive / standard /
-    conservative). Winner gains the opponent's wager; loser loses their own wager.
-    Chips can go negative during the window.
+    Activates at game 60 for all 30 teams. Starting chips are assigned by quintile:
+    worst 6 teams → 100 chips, next 6 → 80, middle 6 → 60, next 6 → 40, best 6 → 20.
+    Chips are clamped at MIN_BET (10) — never drop below the minimum bid.
+    Winner gains the opponent's wager; loser loses their own wager (floored at 10).
 
-    Draft odds use a two-pool structure:
-    - Floor pool (50%): the 5 worst-record lottery teams each receive a guaranteed
-      10% floor. This block cannot be diluted by chip performance.
-    - Chip pool (50%): distributed proportionally by final chip totals among all
-      14 lottery teams. Negative chips clip to zero for weighting.
-    Final odds = chip_share + floor (10% if bottom-5, else 0%).
+    Draft order is fully deterministic: the 14 lottery teams are sorted by final
+    chip total (DESC). Most chips = Pick 1, fewest chips = Pick 14. No lottery draw.
+    Ties are broken by worse record (fewer wins). Picks 15–30 go to playoff teams
+    by record order.
 
     Tanking is structurally impossible — losing depletes chips regardless of intent,
     and no chip result can improve a team's standing through losing.
@@ -1053,28 +1051,26 @@ class ChipWindow:
     name = "Chip Window"
 
     GAMES_IN_WINDOW = 22    # games 60–82
-    STARTING_CHIPS = 100.0
     MIN_BET = 10.0
     BIG_BET = 25.0
     DOUBLE_THRESHOLD = 100.0  # finish with > starting chips to unlock double
 
-    def _simulate_chips(self, win_prob: float, rng: random.Random) -> float:
+    # Quintile starting chips (worst 6 → 100, next 6 → 80, … best 6 → 20)
+    QUINTILE_CHIPS = [100.0, 80.0, 60.0, 40.0, 20.0]
+
+    def _simulate_chips(self, win_prob: float, rng: random.Random,
+                        starting_chips: float = 100.0) -> float:
         """
-        One chip-window simulation. Wins add chips (net +bet); losses deduct chips
-        (net -bet). Teams can accumulate above STARTING_CHIPS by winning. Teams that
-        finish with > STARTING_CHIPS may exercise the double (2× their chip total),
-        which further amplifies a strong chip-window performance.
+        One chip-window simulation from a given starting chip total.
+        Chips are clamped at MIN_BET (10) — never drop below the minimum bet.
         """
-        chips = self.STARTING_CHIPS
+        chips = starting_chips
         for _ in range(self.GAMES_IN_WINDOW):
-            # Bet 25 when ahead or even; drop to 10 to conserve when depleted
             bet = self.BIG_BET if chips >= 50.0 else self.MIN_BET
-            if rng.random() < win_prob:   # win — chips increase
+            if rng.random() < win_prob:
                 chips += bet
-            else:                          # loss — chips decrease
-                chips = max(0.0, chips - bet)
-        # One-time double: teams that finish strictly above their starting total
-        # may forfeit the base 100 and double what remains. This rewards hot streaks.
+            else:
+                chips = max(self.MIN_BET, chips - bet)
         if chips > self.DOUBLE_THRESHOLD:
             chips *= 2.0
         return chips
@@ -1089,27 +1085,41 @@ class ChipWindow:
         Run N chip-window scenarios for each lottery team. Returns a leaderboard
         (sorted highest median chips first) with per-team statistics and a median
         chip-count trajectory over the 22-game window.
+
+        Quintile starting chips are assigned by record rank within the 14 lottery
+        teams (worst 6 → 100, next 6 → 80, remaining 2 → 60).
         """
         import statistics as _stats
+
+        # Assign quintile starting chips by record rank (worst first)
+        sorted_by_record = sorted(
+            lottery_teams,
+            key=lambda t: t[1] / (t[1] + t[2]) if (t[1] + t[2]) > 0 else 0.0,
+        )
+        start_chips_map: dict[str, float] = {}
+        for rank_0, (name, wins, losses) in enumerate(sorted_by_record):
+            quintile_idx = min(rank_0 // 6, 4)
+            start_chips_map[name] = self.QUINTILE_CHIPS[quintile_idx]
 
         results = []
         for name, wins, losses in lottery_teams:
             total = wins + losses
             win_prob = wins / total if total > 0 else 0.30
+            starting_chips = start_chips_map.get(name, 100.0)
 
             trajectories: list[list[float]] = []
             pre_double: list[float] = []
             final_all: list[float] = []
 
             for _ in range(n_scenarios):
-                chips = self.STARTING_CHIPS
+                chips = starting_chips
                 traj: list[float] = [chips]
                 for _ in range(self.GAMES_IN_WINDOW):
                     bet = self.BIG_BET if chips >= 50.0 else self.MIN_BET
                     if rng.random() < win_prob:
                         chips += bet
                     else:
-                        chips = max(0.0, chips - bet)
+                        chips = max(self.MIN_BET, chips - bet)
                     traj.append(chips)
                 trajectories.append(traj)
                 pre_double.append(chips)
@@ -1133,6 +1143,7 @@ class ChipWindow:
                 "losses": losses,
                 "win_prob": win_prob,
                 "win_pct": round(win_prob * 100, 1),
+                "starting_chips": starting_chips,
                 "median_chips": round(_stats.median(sorted_final), 1),
                 "p25_chips":    round(sorted_final[n // 4], 1),
                 "p75_chips":    round(sorted_final[3 * n // 4], 1),
@@ -1146,45 +1157,30 @@ class ChipWindow:
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        lottery = _non_playoff_teams(season)  # worst first
+        lottery = _non_playoff_teams(season)  # worst first (rank 0 = worst record)
         n = len(lottery)
 
-        # Simulate the chip window for each team
+        # Quintile starting chips by record rank (lottery list is worst-first)
+        start_chips: dict[int, float] = {}
+        for rank_0, (tid, wins, losses) in enumerate(lottery):
+            quintile_idx = min(rank_0 // 6, 4)
+            start_chips[tid] = self.QUINTILE_CHIPS[quintile_idx]
+
+        # Simulate the chip window for each team from their quintile start
         raw_chips: dict[int, float] = {}
         for tid, wins, losses in lottery:
             total = wins + losses
             win_prob = wins / total if total > 0 else 0.30
-            raw_chips[tid] = self._simulate_chips(win_prob, rng)
+            raw_chips[tid] = self._simulate_chips(win_prob, rng, start_chips[tid])
 
-        # Two-pool odds structure:
-        # - Floor pool (50%): bottom-5 worst-record teams get 10% each (guaranteed).
-        # - Chip pool (50%): distributed proportionally by raw chip totals to all teams.
-        # Final weight = chip_share + floor. Sums to 100; no renorm needed.
-        FLOOR_COUNT = 5
-        FLOOR_PCT   = 10.0
-        CHIP_POOL   = 50.0
-
-        total_chips = sum(raw_chips.values())
-        if total_chips > 0:
-            chip_weights = {tid: c / total_chips * CHIP_POOL for tid, c in raw_chips.items()}
-        else:
-            chip_weights = {tid: CHIP_POOL / n for tid in raw_chips}
-
-        floor_weights = {
-            lottery[i][0]: FLOOR_PCT if i < FLOOR_COUNT else 0.0
-            for i in range(n)
-        }
-
-        effective_weights = {
-            tid: floor_weights[tid] + chip_weights.get(tid, 0.0)
-            for tid in floor_weights
-        }
-
-        lottery_picks = weighted_lottery_draw(effective_weights, min(4, n), rng)
-        remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
+        # Deterministic draft order: most chips = Pick 1 … fewest chips = Pick 14.
+        # Tie-break: worse record (fewer wins) gets the higher pick.
         wins_map = {t[0]: t[1] for t in lottery}
-        remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])
-        return lottery_picks + remaining_sorted
+        lottery_sorted = sorted(
+            raw_chips.keys(),
+            key=lambda tid: (-raw_chips[tid], wins_map[tid]),
+        )
+        return lottery_sorted
 
     def tank_incentive(self, team_id, standings, history):
         # Losing depletes chips at the same rate regardless of intent — structural anti-tank

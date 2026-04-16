@@ -11,11 +11,14 @@ from engine.lottery_sim import NBA_TEAM_NAMES
 GAMES_BEFORE_WINDOW = 60
 GAMES_IN_WINDOW = 22
 TOTAL_GAMES = 82
-STARTING_CHIPS = 100.0
 MIN_BET = 10.0
 BIG_BET = 25.0
 DOUBLE_THRESHOLD = 100.0   # reference line for trajectory chart only; NOT a double eligibility requirement
 PLAY_IN_BONUS = 7.5        # consolation for play-in teams that miss playoffs
+
+# Quintile starting chips (assigned by record rank at game 60, worst → best)
+# Ranks 1-6 → 100, 7-12 → 80, 13-18 → 60, 19-24 → 40, 25-30 → 20
+QUINTILE_CHIPS = [100.0, 80.0, 60.0, 40.0, 20.0]
 
 SAFE_PLAYOFF_COUNT = 12
 PLAY_IN_COUNT = 8
@@ -64,9 +67,11 @@ def _simulate_60_games(talent: float, rng: random.Random) -> tuple[int, int]:
 
 def _pick_bet(chips: float, strategy: str, rng: random.Random,
               personality: str = "standard") -> float:
-    """Choose wager. Floor is MIN_BET (10). Cap is the team's current chip total
-    (teams can't bet more than they have, but chips can go negative so floor always applies).
-    Creates variety: teams with large stacks bid bigger in proportion.
+    """Choose wager. Floor is MIN_BET (10). Cap is the team's current chip total.
+
+    Analytics teams bid with 2-decimal precision to minimise the chance of
+    finishing with an identical chip total as a rival. Exact ties are extremely
+    rare as a result — each team's running sum traces a slightly different path.
 
     personality: "standard" | "bold" | "cautious" | "volatile"
       Applied as a multiplier on the base bet AFTER strategy calculation.
@@ -103,60 +108,9 @@ def _pick_bet(chips: float, strategy: str, rng: random.Random,
     else:
         mult = 1.0
 
-    return round(max(MIN_BET, min(available, raw * mult)), 1)
+    # 2-decimal precision: analytics teams vary bids finely to avoid chip ties
+    return round(max(MIN_BET, min(available, raw * mult)), 2)
 
-
-# ── Lottery odds computation ─────────────────────────────────────────────────
-
-def _effective_odds(chip_teams: list[dict]) -> dict[int, float]:
-    """Compute final lottery odds for lottery-eligible teams.
-
-    Two-pool structure:
-    - Floor pool (50%): the 5 worst-record lottery teams each receive a guaranteed
-      10% floor. This block is fixed regardless of chip performance.
-    - Chip pool (50%): distributed proportionally by chip totals among all lottery
-      teams. Negative chips clip to 0 for weighting purposes.
-
-    Final odds = chip_share (of 50%) + floor (10% if bottom-5, else 0%).
-    The two pools sum to 100%; no renormalization needed.
-
-    Effect: worst teams can only add to their 10% floor via chip wins — they
-    cannot fall below it. Teams ranked 6–14 earn only what their chips provide.
-    """
-    lottery_sorted = sorted(
-        [t for t in chip_teams if t["status"] == STATUS_LOTTERY],
-        key=lambda t: t["wins_60"],
-    )
-    n = len(lottery_sorted)
-    if n == 0:
-        return {}
-
-    FLOOR_COUNT = 5     # bottom 5 worst-record teams get a guaranteed floor
-    FLOOR_PCT   = 10.0  # 10% per team = 50% of total pool reserved
-    CHIP_POOL   = 50.0  # remaining 50% distributed by chip performance
-
-    # Chip-proportional share of the 50% chip pool
-    eff_chips = [max(0.0, t["chips_end"]) for t in lottery_sorted]
-    total_chips = sum(eff_chips)
-    if total_chips > 0.0:
-        chip_share = {
-            lottery_sorted[i]["id"]: eff_chips[i] / total_chips * CHIP_POOL
-            for i in range(n)
-        }
-    else:
-        chip_share = {lottery_sorted[i]["id"]: CHIP_POOL / n for i in range(n)}
-
-    # Guaranteed floor for the 5 worst-record teams
-    floor = {
-        lottery_sorted[i]["id"]: FLOOR_PCT if i < FLOOR_COUNT else 0.0
-        for i in range(n)
-    }
-
-    # Final = floor + chip share (sums to 100%, no renorm needed)
-    return {
-        tid: round(floor[tid] + chip_share[tid], 2)
-        for tid in floor
-    }
 
 
 # ── Data classes ─────────────────────────────────────────────────────────────
@@ -193,17 +147,21 @@ def simulate_chip_window_league(
     ─ ALL 30 teams participate in the chip pool.
     ─ 22-night chip window: each night, 30 teams are randomly paired into
       15 head-to-head matchups. Home/away is randomly assigned.
+    ─ Quintile starting chips by record at G60:
+        Worst 6 → 100, next 6 → 80, middle 6 → 60, next 6 → 40, best 6 → 20.
     ─ Pot mechanic: both teams announce wagers; winner gains opponent's wager
-      (net); loser loses own wager. Chips can go negative.
-    ─ Double (lottery teams only): first home game where chips ≥ 100, the
-      team may double their wager for that game. Opponent auto-responds with
-      BIG_BET (25). Team risks doubled wager; gains opponent's bid on a win.
+      (net); loser loses own wager. Chips clamped at MIN_BET (10) — never negative.
+    ─ Analytics bidding: bets use 2-decimal precision to minimise ties.
+      Ties in final chip totals are broken by worse record (fewer wins).
+    ─ Double: any team may declare on their pre-assigned home night; no status
+      restriction. Opponent auto-responds with BIG_BET (25).
+    ─ Draft order: 14 lottery teams sorted by chips DESC → Pick 1–14.
+      Fully deterministic. Picks 15–30 by record.
     ─ Strategy assignments:
         Lottery   → user-selected strategy
         Play-In   → always aggressive (dual incentive: seeding + chips)
         Safe PO   → conservative by default; ~25% are "pick swap holders"
                     who bid aggressively vs. lottery opponents
-    ─ Draft order: most chips = Pick 1 (record irrelevant) among lottery teams.
     """
     if strategy not in VALID_STRATEGIES:
         strategy = "standard"
@@ -239,8 +197,8 @@ def simulate_chip_window_league(
                 "losses_60":       l60,
                 "status":          "",
                 "in_chip_pool":    True,   # ALL 30 teams participate
-                "chips_start":     STARTING_CHIPS,
-                "chips_end":       STARTING_CHIPS,
+                "chips_start":     0.0,    # filled in after game-60 quintile assignment
+                "chips_end":       0.0,    # filled in after game-60 quintile assignment
                 "chip_trajectory": [],
                 "chip_wins":       0,
                 "chip_losses":     0,
@@ -276,6 +234,15 @@ def simulate_chip_window_league(
                 td["status"] = STATUS_PLAYIN
             else:
                 td["status"] = STATUS_LOTTERY
+
+        # ── Quintile starting chips (all 30 teams, worst → best record at G60) ──
+        # Rank all 30 by wins_60 ascending (rank 0 = worst).
+        # Groups of 6: 0-5 → 100, 6-11 → 80, 12-17 → 60, 18-23 → 40, 24-29 → 20.
+        by_wins_asc = sorted(team_data, key=lambda t: t["wins_60"])
+        for rank_0, td in enumerate(by_wins_asc):
+            quintile_idx = min(rank_0 // 6, 4)
+            td["chips_start"] = QUINTILE_CHIPS[quintile_idx]
+            td["chips_end"]   = QUINTILE_CHIPS[quintile_idx]
 
         # ── Assign strategies ────────────────────────────────────────────────
         for td in team_data:
@@ -338,19 +305,18 @@ def simulate_chip_window_league(
                 pairs.append((home, away))
             night_pairings.append(pairs)
 
-        # ── Pre-select each lottery team's double game (one home game, randomly) ─
-        # Each lottery team picks exactly one home game across the 22 nights.
+        # ── Pre-select each team's double game (one home game, randomly) ────────
+        # All 30 teams get a pre-assigned home night where they may declare a double.
+        # Nobody knows their final status until game 82 — so every team plans ahead.
         # We scan all pairings up front and choose randomly among home-game nights.
         double_night_plan: dict[int, int] = {}
         for tid in ids:
-            td = team_by_id[tid]
-            if td["status"] == STATUS_LOTTERY:
-                home_nights = [
-                    ni for ni, pairs in enumerate(night_pairings)
-                    if any(home == tid for home, away in pairs)
-                ]
-                if home_nights:
-                    double_night_plan[tid] = rng.choice(home_nights)
+            home_nights = [
+                ni for ni, pairs in enumerate(night_pairings)
+                if any(home == tid for home, away in pairs)
+            ]
+            if home_nights:
+                double_night_plan[tid] = rng.choice(home_nights)
 
         # ── Playoff fatigue night resolution ─────────────────────────────────
         # Now that pairings are fixed, pick ~30% of each safe-playoff team's
@@ -362,7 +328,7 @@ def simulate_chip_window_league(
                 td["fatigue_nights"] = sorted(rng.sample(all_nights, k))
 
         # ── Chip window simulation (night-by-night) ──────────────────────────
-        chips:        dict[int, float]       = {i: STARTING_CHIPS for i in ids}
+        chips:        dict[int, float]       = {td["id"]: td["chips_start"] for td in team_data}
         dbl_tracker:  dict[int, bool]        = {i: False          for i in ids}
         trajectories: dict[int, list[float]] = {i: []             for i in ids}
         chip_wins:    dict[int, int]         = {i: 0              for i in ids}
@@ -391,12 +357,11 @@ def simulate_chip_window_league(
                 away_chips_before = chips[away_id]
 
                 # ── Double declaration ────────────────────────────────────────
-                # Rule: only the HOME lottery team can declare; each team's
-                # double night was pre-selected randomly from their home games.
+                # Rule: the HOME team may declare on their pre-assigned night.
+                # All 30 teams have a designated home night; status doesn't matter.
                 # Away team never declares (only home team has this right).
                 home_dbl = (
-                    home_td["status"] == STATUS_LOTTERY
-                    and double_night_plan.get(home_id) == night_idx
+                    double_night_plan.get(home_id) == night_idx
                     and not dbl_tracker[home_id]   # safety — only once
                 )
                 away_dbl = False   # away team is never the declarer
@@ -464,15 +429,16 @@ def simulate_chip_window_league(
                 home_won = rng.random() < p_home
 
                 # ── Pot mechanic: winner += opp_wager, loser -= own_wager ────
+                # Chips are clamped at MIN_BET (10) — teams can always bid next game.
                 if home_won:
                     chips[home_id] += away_wager
-                    chips[away_id] -= away_wager
+                    chips[away_id]  = max(MIN_BET, chips[away_id] - away_wager)
                     winner_id = home_id
                     chip_wins[home_id]   += 1
                     chip_losses[away_id] += 1
                 else:
                     chips[away_id] += home_wager
-                    chips[home_id] -= home_wager
+                    chips[home_id]  = max(MIN_BET, chips[home_id] - home_wager)
                     winner_id = away_id
                     chip_wins[away_id]   += 1
                     chip_losses[home_id] += 1
@@ -584,15 +550,14 @@ def simulate_chip_window_league(
                 td["tonight_pot"]       = None
                 td["tonight_double"]    = False
 
-        # ── Lottery odds (max(0,chips) for weight; negative → floor only) ────
-        lottery_teams = [td for td in team_data if td["status"] == STATUS_LOTTERY]
-        play_in_teams = [td for td in team_data if td["status"] == STATUS_PLAYIN]
-        odds_map = _effective_odds(lottery_teams + play_in_teams)
-        for td in team_data:
-            td["lottery_odds"] = odds_map.get(td["id"], 0.0)
-
         # ── Chip draft rank (most chips = Pick 1 among lottery teams) ────────
-        lottery_by_chips = sorted(lottery_teams, key=lambda t: t["chips_end"], reverse=True)
+        # Fully deterministic: sort by chips DESC, then wins_60 ASC (worse record
+        # wins tie), then team id as stable tiebreaker (coin-flip proxy).
+        lottery_teams = [td for td in team_data if td["status"] == STATUS_LOTTERY]
+        lottery_by_chips = sorted(
+            lottery_teams,
+            key=lambda t: (-t["chips_end"], t["wins_60"], t["id"]),
+        )
         for rank, td in enumerate(lottery_by_chips):
             td["chip_draft_rank"] = rank + 1
             td["chip_pick"]       = rank + 1
@@ -750,11 +715,13 @@ def _build_narrative(
     if away_td["status"] == STATUS_SAFE and home_is_lottery:
         return f"{away_name} playoff team — chip stakes for {home_name} draft position"
 
-    # Near floor
+    # Near floor (lottery team at or near their own starting chips)
     floor_team = None
-    if home_is_lottery and home_chips <= STARTING_CHIPS + 5:
+    home_start = home_td.get("chips_start", 100.0)
+    away_start = away_td.get("chips_start", 100.0)
+    if home_is_lottery and home_chips <= home_start + 5:
         floor_team = home_name
-    elif away_is_lottery and away_chips <= STARTING_CHIPS + 5:
+    elif away_is_lottery and away_chips <= away_start + 5:
         floor_team = away_name
     if floor_team:
         return f"{floor_team} at floor — nothing to lose"

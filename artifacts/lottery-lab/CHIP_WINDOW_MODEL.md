@@ -9,9 +9,9 @@
 
 ## What It Is
 
-The Chip Window is a proposed NBA draft reform that makes tanking structurally impossible. Instead of awarding lottery odds based on record, a team's draft odds are determined by chips they earn — or deplete — through head-to-head game results across the final 22 games of the regular season (Games 61–82).
+The Chip Window is a proposed NBA draft reform that makes tanking structurally impossible. Instead of awarding lottery picks based on record, a team's draft position is determined by chips they earn — or maintain — through head-to-head game results across the final 22 games of the regular season (Games 61–82).
 
-Losing costs chips at the same rate regardless of whether the loss was intentional. There is no mechanism by which a team can improve their drthereaft odds by losing.
+Losing costs chips at the same rate regardless of whether the loss was intentional. There is no mechanism by which a team can improve their draft position by losing.
 
 ---
 
@@ -23,7 +23,7 @@ All 30 teams enter the chip pool. Teams are classified at game 60 based on their
 |--------|-------|---------------------|
 | Safe Playoff | 12 | In pool; conservative strategy by default |
 | Play-In | 8 | In pool; aggressive strategy (dual incentive: seeding + chips) |
-| Lottery | 14 | In pool; strategy is user-selected; draft odds at stake |
+| Lottery | 14 | In pool; strategy is user-selected; draft position at stake |
 
 The original proposal limited participation to non-playoff teams. The simulator extends it to all 30 teams because safe-playoff teams play these games too, and their betting behavior affects lottery team chip totals.
 
@@ -34,23 +34,39 @@ The original proposal limited participation to non-playoff teams. The simulator 
 Each night of the chip window, all 30 teams are randomly paired into 15 simultaneous head-to-head matchups. Home/away assignment is random per game. This runs for 22 nights (Games 61–82).
 
 The schedule is generated once per season before the window opens. The full schedule is used to:
-- Pre-select each lottery team's double game (their one designated home night)
+- Pre-select each team's double game (one pre-assigned home night)
 - Pre-select fatigue nights for safe-playoff teams
 
 ---
 
 ## Chip Mechanics
 
-### Starting state
-Every team begins with **100 chips**.
+### Starting state — quintile system
+Starting chips are assigned by record rank at game 60. All 30 teams are sorted worst to best, then split into five groups of six:
+
+| Record rank (worst → best) | Starting chips |
+|---------------------------|---------------|
+| 1–6 (worst 6 records) | 100 |
+| 7–12 | 80 |
+| 13–18 | 60 |
+| 19–24 | 40 |
+| 25–30 (best 6 records) | 20 |
+
+This gives worse teams more bidding firepower without rewarding additional losing — the quintile assignment is fixed at game 60 and does not change based on what happens during the window.
+
+### Chip floor
+Chips are clamped at the **minimum bet (10)** after every loss. Chips can never go below 10. Teams always have enough chips to participate in the next game.
 
 ### Wagering — the pot
 Both teams in a matchup announce their wager before the outcome. When the game resolves:
 
-- **Winner** gains the opponent's wager (net positive)  
-- **Loser** loses their own wager (net negative)
+- **Winner** gains the opponent's wager (net positive)
+- **Loser** loses their own wager (net negative, floored at 10)
 
-Chips can go **negative**. There is no floor during the window. A team that loses enough games can end with negative chips.
+### Analytics bidding — tie prevention
+Analytics teams bid with **2-decimal precision** to minimise the chance of finishing with an identical chip total as a rival. Since each team's running sum traces a slightly different path from the start of the window, exact chip ties are extremely rare.
+
+When a tie does occur, the team with the **worse record** (fewer wins) receives the higher draft pick.
 
 ### Wager sizing
 
@@ -62,52 +78,48 @@ Three strategies control how much a team bets each night:
 | **Standard** | 15–40% of stack, proportional to chip total — rising with accumulated chips. |
 | **Conservative** | 10–20 chips flat regardless of stack size. Low variance; slow gain or loss. |
 
-The minimum wager is always **10 chips**. There is no cap.
-
-Strategy assignments by team class:
+The minimum wager is always **10 chips**. Strategy assignments by team class:
 - **Lottery teams** → user-selected strategy (choice presented in the simulator UI)
 - **Play-In teams** → always aggressive (they need wins for seeding and chips)
 - **Safe-Playoff teams** → always conservative by default
 
 ### The double
 
-Each lottery team has one pre-assigned home night across the 22 games. On that night they may declare a **double**:
+Every team has one pre-assigned home night across the 22 games. On that night they may declare a **double**:
 
 - Their wager is doubled for that game
 - The opponent automatically responds with a fixed counter-wager of 25 chips
 - The declaring team risks their doubled wager; gains 25 on a win
-- No chip threshold is required — any lottery team can declare regardless of current chip total
+- All 30 teams are eligible — status doesn't matter. Teams plan their double before the window opens, when final standings are unknown.
 - Each team can only double once
 
 The double night is selected randomly before the window opens, not reactively by the team based on standings.
 
 ---
 
-## Draft Odds Calculation
+## Draft Order
 
-At the end of the 22-night window, lottery odds are computed using a two-pool structure:
+At the end of the 22-night window, the 14 lottery teams (teams with STATUS_LOTTERY at game 82) are sorted by final chip total:
 
-**Pool 1 — Guaranteed floor (50% of total odds):**  
-The 5 worst-record lottery teams each receive a guaranteed **10% floor** (5 × 10% = 50%). This block is fully reserved and cannot be diluted by chip performance — neither by the team's own chip total nor by any other team's chip accumulation.
+**Most chips = Pick 1 · Second most = Pick 2 · … · Fewest chips = Pick 14**
 
-**Pool 2 — Chip performance pool (50% of total odds):**  
-The remaining 50% is distributed proportionally among all 14 lottery teams based on their final chip totals. A team's chip share = `max(0, chips_end) / total_field_chips × 50%`. Negative chips clip to zero for weighting; those teams contribute nothing to the denominator but still receive a zero chip share.
+This is fully deterministic — no lottery draw, no weighted randomness, no ping-pong balls.
 
-**Final odds = floor (10% if bottom-5, else 0%) + chip share (of 50%)**
+**Tie-breaking (rare):** if two lottery teams finish with identical chip totals, the team with the **worse record** (fewer wins) receives the higher pick.
 
-The two pools sum to 100%; no renormalization is needed.
+**Picks 15–30:** Safe Playoff and Play-In teams are ordered by record (same as the current NBA system). No chip mechanic affects their pick positions.
 
 **Key effects:**
-- Bottom-5 teams can only go **up** from 10% via chip wins — they cannot fall below it regardless of how poorly they perform in the window.
-- Teams ranked 6–14 in the lottery earn **only what their chips provide** — there is no guaranteed floor. A team with poor chip performance can receive near-0% odds.
-- Strong chip performance by a bottom-5 team compounds: 10% floor plus a proportional share of the chip pool, potentially reaching 14–18%+ in a dominant season.
-- The chip pool rewards relative performance — earning chips is meaningless unless you earn more than your opponents.
+- Worst-record teams start with more chips (100 vs 20 for the best teams) and have a head start toward the top picks
+- A bad-record team that also plays well during the window compounds their advantage
+- A bad-record team that plays poorly has their chip lead eroded — the quintile cushion helps but doesn't guarantee a top pick
+- Tanking during the window destroys chips regardless of intent
 
 ---
 
 ## Variance Mechanics
 
-Four variance mechanics were added to model real-world noise in the chip window. These are always active regardless of user strategy selection.
+Four variance mechanics model real-world noise in the chip window. These are always active regardless of user strategy selection.
 
 ### 1. Bidding personality
 
@@ -160,7 +172,7 @@ Approximately 25% of safe-playoff teams are randomly designated as pick-swap hol
 
 Behavior change: when a pick-swap holder faces a lottery opponent, their strategy overrides from conservative to aggressive for that matchup only.
 
-This is a background mechanic — it affects chip outcomes but does not change the core draft-odds calculation. It models a real-world dynamic where contending teams are not indifferent to lottery team performance. It is not emphasized in the UI because it affects a minority of games and is an edge case relative to the core model.
+This is a background mechanic — it affects chip outcomes but does not change the core draft-order calculation. It models a real-world dynamic where contending teams are not indifferent to lottery team performance. It is not emphasized in the UI because it affects a minority of games and is an edge case relative to the core model.
 
 ---
 
@@ -168,11 +180,11 @@ This is a background mechanic — it affects chip outcomes but does not change t
 
 | Strategy | Typical chip range (14-team lottery field) | Best for |
 |----------|-------------------------------------------|----------|
-| Aggressive | High variance; can reach 200+ or go deeply negative | Teams trying to climb the chip board |
+| Aggressive | High variance; can reach 200+ or fall toward the floor | Teams trying to climb the chip board |
 | Standard | Moderate variance; tracks proportional to win rate | Balanced play across all standings positions |
-| Conservative | Low variance; rarely breaks 150, rarely goes below 50 | Teams protecting a chip lead |
+| Conservative | Low variance; rarely breaks 150, rarely falls below 50 | Teams protecting a chip lead |
 
-Because lottery odds are proportional to the field, strategy choice only matters relative to what opponents are doing. A conservative team in an aggressive field accumulates fewer chips than average; an aggressive team in a conservative field accumulates more.
+Because draft order is determined by relative chip standings, strategy choice only matters relative to what opponents are doing. A conservative team in an aggressive field accumulates fewer chips than average; an aggressive team in a conservative field accumulates more.
 
 ---
 
@@ -180,7 +192,7 @@ Because lottery odds are proportional to the field, strategy choice only matters
 
 The Chip Window Leaderboard (`/leaderboard`) shows the results of a simulated season across three tabs.
 
-### Tab 1 — Leaderboard
+### Tab 1 — Chip Standings
 
 All 30 teams ranked by final chip total within their status group. Columns:
 - Team name + status pill (Safe Playoff / Play-In / Lottery)
@@ -188,7 +200,7 @@ All 30 teams ranked by final chip total within their status group. Columns:
 - **Bidding personality pill** — color-coded: orange = Bold, teal = Cautious, purple = Volatile, grey = Standard
 - Record through game 60 and chip W-L during the window
 - Current chip total with a bar visualization; 2× badge for doubled teams
-- Lottery odds % (for lottery teams)
+- Draft pick # (for lottery teams)
 
 ### Tab 2 — Trajectory Chart
 
@@ -212,7 +224,7 @@ The full 22-night schedule with all 15 matchups per night:
 Clicking any team row or trajectory legend entry opens a slide-up panel:
 - Full-season record and status
 - Personality pill with a plain-English description of betting behavior
-- Chip stats: starting chips, final chips, chip W-L, lottery odds, chip draft rank
+- Chip stats: starting chips (quintile), final chips, chip W-L, draft pick #
 - **Best Night** and **Worst Night** stats — single-game biggest gain and worst loss with game number (G61–G82)
 - Full 22-night sparkline styled per personality, with markers (▲ green = best night, ▼ red = worst night)
 
@@ -233,7 +245,7 @@ Each game in the schedule generates a one-line narrative. Priority order (first 
 5. Lottery vs. lottery matchup → Live chip rank comparison (#X vs #Y)
 6. Pick-swap holder vs. lottery team → Swap narrative
 7. Safe-playoff vs. lottery → Generic stakes line
-8. Near-floor (lottery team at or below starting chips) → Floor narrative
+8. Near-floor (lottery team at or near their own starting chips) → Floor narrative
 9. Play-in matchup → Seeding battle line
 10. Default → Team names and night number
 
@@ -248,16 +260,18 @@ Chip ranks used in narratives are computed from live chip totals at the start of
 | Window opens | After game 60 |
 | Window length | 22 games (G61–G82) |
 | Teams in pool | All 30 |
-| Starting chips | 100 |
+| Starting chips | Quintile: 100 / 80 / 60 / 40 / 20 by record rank (groups of 6) |
+| Minimum chip floor | 10 chips — chips never go below this during the window |
 | Minimum bet | 10 chips |
+| Analytics bid precision | 2 decimal places — minimises exact tie probability |
 | Aggressive range | 30–60% of stack |
 | Standard range | 15–40% of stack (proportional) |
 | Conservative range | 10–20 chips flat |
-| Double mechanic | One pre-selected home game per lottery team; no chip minimum |
+| Double mechanic | One pre-assigned home night per team; all 30 teams eligible; no chip threshold |
 | Double opponent response | Fixed 25 chips |
-| Chip floor during window | None (chips can go negative) |
-| Draft odds floor | 10% guaranteed for the 5 worst-record teams; 0% floor for teams ranked 6–14 |
-| Chip pool (lottery odds) | 50% of total odds reserved as floors; 50% distributed proportionally by chips |
+| Tie-breaking | Worse record (fewer wins) gets the higher draft pick |
+| Draft order (picks 1–14) | Lottery teams sorted by chips DESC — fully deterministic |
+| Draft order (picks 15–30) | Playoff/Play-In teams sorted by record |
 | Hot streak frequency | ~20% of lottery + play-in teams |
 | Hot streak boost | +8–15% win probability |
 | Hot streak length | 5–8 consecutive nights |
@@ -281,9 +295,11 @@ The original "Bid Standardization" paper described a simpler mechanic. The simul
 |----------|----------------------|
 | Only lottery/play-in teams participate | All 30 teams in the chip pool |
 | Win returns your wager, loss deducts it | Pot mechanic: winner gains opponent's wager, loser loses own wager |
-| Double requires finishing with >100 chips | Double is pre-assigned home night, no chip threshold |
+| Double requires finishing with >100 chips | Double is pre-assigned home night for all 30 teams, no chip threshold |
 | Play-In consolation bonus (+7.5 chips) | Removed — chips are purely match-based |
-| Floor at 0 chips | Floor at 10% for the 5 worst-record teams; teams 6–14 have no floor. Chips can go negative during window; floor only applies at odds calculation. |
+| Chips can go negative | Floor at MIN_BET (10) — chips never go below the minimum bid |
+| Flat 100 chips for all teams | Quintile starting chips: 100/80/60/40/20 by record rank (groups of 6) |
+| Probabilistic lottery draw | Deterministic chip-standings draft order |
 | Single strategy (bet big or small) | Three strategies: aggressive, standard, conservative |
 | No variance beyond win probability | Four variance mechanics: hot streaks, personalities, fatigue, rally |
 | No pick-swap modeling | ~25% of playoff teams modeled as swap-aware |
@@ -299,5 +315,5 @@ The original "Bid Standardization" paper described a simpler mechanic. The simul
 | `web/router.py` | `/chip-window`, `/chip-window/run`, `/leaderboard` routes |
 | `web/templates/chip_window.html` | Standalone simulator UI |
 | `web/templates/chip_leaderboard.html` | Three-tab leaderboard with trajectory chart and team detail |
-| `web/templates/index.html` | System selector (short tag: "G60–G82 chip bets decide lottery order.") |
+| `web/templates/index.html` | System selector (short tag: "G60–G82 chip standings decide draft order.") |
 | `web/static/lottery-lab.css` | All styles including personality pills, team detail panel |

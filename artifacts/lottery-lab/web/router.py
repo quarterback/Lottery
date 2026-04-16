@@ -115,24 +115,23 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
     "Chip Window": {
         "desc": (
             "Proposed by Ron Bronson (2026). Activates at game 60 for all 30 teams. "
-            "Each team starts with 100 chips and wagers 10 or 25 chips per game. "
-            "Winner gains the opponent's wager; loser loses their own wager — chips can go negative. "
-            "Each lottery team may use their double once on any home game: "
-            "their wager doubles for that game, and the opponent can respond by bidding aggressively. "
-            "No chip threshold required — any lottery team can declare their double whenever they choose. "
-            "Draft odds use a two-pool structure: 50% is reserved as a guaranteed 10% floor for each "
-            "of the 5 worst-record teams — no chip result can take them below that. The remaining 50% "
-            "is distributed proportionally by chip totals across all 14 lottery teams. Teams ranked "
-            "6–14 earn only what their chips provide. Tanking is structurally impossible: losing costs "
-            "chips at the same rate regardless of intent. Every late-season game carries chip stakes — "
-            "a public leaderboard turns garbage time into must-watch TV."
+            "Starting chips are assigned by quintile: the worst 6 teams begin with 100, "
+            "the next 6 with 80, middle 6 with 60, next 6 with 40, and the best 6 with 20 — "
+            "giving bad teams more firepower without rewarding additional losing. "
+            "All 30 teams have a pre-assigned home night where they may declare their double. "
+            "Analytics teams bid with fine-grained precision (2 decimal places) to avoid ties. "
+            "Chips are clamped at 10 — teams always have enough to bid next game. "
+            "The 14 lottery teams' final chip totals determine draft order directly: "
+            "most chips = Pick 1, fewest chips = Pick 14. Fully deterministic — no lottery draw. "
+            "Ties (rare) are broken by worse record. Picks 15–30 go to playoff teams by record. "
+            "Tanking is structurally impossible: losing depletes chips at the same rate regardless of intent."
         ),
-        "odds": [10.5, 10.5, 10.5, 10.5, 10.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.5, 7.5, 8.0],
+        "odds": [8.0, 7.5, 7.0, 7.0, 6.5, 6.5, 7.0, 7.0, 7.5, 7.5, 7.5, 8.0, 8.5, 9.5],
         "odds_note": (
-            "Two-pool structure: slots 1–5 (worst records) each have a guaranteed 10% floor that "
-            "chip results cannot reduce. The remaining 50% is allocated by chip totals — teams with "
-            "better records and more wins during the window earn a larger share. Approximate values "
-            "shown; actual odds shift each simulation based on the full field's chip performance."
+            "Deterministic chip-standings draft order. Most chips = Pick 1 among the 14 lottery teams. "
+            "Worst-record teams start with more chips (100 vs 20 for the best teams) but still must earn "
+            "their pick by outperforming rivals in the 22-game chip window. Approximate pick-position "
+            "probabilities shown; actual results depend on each season's chip window outcomes."
         ),
     },
     "The Wheel": {
