@@ -22,7 +22,7 @@ args = ["pip", "install", "--quiet", "-r", "artifacts/lottery-lab/requirements.t
 args = ["sh", "-c", "cd artifacts/lottery-lab && uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
 
 [services.production.run.env]
-PORT = "8081"
+PORT = "8080"
 
 [services.production.health.startup]
 path = "/"
