@@ -83,8 +83,8 @@
       <div id="st-other-rows"></div>
 
       <div class="lb-footnote">
-        Start: 100 chips · Floor bid: 10 chips, no cap above · Win → +opponent's wager · Loss → −own wager ·
-        2× = double game declared
+        Start: 20–100 chips by record quintile (worst 6 → 100, next 6 → 80, middle 6 → 60, next 6 → 40, best 6 → 20) ·
+        Floor: 10 chips min · Win → +opp wager · Loss → −own wager · 2× = double declared
       </div>
     </div>
 
@@ -164,8 +164,7 @@ let curGame   = 22;     // 1–22 within chip window
 let activeTab = 'standings';
 
 const GAMES   = 22;
-const START_CHIPS = 100;
-const DOUBLE_THRESH = 100;
+const DOUBLE_THRESH = 100;  // teams with chips > starting total may double
 
 /* ── Bidding personality metadata ── */
 function personalityMeta(p) {
@@ -223,7 +222,7 @@ function chipBarColor(rank, total) {
 function chipsAt(team, gameIdx) {
   if (!team.in_chip_pool) return null;
   const t = team.chip_trajectory;
-  if (!t || t.length === 0) return START_CHIPS;
+  if (!t || t.length === 0) return team.chips_start ?? 60;
   return t[Math.min(gameIdx, t.length - 1)];
 }
 
@@ -748,7 +747,7 @@ function openTeamDetail(team) {
   document.getElementById('tdp-stats').innerHTML = `
     <div class="tdp-stat">
       <div class="tdp-stat-label">Chips (now)</div>
-      <div class="tdp-stat-value" style="color:${chips >= 100 ? 'var(--green)' : 'var(--red)'}">${chips != null ? chips.toFixed(1) : '—'}</div>
+      <div class="tdp-stat-value" style="color:${chips >= (team.chips_start ?? 100) ? 'var(--green)' : 'var(--red)'}">${chips != null ? chips.toFixed(1) : '—'}</div>
     </div>
     <div class="tdp-stat">
       <div class="tdp-stat-label">Strategy</div>
@@ -800,8 +799,8 @@ function renderDetailSparkline(team, color, sw) {
   const sx  = gi => PL + (gi / (GAMES - 1)) * (W - PL - PR);
   const sy  = c  => PT + (1 - (c - minC) / (maxC - minC || 1)) * (H - PT - PB);
 
-  /* 100-chip baseline */
-  const by = sy(100);
+  /* Baseline at team's starting chips */
+  const by = sy(team.chips_start ?? 100);
   const bl = document.createElementNS(ns, 'line');
   bl.setAttribute('x1', PL); bl.setAttribute('x2', W - PR);
   bl.setAttribute('y1', by); bl.setAttribute('y2', by);

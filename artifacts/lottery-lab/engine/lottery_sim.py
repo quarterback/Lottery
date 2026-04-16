@@ -1091,15 +1091,22 @@ class ChipWindow:
         """
         import statistics as _stats
 
-        # Assign quintile starting chips by record rank (worst first)
+        # Assign quintile starting chips by record rank (worst first).
+        # Ties at a quintile boundary go to the lower quintile (fewer chips).
         sorted_by_record = sorted(
             lottery_teams,
             key=lambda t: t[1] / (t[1] + t[2]) if (t[1] + t[2]) > 0 else 0.0,
         )
+        n_lb = len(sorted_by_record)
+        def _win_pct(t):
+            return t[1] / (t[1] + t[2]) if (t[1] + t[2]) > 0 else 0.0
+        lb_bounds = [_win_pct(sorted_by_record[i]) if i < n_lb else 1.0
+                     for i in (6, 12, 18, 24)]
         start_chips_map: dict[str, float] = {}
-        for rank_0, (name, wins, losses) in enumerate(sorted_by_record):
-            quintile_idx = min(rank_0 // 6, 4)
-            start_chips_map[name] = self.QUINTILE_CHIPS[quintile_idx]
+        for name, wins, losses in lottery_teams:
+            wp = wins / (wins + losses) if (wins + losses) > 0 else 0.0
+            q = sum(1 for bw in lb_bounds if wp >= bw)
+            start_chips_map[name] = self.QUINTILE_CHIPS[min(q, 4)]
 
         results = []
         for name, wins, losses in lottery_teams:
@@ -1160,11 +1167,13 @@ class ChipWindow:
         lottery = _non_playoff_teams(season)  # worst first (rank 0 = worst record)
         n = len(lottery)
 
-        # Quintile starting chips by record rank (lottery list is worst-first)
+        # Quintile starting chips by record rank (lottery is already worst-first).
+        # Ties at a quintile boundary go to the lower quintile (fewer chips).
+        boundary_wins = [lottery[i][1] if i < n else 9999 for i in (6, 12, 18, 24)]
         start_chips: dict[int, float] = {}
-        for rank_0, (tid, wins, losses) in enumerate(lottery):
-            quintile_idx = min(rank_0 // 6, 4)
-            start_chips[tid] = self.QUINTILE_CHIPS[quintile_idx]
+        for tid, wins, losses in lottery:
+            q = sum(1 for bw in boundary_wins if wins >= bw)
+            start_chips[tid] = self.QUINTILE_CHIPS[min(q, 4)]
 
         # Simulate the chip window for each team from their quintile start
         raw_chips: dict[int, float] = {}

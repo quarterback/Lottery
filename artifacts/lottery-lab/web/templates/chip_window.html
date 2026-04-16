@@ -109,7 +109,7 @@
                 <th>G82</th>
                 <th style="min-width:120px">Chips</th>
                 <th style="text-align:left">Tonight</th>
-                <th>Odds</th>
+                <th>Pick</th>
               </tr>
             </thead>
             <tbody id="standings-tbody"></tbody>
@@ -121,7 +121,7 @@
       <div>
         <div class="section-title">Chip Window Trajectories</div>
         <p style="font-size:11px;color:var(--fg-faint);margin-bottom:10px">
-          Chip totals over the 22-game window. Dashed line = 100 starting chips.
+          Chip totals over the 22-game window. Teams start at their quintile chips (20–100).
           Vertical marker = current game. <span class="doubled-badge">2×</span> = double declared that night.
         </p>
         <div class="chart-wrap" style="padding:12px">
@@ -165,15 +165,15 @@
           <div style="margin-bottom:8px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-faint)">Status</div>
           <div style="margin-bottom:6px"><span class="cw-pill cw-safe">Safe Playoff</span> — top 12, conservative bids (~25% pick-swap holders bid aggressively)</div>
           <div style="margin-bottom:6px"><span class="cw-pill cw-playin">Play-In</span> — seeds 13–20, always aggressive bids</div>
-          <div style="margin-bottom:14px"><span class="cw-pill cw-lottery">Lottery</span> — bottom 14, user strategy, chip-based draft odds</div>
+          <div style="margin-bottom:14px"><span class="cw-pill cw-lottery">Lottery</span> — bottom 14, user strategy, chip standings determine draft pick</div>
           <div style="margin-bottom:8px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-faint)">Wagers</div>
-          <div style="margin-bottom:4px">Start: <b>100 chips</b></div>
-          <div style="margin-bottom:4px">Range: <b>10 chips min</b>, up to full stack</div>
+          <div style="margin-bottom:4px">Start: <b>20–100 chips</b> by record quintile (worst 6 → 100, best 6 → 20)</div>
+          <div style="margin-bottom:4px">Range: <b>10 chips min</b> (floor), up to full stack</div>
           <div style="margin-bottom:4px">Win → gain opponent's wager</div>
-          <div style="margin-bottom:4px">Loss → lose own wager</div>
-          <div style="margin-bottom:14px"><span class="doubled-badge">2×</span> Lottery teams: double wager once on any home game</div>
+          <div style="margin-bottom:4px">Loss → lose own wager (floored at 10)</div>
+          <div style="margin-bottom:14px"><span class="doubled-badge">2×</span> Any team: double wager once on pre-assigned home game</div>
           <div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-faint);margin-bottom:4px">Draft order</div>
-          <div>Most chips = Pick 1. Bottom-5 worst-record teams: <b>10% floor guaranteed</b>. All 14 lottery teams compete for a 50% chip pool.</div>
+          <div>Most chips = Pick 1 · Fully deterministic — no lottery draw · Ties broken by worse record</div>
         </div>
       </div>
     </div>
@@ -182,7 +182,7 @@
 </div>
 
 <script>
-const STARTING_CHIPS_JS = 100;
+// Starting chips are per-team (quintile: 20/40/60/80/100 by record rank)
 let simData = null;
 let currentSeason = 1;
 let currentGame = 22;   // 1-22 position within chip window (22 = final)
@@ -318,7 +318,7 @@ function renderSeason(seasonNum, gameNum) {
   const chipsAt = (t) => {
     if (!t.chip_trajectory || t.chip_trajectory.length === 0) return t.chips_end;
     const idx = gameNum - 1;
-    if (idx < 0) return STARTING_CHIPS_JS;
+    if (idx < 0) return t.chips_start ?? 60;
     return t.chip_trajectory[Math.min(idx, t.chip_trajectory.length - 1)];
   };
 
@@ -353,7 +353,7 @@ function renderSeason(seasonNum, gameNum) {
       const barColor = td.chips_now >= 200 ? '#f5c518'
         : td.chips_now >= 100 ? '#4ade80'
         : td.chips_now >= 50 ? '#ff8c00' : '#f87171';
-      const delta = td.chips_now - STARTING_CHIPS_JS;
+      const delta = td.chips_now - (td.chips_start ?? 60);
       const deltaStr = delta >= 0
         ? `<span style="color:var(--green);font-size:9px">+${delta.toFixed(1)}</span>`
         : `<span style="color:var(--red);font-size:9px">${delta.toFixed(1)}</span>`;
@@ -382,9 +382,8 @@ function renderSeason(seasonNum, gameNum) {
       tonightCell = `<span class="tonight-cell"><span style="color:${resultColor};font-weight:700">${resultLetter}</span> <span style="color:var(--fg-dim)">${ownWager}</span> vs ${oppAbbr}${dblBadge}</span>`;
     }
 
-    // ── Odds cell ─────────────────────────────────────────────────────────
-    const oddsCell = td.lottery_odds > 0
-      ? `<span style="color:var(--accent)">${td.lottery_odds.toFixed(1)}%</span>` : '—';
+    // ── Odds cell — always '—' for non-lottery (chip pick shown for lottery) ─
+    const oddsCell = '—';
 
     // ── Pick circle for lottery teams ─────────────────────────────────────
     let pickCell = '—';
@@ -471,12 +470,12 @@ function renderTrajectories(s, gameNum) {
 
   display.forEach((td, idx) => {
     const col = COLORS[idx % COLORS.length];
-    const traj = [STARTING_CHIPS_JS, ...td.chip_trajectory];
+    const traj = [td.chips_start ?? 60, ...td.chip_trajectory];
     const pts = traj.map((c, g) => `${cx(g).toFixed(1)},${cy(c).toFixed(1)}`).join(' ');
     svgHtml += `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.2" opacity="0.75" stroke-linejoin="round"/>`;
     // Endpoint dot at current game
     const endIdx = Math.min(gameNum, td.chip_trajectory.length);
-    const endChips = endIdx === 0 ? STARTING_CHIPS_JS : td.chip_trajectory[endIdx - 1];
+    const endChips = endIdx === 0 ? (td.chips_start ?? 60) : td.chip_trajectory[endIdx - 1];
     const ex = cx(endIdx), ey = cy(endChips);
     svgHtml += `<circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="3" fill="${col}"/>`;
   });
@@ -493,7 +492,7 @@ function renderTrajectories(s, gameNum) {
 
   legend.innerHTML = display.map((td, idx) => {
     const col = COLORS[idx % COLORS.length];
-    const chips = gameNum > 0 ? td.chip_trajectory[Math.min(gameNum-1, td.chip_trajectory.length-1)] : STARTING_CHIPS_JS;
+    const chips = gameNum > 0 ? td.chip_trajectory[Math.min(gameNum-1, td.chip_trajectory.length-1)] : (td.chips_start ?? 60);
     return `<div class="legend-item">
       <div class="legend-dot" style="background:${col}"></div>
       <span style="font-size:10px">${td.name} (${chips?.toFixed(1) ?? '—'})</span>
@@ -532,7 +531,7 @@ function renderLeaderboard() {
 function exportCsv() {
   if (!simData) return;
   const rows = [['Season','Rank','Team','Status','Strategy','W@60','L@60','Final W','Final L',
-    'Chips Start','Chips End','Doubled','CW Wins','CW Losses','Lottery Odds%','Chip Draft Rank']];
+    'Chips Start','Chips End','Doubled','CW Wins','CW Losses','Chip Pick','Chip Draft Rank']];
   simData.seasons.forEach((s, si) => {
     const sorted = [...s.teams].sort((a, b) => a.final_rank - b.final_rank);
     sorted.forEach(t => {
@@ -541,7 +540,7 @@ function exportCsv() {
         t.wins_60, t.losses_60, t.final_wins, t.final_losses,
         t.chips_start, t.chips_end, t.doubled ? 'Yes' : 'No',
         t.chip_wins, t.chip_losses,
-        t.lottery_odds.toFixed(2),
+        t.chip_pick ?? '—',
         t.chip_draft_rank ?? '—',
       ]);
     });

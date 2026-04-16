@@ -236,13 +236,19 @@ def simulate_chip_window_league(
                 td["status"] = STATUS_LOTTERY
 
         # ── Quintile starting chips (all 30 teams, worst → best record at G60) ──
-        # Rank all 30 by wins_60 ascending (rank 0 = worst).
-        # Groups of 6: 0-5 → 100, 6-11 → 80, 12-17 → 60, 18-23 → 40, 24-29 → 20.
+        # Groups of 6: worst 6 → 100, next 6 → 80, middle 6 → 60, next 6 → 40, best 6 → 20.
+        # Ties at a quintile boundary go to the lower quintile (fewer chips).
+        # Boundary is set by the first team PAST each group of 6 (indices 6,12,18,24).
+        # Any team with the same wins_60 as that boundary team gets pushed to the lower bin.
         by_wins_asc = sorted(team_data, key=lambda t: t["wins_60"])
-        for rank_0, td in enumerate(by_wins_asc):
-            quintile_idx = min(rank_0 // 6, 4)
-            td["chips_start"] = QUINTILE_CHIPS[quintile_idx]
-            td["chips_end"]   = QUINTILE_CHIPS[quintile_idx]
+        boundary_wins = [by_wins_asc[6]["wins_60"], by_wins_asc[12]["wins_60"],
+                         by_wins_asc[18]["wins_60"], by_wins_asc[24]["wins_60"]]
+        for td in team_data:
+            w = td["wins_60"]
+            q = sum(1 for bw in boundary_wins if w >= bw)
+            q = min(q, 4)
+            td["chips_start"] = QUINTILE_CHIPS[q]
+            td["chips_end"]   = QUINTILE_CHIPS[q]
 
         # ── Assign strategies ────────────────────────────────────────────────
         for td in team_data:
