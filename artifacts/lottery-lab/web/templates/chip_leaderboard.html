@@ -383,12 +383,12 @@ function renderStandings(gameIdx, nightIdx) {
 
   const thead = document.createElement('thead');
   thead.innerHTML = `<tr class="lb-thead-row">
-    <th class="lb-th" style="text-align:left">TEAM</th>
-    <th class="lb-th" style="width:70px;text-align:right">OVERALL</th>
-    <th class="lb-th col-window" style="width:70px;text-align:right">WINDOW</th>
-    <th class="lb-th" style="width:64px;text-align:right">CHIPS</th>
-    <th class="lb-th col-behind" style="width:58px;text-align:right">BEHIND</th>
-    <th class="lb-th col-tonight" style="width:148px;text-align:left">TONIGHT'S WAGER</th>
+    <th class="lb-th" style="width:130px;text-align:left">TEAM</th>
+    <th class="lb-th" style="width:58px;text-align:right">OVERALL</th>
+    <th class="lb-th col-window" style="width:54px;text-align:right">WINDOW</th>
+    <th class="lb-th" style="width:52px;text-align:right">CHIPS</th>
+    <th class="lb-th col-behind" style="width:52px;text-align:right">BEHIND</th>
+    <th class="lb-th col-tonight" style="width:110px;text-align:left">TONIGHT</th>
     <th class="lb-th" style="width:44px;text-align:center">PICK</th>
   </tr>`;
   table.appendChild(thead);
@@ -412,19 +412,19 @@ function renderStandings(gameIdx, nightIdx) {
     const overallHtml = `${t.final_wins}\u2013${t.final_losses}`;
 
     /* Window record */
-    const cwColor = t._cwW > t._cwL ? '#1D9E75' : t._cwL > t._cwW ? '#E24B4A' : '#888';
+    const cwColor = t._cwW > t._cwL ? '#1D9E75' : t._cwL > t._cwW ? '#E24B4A' : 'var(--fg-dim)';
     const windowHtml = `<span style="color:${cwColor};font-weight:600">${t._cwW}\u2013${t._cwL}</span>`;
 
     /* Chips */
     const floorBadge = t._chips <= 10
-      ? `<span style="font-size:9px;color:#bbb;margin-left:3px">floor</span>` : '';
+      ? `<span style="font-size:9px;color:var(--fg-faint);margin-left:3px">floor</span>` : '';
     const chipsHtml = `<span style="font-weight:600">${Math.round(t._chips)}</span>${floorBadge}`;
 
     /* Behind */
     const behind = leaderChips - t._chips;
     const behindHtml = behind < 0.05
-      ? `<span style="color:#bbb">\u2014</span>`
-      : `<span style="color:#888">${Math.round(behind)}</span>`;
+      ? `<span style="color:var(--fg-faint)">\u2014</span>`
+      : `<span style="color:var(--fg-dim)">${Math.round(behind)}</span>`;
 
     /* Tonight's wager */
     const m      = tonightMatchup(t.id, nightIdx);
@@ -434,25 +434,20 @@ function renderStandings(gameIdx, nightIdx) {
     const isDbl  = m && (isHome ? m.home_double : m.away_double);
     let tonightHtml;
     if (opp) {
+      const at  = isHome ? 'vs' : '@';
       const dbl = isDbl ? `<span class="lb-double-badge">2\u00d7</span>` : '';
-      tonightHtml = `<span style="font-weight:600">${Math.round(wager)} vs ${teamAbbr(opp)}</span>${dbl}`;
+      tonightHtml = `<span style="font-weight:600">${Math.round(wager)} ${at} ${teamAbbr(opp)}</span>${dbl}`;
     } else {
-      tonightHtml = `<span style="color:#ccc;font-size:11px">off</span>`;
+      tonightHtml = `<span style="color:var(--fg-faint);font-size:11px">off</span>`;
     }
 
-    /* Proj pick */
+    /* Proj pick — use dark-themed pickColor() */
     let pickHtml;
     if (t._chipRank != null) {
-      const n = t._chipRank;
-      let pc;
-      if      (n === 1)  pc = { bg: '#FAEEDA', fg: '#633806' };
-      else if (n <= 3)   pc = { bg: '#EAF3DE', fg: '#27500A' };
-      else if (n <= 8)   pc = { bg: '#E6F1FB', fg: '#0C447C' };
-      else if (n <= 14)  pc = { bg: '#fef0f0', fg: '#791F1F' };
-      else               pc = { bg: '#f0f0f0', fg: '#888'    };
-      pickHtml = `<div class="lb-pick-circle" style="background:${pc.bg};color:${pc.fg}">${n}</div>`;
+      const pc = pickColor(t._chipRank);
+      pickHtml = `<div class="lb-pick-circle" style="background:${pc.bg};color:${pc.fg};border:1px solid ${pc.border}">${t._chipRank}</div>`;
     } else {
-      pickHtml = `<span style="color:#ccc;font-size:10px">\u2014</span>`;
+      pickHtml = `<span style="color:var(--fg-faint);font-size:11px">\u2014</span>`;
     }
 
     const tr = document.createElement('tr');
@@ -460,7 +455,7 @@ function renderStandings(gameIdx, nightIdx) {
     tr.addEventListener('click', () => openTeamDetail(t));
     tr.innerHTML = `
       <td class="lb-td lb-td-team">${t.name}</td>
-      <td class="lb-td" style="text-align:right;font-size:11px;color:#888">${overallHtml}</td>
+      <td class="lb-td" style="text-align:right;font-size:11px;color:var(--fg-dim)">${overallHtml}</td>
       <td class="lb-td col-window" style="text-align:right">${windowHtml}</td>
       <td class="lb-td" style="text-align:right">${chipsHtml}</td>
       <td class="lb-td col-behind" style="text-align:right">${behindHtml}</td>
