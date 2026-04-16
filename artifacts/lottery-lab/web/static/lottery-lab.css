@@ -697,7 +697,7 @@ summary:hover { color: var(--accent); }
 /* Tab 1: Chip Standings */
 .st-row {
   display: grid;
-  grid-template-columns: 30px 1fr 64px 120px 26px 100px 46px;
+  grid-template-columns: 30px 1fr 64px 120px 46px 26px 100px 46px;
   align-items: center; padding: 7px 12px;
   border-bottom: 1px solid var(--border); transition: background .1s;
 }
@@ -708,7 +708,8 @@ summary:hover { color: var(--accent); }
   letter-spacing: .08em; text-transform: uppercase; color: var(--fg-faint);
   padding-top: 5px; padding-bottom: 5px;
 }
-.st-row.other-row { grid-template-columns: 30px 1fr 64px 120px 26px 100px; }
+.st-row.other-row { grid-template-columns: 30px 1fr 64px 120px 46px 26px 100px; }
+.col-start { font-size: 11px; color: var(--fg-faint); }
 
 .pos-circle {
   width: 22px; height: 22px; border-radius: 50%; display: flex;
@@ -901,8 +902,8 @@ summary:hover { color: var(--accent); }
   .comparison-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 680px) {
-  .st-row       { grid-template-columns: 26px 1fr 56px 90px 20px; }
-  .st-row.other-row { grid-template-columns: 26px 1fr 56px 90px 20px; }
+  .st-row       { grid-template-columns: 26px 1fr 56px 90px 38px 20px; }
+  .st-row.other-row { grid-template-columns: 26px 1fr 56px 90px 38px 20px; }
   .col-tonight, .col-pick { display: none; }
   .proj-row  { grid-template-columns: 38px 1fr 50px 70px; }
   .col-gap-up, .col-gap-dn { display: none; }

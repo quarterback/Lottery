@@ -66,7 +66,7 @@
       </div>
       <div class="st-row header-row">
         <div>POS</div><div>TEAM</div><div style="text-align:right">W-L</div>
-        <div>CHIPS</div><div></div>
+        <div>CHIPS</div><div class="col-start">START</div><div></div>
         <div class="col-tonight">TONIGHT</div>
         <div class="col-pick" style="text-align:center">PICK</div>
       </div>
@@ -77,7 +77,7 @@
       </div>
       <div class="st-row other-row header-row">
         <div>POS</div><div>TEAM</div><div style="text-align:right">W-L</div>
-        <div>CHIPS</div><div></div>
+        <div>CHIPS</div><div class="col-start">START</div><div></div>
         <div class="col-tonight">TONIGHT</div>
       </div>
       <div id="st-other-rows"></div>
@@ -338,6 +338,7 @@ function renderStandings(gameIdx, nightIdx) {
         <div class="chips-bar" style="width:${barW}px;background:${bar}"></div>
         <span class="chips-num ${t._chips < 0 ? 'chips-neg' : ''}">${t._chips.toFixed(1)}</span>
       </div>
+      <div class="col-start">${t.chips_start ?? '—'}</div>
       <div>${trendArrow(t, gameIdx)}</div>
       <div class="tonight-cell col-tonight">
         ${m ? `<span class="tonight-opp">${oppName}</span><br>
@@ -391,6 +392,7 @@ function renderStandings(gameIdx, nightIdx) {
         <div class="chips-bar" style="width:${barW}px;background:${bar}"></div>
         <span class="chips-num ${t._chips < 0 ? 'chips-neg' : ''}">${t._chips.toFixed(1)}</span>
       </div>
+      <div class="col-start">${t.chips_start ?? '—'}</div>
       <div>${trendArrow(t, gameIdx)}</div>
       <div class="tonight-cell col-tonight">
         ${m ? `<span class="tonight-opp">${oppName}</span><br>
