@@ -849,7 +849,7 @@ summary:hover { color: var(--accent); }
 .trend-dn   { color: var(--red);   font-size: 14px; }
 .trend-flat { color: var(--fg-faint); font-size: 14px; }
 
-.col-tonight { font-size: 10px; color: var(--fg-dim); line-height: 1.35; }
+.lb-td.col-tonight { font-size: 10px; color: var(--fg-dim); line-height: 1.35; }
 
 .swap-badge {
   display: inline-block; font-size: 8px; padding: 1px 4px; border-radius: 2px;
@@ -943,6 +943,7 @@ summary:hover { color: var(--accent); }
 .proj-row {
   display: grid;
   grid-template-columns: 44px 1fr 60px 90px 1fr 1fr;
+  column-gap: 10px;
   align-items: center; padding: 7px 12px;
   border-bottom: 1px solid var(--border); transition: background .1s;
 }

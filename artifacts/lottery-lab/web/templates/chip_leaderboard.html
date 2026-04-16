@@ -332,17 +332,25 @@ function chipWindowRecord(teamId, nightIdx) {
 function renderStandings(gameIdx, nightIdx) {
   const isFinal = gameIdx >= 21;
 
-  const allTeams = lbData.teams.map(t => {
-    const chips = chipsAt(t, gameIdx);
-    const prev  = gameIdx === 0 ? (t.chips_start ?? 60) : chipsAt(t, gameIdx - 1);
-    const cwr   = chipWindowRecord(t.id, nightIdx);
-    return { ...t, _chips: chips, _delta: chips - prev, _cwW: cwr.wins, _cwL: cwr.losses };
-  }).sort((a, b) => {
+  const chipSort = (a, b) => {
     if (b._chips !== a._chips) return b._chips - a._chips;
     if (a.final_wins !== b.final_wins) return a.final_wins - b.final_wins;
     if (b.final_losses !== a.final_losses) return b.final_losses - a.final_losses;
     return a.id - b.id;
+  };
+
+  const mapped = lbData.teams.map(t => {
+    const chips = chipsAt(t, gameIdx);
+    const prev  = gameIdx === 0 ? (t.chips_start ?? 60) : chipsAt(t, gameIdx - 1);
+    const cwr   = chipWindowRecord(t.id, nightIdx);
+    return { ...t, _chips: chips, _delta: chips - prev, _cwW: cwr.wins, _cwL: cwr.losses };
   });
+
+  /* Split into two groups — non-playoff competitors first, then safe playoff teams.
+     Each group is chip-sorted internally so the divider always separates the sections. */
+  const nonPlayoff  = mapped.filter(t => t.status !== 'Safe Playoff').sort(chipSort);
+  const safePlayoff = mapped.filter(t => t.status === 'Safe Playoff').sort(chipSort);
+  const allTeams    = [...nonPlayoff, ...safePlayoff];
 
   let chipRankCounter = 0;
   allTeams.forEach(t => {
@@ -350,7 +358,7 @@ function renderStandings(gameIdx, nightIdx) {
       // Final view: only lottery teams compete for picks 1-14
       t._chipRank = t.status === 'Lottery' ? ++chipRankCounter : null;
     } else {
-      // Window view: all 18 non-safe-playoff teams (Lottery + Play-In) get a rank
+      // Window view: all non-safe-playoff teams (Lottery + Play-In) get a rank
       t._chipRank = t.status !== 'Safe Playoff' ? ++chipRankCounter : null;
     }
   });
