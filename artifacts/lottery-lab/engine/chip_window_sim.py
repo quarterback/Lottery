@@ -62,10 +62,14 @@ def _simulate_60_games(talent: float, rng: random.Random) -> tuple[int, int]:
     return wins, GAMES_BEFORE_WINDOW - wins
 
 
-def _pick_bet(chips: float, strategy: str, rng: random.Random) -> float:
+def _pick_bet(chips: float, strategy: str, rng: random.Random,
+              personality: str = "standard") -> float:
     """Choose wager. Floor is MIN_BET (10). Cap is the team's current chip total
     (teams can't bet more than they have, but chips can go negative so floor always applies).
     Creates variety: teams with large stacks bid bigger in proportion.
+
+    personality: "standard" | "bold" | "cautious" | "volatile"
+      Applied as a multiplier on the base bet AFTER strategy calculation.
     """
     available = max(chips, MIN_BET)   # effective ceiling; floor always MIN_BET
 
@@ -83,7 +87,23 @@ def _pick_bet(chips: float, strategy: str, rng: random.Random) -> float:
         base = max(MIN_BET, available * frac)
 
     noise = rng.gauss(0, 2.0)
-    return round(max(MIN_BET, min(available, base + noise)), 1)
+    raw = max(MIN_BET, min(available, base + noise))
+
+    # Apply bidding personality multiplier
+    if personality == "bold":
+        mult = rng.uniform(1.25, 1.50)
+    elif personality == "cautious":
+        mult = rng.uniform(0.60, 0.80)
+    elif personality == "volatile":
+        # Randomly pick bold or cautious each game
+        if rng.random() < 0.5:
+            mult = rng.uniform(1.25, 1.50)
+        else:
+            mult = rng.uniform(0.60, 0.80)
+    else:
+        mult = 1.0
+
+    return round(max(MIN_BET, min(available, raw * mult)), 1)
 
 
 # ── Lottery odds computation ─────────────────────────────────────────────────
@@ -224,6 +244,14 @@ def simulate_chip_window_league(
                 "chip_gap_down":   None,
                 "chip_gap_down_team": None,
                 "strategy":        "standard",
+                # Variance fields (populated after status classification)
+                "bidding_personality": "standard",
+                "has_hot_streak":      False,
+                "hot_streak_nights":   None,   # {"start": int, "end": int}
+                "hot_streak_boost":    0.0,
+                "fatigue_nights":      [],
+                "rally_mode":          False,
+                "rally_mode_night":    None,
             })
 
         # ── Classify status by wins through game 60 ──────────────────────────
@@ -248,6 +276,38 @@ def simulate_chip_window_league(
                 td["strategy"] = "conservative"
             else:
                 td["strategy"] = strategy   # lottery: user-chosen
+
+        # ── Variance mechanics setup ─────────────────────────────────────────
+
+        # 1. Bidding personality — assigned to ALL teams; independent of strategy
+        _PERSONALITIES = ["standard", "bold", "cautious", "volatile"]
+        _PERS_WEIGHTS   = [0.40, 0.20, 0.20, 0.20]
+        for td in team_data:
+            r = rng.random()
+            cumul = 0.0
+            for pers, w in zip(_PERSONALITIES, _PERS_WEIGHTS):
+                cumul += w
+                if r < cumul:
+                    td["bidding_personality"] = pers
+                    break
+
+        # 2. Hot streak — ~20% of lottery+play-in teams get a surge window
+        eligible_for_streak = [td for td in team_data
+                                if td["status"] in (STATUS_LOTTERY, STATUS_PLAYIN)]
+        for td in eligible_for_streak:
+            if rng.random() < 0.20:
+                td["has_hot_streak"]   = True
+                start = rng.randint(0, GAMES_IN_WINDOW - 5)     # night index 0–17
+                length = rng.randint(5, 8)
+                end = min(start + length - 1, GAMES_IN_WINDOW - 1)
+                td["hot_streak_nights"] = {"start": start, "end": end}
+                td["hot_streak_boost"]  = round(rng.uniform(0.08, 0.15), 3)
+
+        # 3. Playoff fatigue — ~30% of chip-window games for safe-playoff teams
+        safe_teams = [td for td in team_data if td["status"] == STATUS_SAFE]
+        # We'll determine home nights per team once pairings are built; for now
+        # store a target fatigue fraction and resolve actual nights after pairings.
+        _FATIGUE_FRAC = 0.30
 
         # ── Build 22-night random pairings ───────────────────────────────────
         ids = [td["id"] for td in team_data]
@@ -278,6 +338,15 @@ def simulate_chip_window_league(
                 ]
                 if home_nights:
                     double_night_plan[tid] = rng.choice(home_nights)
+
+        # ── Playoff fatigue night resolution ─────────────────────────────────
+        # Now that pairings are fixed, pick ~30% of each safe-playoff team's
+        # 22 chip-window nights as fatigue/rest nights.
+        for td in team_data:
+            if td["status"] == STATUS_SAFE:
+                all_nights = list(range(GAMES_IN_WINDOW))
+                k = max(1, round(GAMES_IN_WINDOW * _FATIGUE_FRAC))
+                td["fatigue_nights"] = sorted(rng.sample(all_nights, k))
 
         # ── Chip window simulation (night-by-night) ──────────────────────────
         chips:        dict[int, float]       = {i: STARTING_CHIPS for i in ids}
@@ -334,9 +403,17 @@ def simulate_chip_window_league(
                 if away_td["is_pick_swap_holder"] and home_td["status"] == STATUS_LOTTERY:
                     away_strat = "aggressive"
 
-                # ── Wagers ───────────────────────────────────────────────────
-                home_base  = _pick_bet(chips[home_id], home_strat, rng)
-                away_base  = _pick_bet(chips[away_id], away_strat, rng)
+                # Rally mode overrides strategy to aggressive for floor teams
+                if home_td["rally_mode"]:
+                    home_strat = "aggressive"
+                if away_td["rally_mode"]:
+                    away_strat = "aggressive"
+
+                # ── Wagers (with bidding personality applied) ─────────────────
+                home_base  = _pick_bet(chips[home_id], home_strat, rng,
+                                       home_td["bidding_personality"])
+                away_base  = _pick_bet(chips[away_id], away_strat, rng,
+                                       away_td["bidding_personality"])
 
                 # Double: home wager doubles; away responds with fixed max (BIG_BET = 25)
                 home_wager = home_base * 2.0 if home_dbl else home_base
@@ -344,8 +421,33 @@ def simulate_chip_window_league(
 
                 pot = home_wager + away_wager
 
-                # ── Head-to-head outcome ─────────────────────────────────────
+                # ── Variance: compute flags for this matchup ──────────────────
+                home_hs = home_td["has_hot_streak"] and home_td["hot_streak_nights"] is not None and \
+                          home_td["hot_streak_nights"]["start"] <= night_idx <= home_td["hot_streak_nights"]["end"]
+                away_hs = away_td["has_hot_streak"] and away_td["hot_streak_nights"] is not None and \
+                          away_td["hot_streak_nights"]["start"] <= night_idx <= away_td["hot_streak_nights"]["end"]
+
+                home_fatigue = night_idx in home_td["fatigue_nights"]
+                away_fatigue = night_idx in away_td["fatigue_nights"]
+
+                # ── Head-to-head outcome (with variance adjustments) ──────────
                 p_home = _h2h_prob(home_td["talent"], away_td["talent"])
+                # Hot streak boost
+                if home_hs:
+                    p_home = min(0.95, p_home + home_td["hot_streak_boost"])
+                if away_hs:
+                    p_home = max(0.05, p_home - away_td["hot_streak_boost"])
+                # Rally mode boost (+4%)
+                if home_td["rally_mode"]:
+                    p_home = min(0.95, p_home + 0.04)
+                if away_td["rally_mode"]:
+                    p_home = max(0.05, p_home - 0.04)
+                # Playoff fatigue discount (-10pp for the fatigued team)
+                if home_fatigue:
+                    p_home = max(0.05, p_home - 0.10)
+                if away_fatigue:
+                    p_home = min(0.95, p_home + 0.10)
+
                 home_won = rng.random() < p_home
 
                 # ── Pot mechanic: winner += opp_wager, loser -= own_wager ────
@@ -374,32 +476,45 @@ def simulate_chip_window_league(
                     home_dbl, away_dbl,
                     night_idx,
                     running_ranks,
+                    home_hot_streak=home_hs,
+                    away_hot_streak=away_hs,
+                    home_fatigue=home_fatigue,
+                    away_fatigue=away_fatigue,
                 )
 
                 night_results.append({
-                    "home_id":            home_id,
-                    "away_id":            away_id,
-                    "home_name":          home_td["name"],
-                    "away_name":          away_td["name"],
-                    "home_status":        home_td["status"],
-                    "away_status":        away_td["status"],
-                    "home_is_pick_swap":  home_td["is_pick_swap_holder"],
-                    "away_is_pick_swap":  away_td["is_pick_swap_holder"],
-                    "home_strategy":      home_td["strategy"],
-                    "away_strategy":      away_td["strategy"],
-                    "home_wager":         home_wager,
-                    "away_wager":         away_wager,
-                    "pot":                pot,
-                    "home_won":           home_won,
-                    "winner_id":          winner_id,
-                    "home_double":        home_dbl,
-                    "away_double":        away_dbl,
-                    "home_chips_before":  round(home_chips_before, 1),
-                    "away_chips_before":  round(away_chips_before, 1),
-                    "home_chips_after":   round(chips[home_id], 1),
-                    "away_chips_after":   round(chips[away_id], 1),
-                    "tip_time":           _TIP_TIMES[slot_idx % len(_TIP_TIMES)],
-                    "narrative":          narrative,
+                    "home_id":                home_id,
+                    "away_id":                away_id,
+                    "home_name":              home_td["name"],
+                    "away_name":              away_td["name"],
+                    "home_status":            home_td["status"],
+                    "away_status":            away_td["status"],
+                    "home_is_pick_swap":      home_td["is_pick_swap_holder"],
+                    "away_is_pick_swap":      away_td["is_pick_swap_holder"],
+                    "home_strategy":          home_td["strategy"],
+                    "away_strategy":          away_td["strategy"],
+                    "home_bidding_personality": home_td["bidding_personality"],
+                    "away_bidding_personality": away_td["bidding_personality"],
+                    "home_wager":             home_wager,
+                    "away_wager":             away_wager,
+                    "pot":                    pot,
+                    "home_won":               home_won,
+                    "winner_id":              winner_id,
+                    "home_double":            home_dbl,
+                    "away_double":            away_dbl,
+                    "home_chips_before":      round(home_chips_before, 1),
+                    "away_chips_before":      round(away_chips_before, 1),
+                    "home_chips_after":       round(chips[home_id], 1),
+                    "away_chips_after":       round(chips[away_id], 1),
+                    "tip_time":               _TIP_TIMES[slot_idx % len(_TIP_TIMES)],
+                    "narrative":              narrative,
+                    # Variance fields
+                    "home_hot_streak":        home_hs,
+                    "away_hot_streak":        away_hs,
+                    "home_fatigue":           home_fatigue,
+                    "away_fatigue":           away_fatigue,
+                    "home_rally":             home_td["rally_mode"],
+                    "away_rally":             away_td["rally_mode"],
                 })
 
             full_schedule.append(night_results)
@@ -407,6 +522,17 @@ def simulate_chip_window_league(
             # Record trajectory for ALL teams after this night
             for tid in ids:
                 trajectories[tid].append(round(chips[tid], 1))
+
+            # ── Rally mode check (post-night) ─────────────────────────────────
+            # Flip lottery teams into rally mode if chips ≤ 20 and ≥ 10 nights remain.
+            nights_remaining = GAMES_IN_WINDOW - 1 - night_idx  # nights after this one
+            if nights_remaining >= 10:
+                for td in team_data:
+                    if (td["status"] == STATUS_LOTTERY
+                            and not td["rally_mode"]
+                            and chips[td["id"]] <= 20.0):
+                        td["rally_mode"]      = True
+                        td["rally_mode_night"] = night_idx + 1  # first night it takes effect
 
         # (Play-in consolation bonus removed — chips are purely match-based)
 
@@ -540,6 +666,10 @@ def _build_narrative(
     home_dbl: bool, away_dbl: bool,
     night_idx: int,
     running_ranks: dict[int, int] | None = None,
+    home_hot_streak: bool = False,
+    away_hot_streak: bool = False,
+    home_fatigue: bool = False,
+    away_fatigue: bool = False,
 ) -> str:
     """Generate a short game narrative string.
 
@@ -554,13 +684,39 @@ def _build_narrative(
     home_rank = (running_ranks or {}).get(home_id)
     away_rank = (running_ranks or {}).get(away_id)
 
+    home_is_lottery = home_td["status"] == STATUS_LOTTERY
+    away_is_lottery = away_td["status"] == STATUS_LOTTERY
+    home_in_rally   = home_td.get("rally_mode", False)
+    away_in_rally   = away_td.get("rally_mode", False)
+
     if home_dbl:
         if home_rank and home_rank > 1:
             return f"Double game — {home_name} moves to #{home_rank - 1} if they win"
         return f"Double game — {home_name} playing for chip position"
 
-    home_is_lottery = home_td["status"] == STATUS_LOTTERY
-    away_is_lottery = away_td["status"] == STATUS_LOTTERY
+    # Playoff fatigue — highest priority for safe-playoff games
+    if home_fatigue and home_td["status"] == STATUS_SAFE:
+        label = "back-to-back fatigue" if away_is_lottery else "resting starters"
+        return f"[REST] {home_name} {label} — playing down to the level tonight"
+    if away_fatigue and away_td["status"] == STATUS_SAFE:
+        label = "back-to-back fatigue" if home_is_lottery else "resting starters"
+        return f"[REST] {away_name} {label} — playing down to the level tonight"
+
+    # Rally mode — nothing-to-lose, going all-in
+    if home_in_rally and home_is_lottery:
+        return f"RALLY — {home_name} nothing to lose — going all-in"
+    if away_in_rally and away_is_lottery:
+        return f"RALLY — {away_name} nothing to lose — going all-in"
+
+    # Hot streak (eligible teams: lottery + play-in)
+    home_is_eligible_for_streak = home_is_lottery or home_td["status"] == STATUS_PLAYIN
+    away_is_eligible_for_streak = away_is_lottery or away_td["status"] == STATUS_PLAYIN
+    if home_hot_streak and home_is_eligible_for_streak:
+        boost_pct = round(home_td.get("hot_streak_boost", 0) * 100)
+        return f"HOT — {home_name} on a surge (+{boost_pct}% win prob tonight)"
+    if away_hot_streak and away_is_eligible_for_streak:
+        boost_pct = round(away_td.get("hot_streak_boost", 0) * 100)
+        return f"HOT — {away_name} on a surge (+{boost_pct}% win prob tonight)"
 
     # Lottery vs lottery — chip race
     if home_is_lottery and away_is_lottery and home_rank and away_rank:
@@ -640,6 +796,14 @@ def result_to_json(result: SimResult) -> dict:
                 "tonight_double":     td.get("tonight_double", False),
                 # per-night opponent wager amounts (22 values, one per night)
                 "opponent_wagers":    td.get("opponent_wagers", []),
+                # Variance fields
+                "bidding_personality": td.get("bidding_personality", "standard"),
+                "has_hot_streak":      td.get("has_hot_streak", False),
+                "hot_streak_nights":   td.get("hot_streak_nights"),
+                "hot_streak_boost":    td.get("hot_streak_boost", 0.0),
+                "fatigue_nights":      td.get("fatigue_nights", []),
+                "rally_mode":          td.get("rally_mode", False),
+                "rally_mode_night":    td.get("rally_mode_night"),
             })
 
         seasons_json.append({

@@ -360,11 +360,19 @@ function renderTonight(nightIdx) {
       const homePill  = statusPill(m.home_status);
       const awayPill  = statusPill(m.away_status);
 
+      // Variance badges
+      const homeHotBadge    = m.home_hot_streak ? '<span style="font-size:9px;background:#d4380d;color:#fff;padding:1px 4px;border-radius:3px;margin-left:4px">HOT</span>' : '';
+      const awayHotBadge    = m.away_hot_streak ? '<span style="font-size:9px;background:#d4380d;color:#fff;padding:1px 4px;border-radius:3px;margin-left:4px">HOT</span>' : '';
+      const homeRallyBadge  = m.home_rally ? '<span style="font-size:9px;background:#1677ff;color:#fff;padding:1px 4px;border-radius:3px;margin-left:4px">RALLY</span>' : '';
+      const awayRallyBadge  = m.away_rally ? '<span style="font-size:9px;background:#1677ff;color:#fff;padding:1px 4px;border-radius:3px;margin-left:4px">RALLY</span>' : '';
+      const homeFatigueBadge = m.home_fatigue ? '<span style="font-size:9px;background:#595959;color:#fff;padding:1px 4px;border-radius:3px;margin-left:4px">[REST]</span>' : '';
+      const awayFatigueBadge = m.away_fatigue ? '<span style="font-size:9px;background:#595959;color:#fff;padding:1px 4px;border-radius:3px;margin-left:4px">[REST]</span>' : '';
+
       card.innerHTML = `
         <div class="game-card-teams">
           <div class="gc-team">
             <div class="gc-team-name">
-              ${m.home_name}${m.home_double ? ' <span class="doubled-badge-sm">2×</span>' : ''}
+              ${m.home_name}${m.home_double ? ' <span class="doubled-badge-sm">2×</span>' : ''}${homeHotBadge}${homeRallyBadge}${homeFatigueBadge}
             </div>
             <div class="gc-chips">
               ${homePill} ${m.home_chips_before.toFixed(1)} chips${homeFloor ? ' <span style="color:var(--fg-faint)">[floor]</span>' : ''}
@@ -378,7 +386,7 @@ function renderTonight(nightIdx) {
           </div>
           <div class="gc-team gc-right">
             <div class="gc-team-name">
-              ${m.away_double ? '<span class="doubled-badge-sm">2×</span> ' : ''}${m.away_name}
+              ${m.away_double ? '<span class="doubled-badge-sm">2×</span> ' : ''}${m.away_name}${awayHotBadge}${awayRallyBadge}${awayFatigueBadge}
             </div>
             <div class="gc-chips">
               ${awayPill} ${m.away_chips_before.toFixed(1)} chips${awayFloor ? ' <span style="color:var(--fg-faint)">[floor]</span>' : ''}
@@ -585,7 +593,8 @@ function exportCsv() {
   if (!lbData) return;
   const gameIdx = curGame - 1;
   const ranked  = lotteryRanked(gameIdx);
-  const rows = [['Pick','Team','Status','Strategy','Record','Chips','Wager Strategy','Doubled',
+  const rows = [['Pick','Team','Status','Strategy','Bidding Personality','Record','Chips',
+                  'Hot Streak','Rally Mode','Doubled',
                   "Tonight's Opponent","Tonight's Pot"]];
   ranked.forEach((t, i) => {
     const m = tonightMatchup(t.id, gameIdx);
@@ -594,8 +603,11 @@ function exportCsv() {
     const pot       = m ? m.pot.toFixed(1) : '';
     rows.push([
       i + 1, t.name, t.status, t.strategy,
+      t.bidding_personality || 'standard',
       `${t.final_wins}-${t.final_losses}`,
-      t._chips.toFixed(1), t.strategy,
+      t._chips.toFixed(1),
+      t.has_hot_streak ? 'Yes' : 'No',
+      t.rally_mode ? 'Yes' : 'No',
       t.doubled ? 'Yes' : 'No',
       oppName, pot,
     ]);
