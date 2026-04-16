@@ -66,7 +66,8 @@
       </div>
       <div class="st-row header-row">
         <div>POS</div><div>TEAM</div><div style="text-align:right">W-L</div>
-        <div>CHIPS</div><div class="col-start">START</div><div></div>
+        <div>CHIPS</div><div class="col-start">START</div>
+        <div style="font-size:10px;color:var(--fg-faint)">+/−</div>
         <div class="col-tonight">TONIGHT</div>
         <div class="col-pick" style="text-align:center">PICK</div>
       </div>
@@ -77,14 +78,17 @@
       </div>
       <div class="st-row other-row header-row">
         <div>POS</div><div>TEAM</div><div style="text-align:right">W-L</div>
-        <div>CHIPS</div><div class="col-start">START</div><div></div>
+        <div>CHIPS</div><div class="col-start">START</div>
+        <div style="font-size:10px;color:var(--fg-faint)">+/−</div>
         <div class="col-tonight">TONIGHT</div>
       </div>
       <div id="st-other-rows"></div>
 
       <div class="lb-footnote">
         Start: 20–100 chips by record quintile (worst 6 → 100, next 6 → 80, middle 6 → 60, next 6 → 40, best 6 → 20) ·
-        Floor: 10 chips min · Win → +opp wager · Loss → −own wager · 2× = double declared
+        Floor: 10 chips min · Win → +opp wager · Loss → −own wager · 2× = double declared ·
+        ⚡ Upset bonus: lower-record winner earns +(opp wins − your wins) bonus chips ·
+        +/− = chip swing from last game
       </div>
     </div>
 
@@ -245,14 +249,18 @@ function tonightMatchup(teamId, nightIdx) {
   return lbData.schedule[nightIdx].find(m => m.home_id === teamId || m.away_id === teamId) || null;
 }
 
-/* ── Trend arrow vs 3 games ago ── */
+/* ── Single-game chip swing (tonight's result) ── */
 function trendArrow(team, gameIdx) {
-  if (gameIdx < 3) return '<span class="trend-flat">–</span>';
+  if (!team.in_chip_pool) return '<span class="trend-flat">–</span>';
   const now  = chipsAt(team, gameIdx);
-  const prev = chipsAt(team, Math.max(0, gameIdx - 3));
-  if (now - prev >  5) return '<span class="trend-up">↑</span>';
-  if (prev - now >  5) return '<span class="trend-dn">↓</span>';
-  return '<span class="trend-flat">–</span>';
+  const prev = gameIdx === 0
+    ? (team.chips_start ?? 60)
+    : chipsAt(team, gameIdx - 1);
+  const delta = now - prev;
+  if (Math.abs(delta) < 0.05) return '<span class="trend-flat" style="font-size:10px;color:var(--fg-faint)">—</span>';
+  const sign = delta > 0 ? '+' : '';
+  const col  = delta > 0 ? 'var(--green)' : 'var(--red)';
+  return `<span style="font-size:10px;font-weight:700;color:${col}">${sign}${delta.toFixed(1)}</span>`;
 }
 
 /* ═══════════════════════════════════════
@@ -474,6 +482,7 @@ function renderTonight(nightIdx) {
         <div class="gc-pot">
           <span class="wager-dot"></span>Pot: <b>${m.pot.toFixed(1)} chips</b>
           ${m.home_is_pick_swap || m.away_is_pick_swap ? ' &nbsp;<span style="font-size:9px;color:#f5c518">[SWAP HOLDER]</span>' : ''}
+          ${m.upset_bonus > 0 ? ` &nbsp;<span style="font-size:9px;color:#f5c518;font-weight:700">⚡ Upset Bonus: +${m.upset_bonus} chips to winner</span>` : ''}
         </div>
         <div class="gc-narrative">${m.narrative}</div>
         <div class="gc-meta">${m.tip_time} · ${m.home_name} home</div>
@@ -771,6 +780,12 @@ function openTeamDetail(team) {
     <div class="tdp-stat">
       <div class="tdp-stat-label">Worst Night</div>
       <div class="tdp-stat-value" style="font-size:12px">${worstNight}</div>
+    </div>
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Upset Bonus</div>
+      <div class="tdp-stat-value" style="font-size:12px;color:${(team.total_upset_bonus ?? 0) > 0 ? '#f5c518' : 'var(--fg-faint)'}">
+        ${(team.total_upset_bonus ?? 0) > 0 ? '⚡ +' + (team.total_upset_bonus ?? 0).toFixed(1) : '—'}
+      </div>
     </div>
     ${team.status === 'Lottery' ? `
     <div class="tdp-stat">

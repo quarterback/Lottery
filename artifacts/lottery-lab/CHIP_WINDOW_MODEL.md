@@ -63,6 +63,20 @@ Both teams in a matchup announce their wager before the outcome. When the game r
 - **Winner** gains the opponent's wager (net positive)
 - **Loser** loses their own wager (net negative, floored at 10)
 
+### Upset bonus — win-gap chip reward
+
+When a lower-record team wins a chip window game against a higher-record team, they receive a bonus chip award on top of the normal pot:
+
+**`bonus_chips = opponent_wins_60 − your_wins_60`** (only on a win, only when positive)
+
+- The **winner** collects the normal pot **plus** the bonus
+- The **loser** gains nothing from the bonus regardless of record
+- No coefficient — the raw win-total gap is the multiplier, self-bounded to approximately 0–50 chips
+- A winless team (0 wins) beating a 50-win team would earn the maximum theoretical bonus (~50 chips)
+- Same-record matchups produce no bonus (gap = 0)
+
+This mechanic rewards genuine upsets in the chip window and makes every game meaningful for lower-seeded teams — even a lottery team facing a 50-win opponent has extra incentive to compete.
+
 ### Analytics bidding — tie prevention
 Analytics teams bid with **2-decimal precision** to minimise the chance of finishing with an identical chip total as a rival. Since each team's running sum traces a slightly different path from the start of the window, exact chip ties are extremely rare.
 
@@ -267,6 +281,7 @@ Chip ranks used in narratives are computed from live chip totals at the start of
 | Aggressive range | 30–60% of stack |
 | Standard range | 15–40% of stack (proportional) |
 | Conservative range | 10–20 chips flat |
+| Upset bonus | Lower-record winner earns bonus = opponent_wins_60 − winner_wins_60 (max ~50) |
 | Double mechanic | One pre-assigned home night per team; all 30 teams eligible; no chip threshold |
 | Double opponent response | Fixed 25 chips |
 | Tie-breaking | Worse record (fewer wins) gets the higher draft pick |

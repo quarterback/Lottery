@@ -107,7 +107,7 @@
                 <th style="text-align:left">Status</th>
                 <th>60-G</th>
                 <th>G82</th>
-                <th style="min-width:120px">Chips</th>
+                <th style="min-width:120px">Chips <span style="font-weight:400;color:var(--fg-faint);font-size:9px">(+/− last game)</span></th>
                 <th style="text-align:left">Tonight</th>
                 <th>Pick</th>
               </tr>
@@ -171,6 +171,7 @@
           <div style="margin-bottom:4px">Range: <b>10 chips min</b> (floor), up to full stack</div>
           <div style="margin-bottom:4px">Win → gain opponent's wager</div>
           <div style="margin-bottom:4px">Loss → lose own wager (floored at 10)</div>
+          <div style="margin-bottom:4px"><span style="color:#f5c518;font-size:11px">⚡</span> Upset bonus: lower-record winner earns +(<i>opp wins − your wins</i>) bonus chips</div>
           <div style="margin-bottom:14px"><span class="doubled-badge">2×</span> Any team: double wager once on pre-assigned home game</div>
           <div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-faint);margin-bottom:4px">Draft order</div>
           <div>Most chips = Pick 1 · Fully deterministic — no lottery draw · Ties broken by worse record</div>
@@ -322,11 +323,19 @@ function renderSeason(seasonNum, gameNum) {
     return t.chip_trajectory[Math.min(idx, t.chip_trajectory.length - 1)];
   };
 
+  // Chips at previous game (for per-game delta — the "tonight" swing)
+  const chipsAtPrev = (t) => {
+    if (gameNum <= 1) return t.chips_start ?? 60;
+    if (!t.chip_trajectory || t.chip_trajectory.length === 0) return t.chips_start ?? 60;
+    return t.chip_trajectory[Math.min(gameNum - 2, t.chip_trajectory.length - 1)];
+  };
+
   // Build team snapshots with chips at current game
   const teams = s.teams.map(t => {
     const chipsNow = chipsAt(t);
+    const chipsPrev = chipsAtPrev(t);
     const doubled_sofar = t.doubled && (t.double_night < gameNum);
-    return { ...t, chips_now: chipsNow, doubled_sofar };
+    return { ...t, chips_now: chipsNow, chips_prev: chipsPrev, doubled_sofar };
   });
 
   // Re-compute chip draft rank among lottery teams at this game point
@@ -358,10 +367,13 @@ function renderSeason(seasonNum, gameNum) {
       const barColor = td.chips_now >= 200 ? '#f5c518'
         : td.chips_now >= 100 ? '#4ade80'
         : td.chips_now >= 50 ? '#ff8c00' : '#f87171';
-      const delta = td.chips_now - (td.chips_start ?? 60);
-      const deltaStr = delta >= 0
-        ? `<span style="color:var(--green);font-size:9px">+${delta.toFixed(1)}</span>`
-        : `<span style="color:var(--red);font-size:9px">${delta.toFixed(1)}</span>`;
+      // Per-game delta (tonight's swing), not delta from start
+      const delta = td.chips_now - td.chips_prev;
+      const deltaStr = delta === 0
+        ? `<span style="color:var(--fg-faint);font-size:9px">—</span>`
+        : delta > 0
+          ? `<span style="color:var(--green);font-size:9px;font-weight:600">+${delta.toFixed(1)}</span>`
+          : `<span style="color:var(--red);font-size:9px;font-weight:600">${delta.toFixed(1)}</span>`;
       const dbl = td.doubled_sofar ? '<span class="doubled-badge" style="margin-left:4px">2×</span>' : '';
       chipsCell = `
         <div class="cw-chips-bar-wrap">
@@ -384,7 +396,10 @@ function renderSeason(seasonNum, gameNum) {
       const resultLetter = teamWon ? 'W' : 'L';
       const dblBadge = ownDbl ? ' <span class="doubled-badge">2×</span>' : '';
       const oppAbbr = oppName.split(' ').slice(-1)[0].substring(0, 3).toUpperCase();
-      tonightCell = `<span class="tonight-cell"><span style="color:${resultColor};font-weight:700">${resultLetter}</span> <span style="color:var(--fg-dim)">${ownWager}</span> vs ${oppAbbr}${dblBadge}</span>`;
+      const upsetBadge = (teamWon && m.upset_bonus > 0)
+        ? ` <span title="Upset bonus: +${m.upset_bonus} chips (win-gap reward)" style="color:#f5c518;font-size:9px;font-weight:700">⚡+${m.upset_bonus}</span>`
+        : '';
+      tonightCell = `<span class="tonight-cell"><span style="color:${resultColor};font-weight:700">${resultLetter}</span> <span style="color:var(--fg-dim)">${ownWager}</span> vs ${oppAbbr}${dblBadge}${upsetBadge}</span>`;
     }
 
     // ── Odds cell — always '—' for non-lottery (chip pick shown for lottery) ─

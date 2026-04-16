@@ -337,9 +337,10 @@ def simulate_chip_window_league(
         chips:        dict[int, float]       = {td["id"]: td["chips_start"] for td in team_data}
         dbl_tracker:  dict[int, bool]        = {i: False          for i in ids}
         trajectories: dict[int, list[float]] = {i: []             for i in ids}
-        chip_wins:    dict[int, int]         = {i: 0              for i in ids}
-        chip_losses:  dict[int, int]         = {i: 0              for i in ids}
-        opp_wagers:   dict[int, list[float]] = {i: []             for i in ids}
+        chip_wins:         dict[int, int]         = {i: 0  for i in ids}
+        chip_losses:       dict[int, int]         = {i: 0  for i in ids}
+        upset_bonus_total: dict[int, float]       = {i: 0.0 for i in ids}
+        opp_wagers:        dict[int, list[float]] = {i: []  for i in ids}
 
         full_schedule: list[list[dict]] = []
 
@@ -449,6 +450,17 @@ def simulate_chip_window_league(
                     chip_wins[away_id]   += 1
                     chip_losses[home_id] += 1
 
+                # ── Upset bonus: lower-record winner earns bonus = win-gap ────
+                # bonus_chips = loser_wins_60 - winner_wins_60  (only when positive)
+                if home_won:
+                    win_gap = away_td["wins_60"] - home_td["wins_60"]
+                else:
+                    win_gap = home_td["wins_60"] - away_td["wins_60"]
+                upset_bonus = max(0, win_gap)
+                if upset_bonus > 0:
+                    chips[winner_id] += upset_bonus
+                    upset_bonus_total[winner_id] += upset_bonus
+
                 # Track what each team's opponent wagered (for opponent_wagers list)
                 opp_wagers[home_id].append(round(away_wager, 1))
                 opp_wagers[away_id].append(round(home_wager, 1))
@@ -493,6 +505,8 @@ def simulate_chip_window_league(
                     "away_chips_after":       round(chips[away_id], 1),
                     "tip_time":               _TIP_TIMES[slot_idx % len(_TIP_TIMES)],
                     "narrative":              narrative,
+                    # Upset bonus: 0 if no upset, otherwise = win-gap chips awarded to winner
+                    "upset_bonus":            upset_bonus,
                     # Variance fields
                     "home_hot_streak":        home_hs,
                     "away_hot_streak":        away_hs,
@@ -531,14 +545,15 @@ def simulate_chip_window_league(
 
         for td in team_data:
             tid = td["id"]
-            td["chips_end"]       = round(chips[tid], 1)
-            td["chip_trajectory"] = trajectories[tid]
-            td["chip_wins"]       = chip_wins[tid]
-            td["chip_losses"]     = chip_losses[tid]
-            td["final_wins"]      = td["wins_60"] + chip_wins[tid]
-            td["final_losses"]    = td["losses_60"] + chip_losses[tid]
-            td["opponent_wagers"] = opp_wagers[tid]
-            total_chips_sum[tid] += td["chips_end"]
+            td["chips_end"]          = round(chips[tid], 1)
+            td["chip_trajectory"]    = trajectories[tid]
+            td["chip_wins"]          = chip_wins[tid]
+            td["chip_losses"]        = chip_losses[tid]
+            td["total_upset_bonus"]  = round(upset_bonus_total[tid], 1)
+            td["final_wins"]         = td["wins_60"] + chip_wins[tid]
+            td["final_losses"]       = td["losses_60"] + chip_losses[tid]
+            td["opponent_wagers"]    = opp_wagers[tid]
+            total_chips_sum[tid]    += td["chips_end"]
 
             # tonight_* fields — based on the final night of the chip window (G82)
             m = tonight_by_team.get(tid)
