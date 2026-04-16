@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import time
 from pathlib import Path
@@ -28,6 +29,12 @@ from data.historical_seasons import HISTORICAL_SEASONS, SEASON_KEYS
 router = APIRouter()
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+# Cache-busting: stamp the CSS modification time so browsers always fetch the latest file
+_css_path = Path(__file__).resolve().parent / "static" / "lottery-lab.css"
+templates.env.globals["css_version"] = (
+    str(int(os.path.getmtime(_css_path))) if _css_path.exists() else "1"
+)
 
 CHART_COLORS = ["#ff8c00", "#4ade80"]
 
