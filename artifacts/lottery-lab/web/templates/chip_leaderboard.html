@@ -65,18 +65,7 @@
       <!-- State-aware header (changes between window and final) -->
       <div class="section-header" id="st-state-header">CHIP STANDINGS</div>
 
-      <!-- Unified header row -->
-      <div class="st-row header-row">
-        <div>TEAM</div>
-        <div style="text-align:right">W-L</div>
-        <div class="col-window" style="text-align:right">WINDOW</div>
-        <div>CHIPS</div>
-        <div class="col-behind">BEHIND</div>
-        <div class="col-tonight">TONIGHT'S WAGER</div>
-        <div style="text-align:center">PICK</div>
-      </div>
-
-      <!-- All rows rendered here (30 during window, 14 at game 82) -->
+      <!-- Table rendered here by renderStandings() -->
       <div id="st-all-rows"></div>
 
       <!-- Contextual note about playoff teams (shown during window only) -->
@@ -86,10 +75,9 @@
       </div>
 
       <div class="lb-footnote">
-        Start: 20–100 chips by quintile (worst 6 → 100 · next 6 → 80 · mid 6 → 60 · next 6 → 40 · best 6 → 20) ·
-        Floor: 10 chips min · Win → +opp wager · Loss → −own wager · 2× = double declared ·
-        ⚡ Upset bonus: lower-record winner earns +(opp wins − your wins) extra chips ·
-        +/− = chip swing from last game
+        Window = chip window record since game 60. Behind = chips behind leader (— for leader).
+        Playoff line reflects current standings and moves daily.
+        Teams below line dimmed — chips shown for pick swap tracking only.
       </div>
     </div>
 
@@ -205,6 +193,26 @@ function trajPersonalityStyle(p) {
     case 'volatile': return { width: '1.8', dash: '6,3', opacity: '0.80' };
     default:         return { width: '1.5', dash: null,  opacity: '0.70' };
   }
+}
+
+/* ── Team name → 3-letter abbreviation ── */
+function teamAbbr(name) {
+  const map = {
+    'Golden State': 'GSW', 'LA Clippers': 'LAC', 'LA Lakers': 'LAL',
+    'New Orleans': 'NOP', 'New York': 'NYK', 'Oklahoma City': 'OKC',
+    'San Antonio': 'SAS', 'Brooklyn': 'BKN', 'Philadelphia': 'PHI',
+    'Portland': 'POR', 'Sacramento': 'SAC', 'Washington': 'WAS',
+    'Minnesota': 'MIN', 'Memphis': 'MEM', 'Milwaukee': 'MIL',
+    'Indiana': 'IND', 'Houston': 'HOU', 'Detroit': 'DET',
+    'Denver': 'DEN', 'Dallas': 'DAL', 'Cleveland': 'CLE',
+    'Chicago': 'CHI', 'Charlotte': 'CHA', 'Boston': 'BOS',
+    'Atlanta': 'ATL', 'Toronto': 'TOR', 'Utah': 'UTA',
+    'Orlando': 'ORL', 'Phoenix': 'PHX', 'Miami': 'MIA',
+  };
+  for (const [k, v] of Object.entries(map)) {
+    if (name.startsWith(k)) return v;
+  }
+  return name.substring(0, 3).toUpperCase();
 }
 
 /* ── Pick-circle colour by pick number ── */
@@ -324,7 +332,6 @@ function chipWindowRecord(teamId, nightIdx) {
 function renderStandings(gameIdx, nightIdx) {
   const isFinal = gameIdx >= 21;
 
-  /* All 30 teams sorted by chips (tie-break: worse record, then id) */
   const allTeams = lbData.teams.map(t => {
     const chips = chipsAt(t, gameIdx);
     const prev  = gameIdx === 0 ? (t.chips_start ?? 60) : chipsAt(t, gameIdx - 1);
@@ -337,16 +344,17 @@ function renderStandings(gameIdx, nightIdx) {
     return a.id - b.id;
   });
 
-  /* Chip rank = position among ALL non-safe-playoff teams (Lottery + Play-In).
-     Safe Playoff teams get null — they have no draft stake. */
   let chipRankCounter = 0;
   allTeams.forEach(t => {
-    t._chipRank = t.status !== 'Safe Playoff' ? ++chipRankCounter : null;
+    if (isFinal) {
+      // Final view: only lottery teams compete for picks 1-14
+      t._chipRank = t.status === 'Lottery' ? ++chipRankCounter : null;
+    } else {
+      // Window view: all 18 non-safe-playoff teams (Lottery + Play-In) get a rank
+      t._chipRank = t.status !== 'Safe Playoff' ? ++chipRankCounter : null;
+    }
   });
 
-  const maxChips = Math.max(...allTeams.map(t => t._chips), 200);
-
-  /* State-aware header */
   const stateHdr = document.getElementById('st-state-header');
   const ctxNote  = document.getElementById('st-playoff-context');
   if (isFinal) {
@@ -360,85 +368,111 @@ function renderStandings(gameIdx, nightIdx) {
     if (ctxNote) ctxNote.style.display = 'none';
   }
 
-  /* Which rows to render */
   const rows = isFinal ? allTeams.filter(t => t.status === 'Lottery') : allTeams;
-
-  /* Leader chip total = top of the displayed rows */
   const leaderChips = rows[0]?._chips ?? 0;
 
   const container = document.getElementById('st-all-rows');
   container.innerHTML = '';
 
+  /* ── Build <table> ── */
+  const wrap = document.createElement('div');
+  wrap.className = 'lb-table-wrap';
+
+  const table = document.createElement('table');
+  table.className = 'lb-table';
+
+  const thead = document.createElement('thead');
+  thead.innerHTML = `<tr class="lb-thead-row">
+    <th class="lb-th" style="text-align:left">TEAM</th>
+    <th class="lb-th" style="width:70px;text-align:right">OVERALL</th>
+    <th class="lb-th col-window" style="width:70px;text-align:right">WINDOW</th>
+    <th class="lb-th" style="width:64px;text-align:right">CHIPS</th>
+    <th class="lb-th col-behind" style="width:58px;text-align:right">BEHIND</th>
+    <th class="lb-th col-tonight" style="width:148px;text-align:left">TONIGHT'S WAGER</th>
+    <th class="lb-th" style="width:44px;text-align:center">PICK</th>
+  </tr>`;
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
   let dividerInserted = false;
 
-  rows.forEach((t) => {
+  rows.forEach(t => {
     const isSafePlayoff = t.status === 'Safe Playoff';
 
-    /* Divider fires immediately before the first Safe Playoff team */
+    /* Playoff divider — fires before first Safe Playoff team */
     if (!isFinal && !dividerInserted && isSafePlayoff) {
       dividerInserted = true;
-      const div = document.createElement('div');
-      div.className = 'st-playoff-divider';
-      div.innerHTML = `PLAYOFF LINE — AS OF TODAY<span class="st-divider-label">currently in playoff position · chips shown for swap tracking</span>`;
-      container.appendChild(div);
+      const divRow = document.createElement('tr');
+      divRow.className = 'lb-divider-row';
+      divRow.innerHTML = `<td colspan="7" class="lb-divider-cell">PLAYOFF LINE \u2014 AS OF TODAY<span class="lb-divider-sub">currently in playoff position \u00b7 chips shown for swap tracking</span></td>`;
+      tbody.appendChild(divRow);
     }
 
-    /* Bar color: non-playoff by chip rank, Safe Playoff neutral */
-    const barColor = isSafePlayoff ? '#2a2a2a' : chipBarColor(t._chipRank, 18);
-    const barW     = Math.max(2, Math.round(Math.max(0, t._chips) / maxChips * 80));
+    /* Overall record */
+    const overallHtml = `${t.final_wins}\u2013${t.final_losses}`;
 
-    /* Behind leader */
-    const behind = leaderChips - t._chips;
-    const behindStr = behind < 0.05
-      ? `<span style="color:var(--fg-faint);font-size:11px">—</span>`
-      : `<span style="color:var(--fg-dim);font-size:11px">${Math.round(behind)}</span>`;
+    /* Window record */
+    const cwColor = t._cwW > t._cwL ? '#1D9E75' : t._cwL > t._cwW ? '#E24B4A' : '#888';
+    const windowHtml = `<span style="color:${cwColor};font-weight:600">${t._cwW}\u2013${t._cwL}</span>`;
 
-    /* Floor badge */
+    /* Chips */
     const floorBadge = t._chips <= 10
-      ? `<span style="font-size:9px;color:var(--fg-faint);margin-left:3px">floor</span>` : '';
+      ? `<span style="font-size:9px;color:#bbb;margin-left:3px">floor</span>` : '';
+    const chipsHtml = `<span style="font-weight:600">${Math.round(t._chips)}</span>${floorBadge}`;
 
-    /* Tonight matchup */
-    const m       = tonightMatchup(t.id, nightIdx);
-    const isHome  = m ? m.home_id === t.id : false;
-    const oppName = m ? (isHome ? m.away_name : m.home_name) : null;
-    const wager   = m ? (isHome ? m.home_wager : m.away_wager).toFixed(1) : null;
-    const isDbl   = m && (isHome ? m.home_double : m.away_double);
+    /* Behind */
+    const behind = leaderChips - t._chips;
+    const behindHtml = behind < 0.05
+      ? `<span style="color:#bbb">\u2014</span>`
+      : `<span style="color:#888">${Math.round(behind)}</span>`;
 
-    /* Pick circle: all non-safe-playoff teams */
-    let pickCell;
-    if (t._chipRank != null) {
-      const pc = pickColor(t._chipRank);
-      pickCell = `<div class="pick-circle" style="background:${pc.bg};color:${pc.fg};border:1px solid ${pc.border}">${t._chipRank}</div>`;
+    /* Tonight's wager */
+    const m      = tonightMatchup(t.id, nightIdx);
+    const isHome = m ? m.home_id === t.id : false;
+    const opp    = m ? (isHome ? m.away_name : m.home_name) : null;
+    const wager  = m ? (isHome ? m.home_wager : m.away_wager) : null;
+    const isDbl  = m && (isHome ? m.home_double : m.away_double);
+    let tonightHtml;
+    if (opp) {
+      const dbl = isDbl ? `<span class="lb-double-badge">2\u00d7</span>` : '';
+      tonightHtml = `<span style="font-weight:600">${Math.round(wager)} vs ${teamAbbr(opp)}</span>${dbl}`;
     } else {
-      pickCell = `<span style="color:var(--fg-faint);font-size:11px">—</span>`;
+      tonightHtml = `<span style="color:#ccc;font-size:11px">off</span>`;
     }
 
-    const row = document.createElement('div');
-    row.className = 'st-row' + (isSafePlayoff ? ' playoff-row' : '');
-    row.addEventListener('click', () => openTeamDetail(t));
-    row.innerHTML = `
-      <div>
-        <div class="team-name">${t.name}</div>
-      </div>
-      <div style="text-align:right;font-size:11px;color:var(--fg-dim)">${t.final_wins}–${t.final_losses}</div>
-      <div class="col-window" style="text-align:right">
-        <span style="font-size:11px;font-weight:600;color:${t._cwW > t._cwL ? 'var(--green)' : t._cwL > t._cwW ? 'var(--red)' : 'var(--fg-dim)'}">${t._cwW}–${t._cwL}</span>
-      </div>
-      <div class="chips-bar-col">
-        <div class="chips-bar" style="width:${barW}px;background:${barColor}"></div>
-        <span class="chips-num">${Math.round(t._chips)}</span>${floorBadge}
-      </div>
-      <div class="col-behind">${behindStr}</div>
-      <div class="tonight-cell col-tonight">
-        ${oppName
-          ? `<span class="tonight-opp">${oppName}</span><br>
-             <span class="wager-dot"></span>${wager}${isDbl ? ' <span class="doubled-badge-sm">2×</span>' : ''}`
-          : '<span style="color:var(--fg-faint)">—</span>'}
-      </div>
-      <div class="col-pick" style="text-align:center">${pickCell}</div>
+    /* Proj pick */
+    let pickHtml;
+    if (t._chipRank != null) {
+      const n = t._chipRank;
+      let pc;
+      if      (n === 1)  pc = { bg: '#FAEEDA', fg: '#633806' };
+      else if (n <= 3)   pc = { bg: '#EAF3DE', fg: '#27500A' };
+      else if (n <= 8)   pc = { bg: '#E6F1FB', fg: '#0C447C' };
+      else if (n <= 14)  pc = { bg: '#fef0f0', fg: '#791F1F' };
+      else               pc = { bg: '#f0f0f0', fg: '#888'    };
+      pickHtml = `<div class="lb-pick-circle" style="background:${pc.bg};color:${pc.fg}">${n}</div>`;
+    } else {
+      pickHtml = `<span style="color:#ccc;font-size:10px">\u2014</span>`;
+    }
+
+    const tr = document.createElement('tr');
+    tr.className = 'lb-row' + (isSafePlayoff ? ' lb-row-playoff' : '');
+    tr.addEventListener('click', () => openTeamDetail(t));
+    tr.innerHTML = `
+      <td class="lb-td lb-td-team">${t.name}</td>
+      <td class="lb-td" style="text-align:right;font-size:11px;color:#888">${overallHtml}</td>
+      <td class="lb-td col-window" style="text-align:right">${windowHtml}</td>
+      <td class="lb-td" style="text-align:right">${chipsHtml}</td>
+      <td class="lb-td col-behind" style="text-align:right">${behindHtml}</td>
+      <td class="lb-td col-tonight">${tonightHtml}</td>
+      <td class="lb-td" style="text-align:center">${pickHtml}</td>
     `;
-    container.appendChild(row);
+    tbody.appendChild(tr);
   });
+
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  container.appendChild(wrap);
 }
 
 /* ═══════════════════════════════════════

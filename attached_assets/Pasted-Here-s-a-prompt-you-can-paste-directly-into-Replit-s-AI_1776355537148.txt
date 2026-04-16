@@ -1,0 +1,39 @@
+Here’s a prompt you can paste directly into Replit’s AI:
+
+Rebuild the chip window standings table to match this exact design spec. Do not interpret or simplify — implement exactly as described.
+Column order (left to right):
+Team · Overall record · Window record · Chips · Behind · Tonight’s wager · Proj. pick
+Table rules:
+	•	table-layout: fixed, border-collapse: collapse, min-width: 480px, wrapped in a horizontally scrollable div
+	•	No bar charts, no sparklines, no extra columns
+	•	Row hover: background: #fafafa
+	•	Font: system sans-serif, 12px body, 10px uppercase headers with letter-spacing: 0.05em
+	•	Header row: border-bottom: 1px solid #e5e5e5, text color #888
+	•	Cell padding: 7px 8px
+	•	Row divider: border-bottom: 1px solid #f2f2f2
+Playoff divider row:
+	•	Inserted dynamically at the first team in playoff position when the table is sorted by chips descending
+	•	Full-width single cell spanning all 7 columns
+	•	Style: background: #f8f8f8, border-top: 2px solid #111, border-bottom: 1px solid #e5e5e5, font 10px uppercase #888, letter-spacing: 0.05em
+	•	Text: “Playoff line — as of today” followed by a muted secondary span: “currently in playoff position · chips shown for swap tracking”
+	•	Teams above the divider are full opacity (active chip competition)
+	•	Teams below the divider are opacity: 0.32, hover brings to 0.55
+Column rendering:
+Team — font-weight: 600, font-size: 12px, color: #111
+Overall record — font-size: 11px, color: #888, format 39-43
+Window record — chip window games only since game 60. Green #1D9E75 font-weight:600 if winning record, red #E24B4A if losing. Format 7-4
+Chips — font-weight: 600. If chips <= 10, append a small muted span "floor" in font-size: 9px, color: #bbb
+Behind — numeric chips behind the leader. Leader shows — in color: #bbb. All others show the raw number in color: #888
+Tonight’s wager — show the wager amount and opponent if playing, e.g. 175 vs DET in font-weight: 600. If double declared, append a small badge: font-size: 9px, background: #FAEEDA, color: #633806, padding: 1px 4px, border-radius: 3px. If off, show off in color: #ccc, font-size: 11px
+Proj. pick — circular badge width: 20px, height: 20px, border-radius: 50%, font-size: 10px, font-weight: 600, display: inline-flex, align-items: center, justify-content: center. Colors by pick position:
+	•	Pick 1: background #FAEEDA, color #633806
+	•	Picks 2-3: background #EAF3DE, color #27500A
+	•	Picks 4-8: background #E6F1FB, color #0C447C
+	•	Picks 9-14: background #fef0f0, color #791F1F
+	•	Playoff teams: show — in color: #ccc, font-size: 10px
+Sort order: All 30 teams sorted by chips descending. The playoff divider inserts itself at the position where playoff teams begin — it is not a fixed row, it moves as chip totals change.
+Below the table: A single line of notes in font-size: 10px, color: #bbb, margin-top: 8px, line-height: 1.7:
+“Window = chip window record since game 60. Behind = chips behind leader (— for leader). Playoff line reflects current standings and moves daily. Teams below line dimmed — chips shown for pick swap tracking only.”
+Do not add: bars, sparklines, percentage columns, trend arrows, logos, or any columns not listed above.
+
+If it still misinterprets it, also paste the raw HTML file I gave you and tell it: “match this implementation exactly, do not redesign it.“​​​​​​​​​​​​​​​​
