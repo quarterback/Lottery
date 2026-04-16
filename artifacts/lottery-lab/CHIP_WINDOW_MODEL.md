@@ -11,7 +11,7 @@
 
 The Chip Window is a proposed NBA draft reform that makes tanking structurally impossible. Instead of awarding lottery odds based on record, a team's draft odds are determined by chips they earn — or deplete — through head-to-head game results across the final 22 games of the regular season (Games 61–82).
 
-Losing costs chips at the same rate regardless of whether the loss was intentional. There is no mechanism by which a team can improve their draft odds by losing.
+Losing costs chips at the same rate regardless of whether the loss was intentional. There is no mechanism by which a team can improve their drthereaft odds by losing.
 
 ---
 
