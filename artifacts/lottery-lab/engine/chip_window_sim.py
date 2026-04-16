@@ -35,12 +35,20 @@ STATUS_LOTTERY = "Lottery"
 VALID_STRATEGIES = ("standard", "aggressive", "conservative")
 
 # ── Lottery behavior shift ───────────────────────────────────────────────────
-# At game 60, lottery teams stop tanking and start trying: they call up G-League
-# guys, sign veterans, and actually compete.  This injects a random per-team
-# talent boost that applies ONLY during the 22 chip-window games.
-# Sampled uniform [min, max] talent points per team — different for each season.
-LOTTERY_SHIFT_MIN = 4.0   # most conservative turnaround
-LOTTERY_SHIFT_MAX = 12.0  # most aggressive culture change
+# At game 60, lottery teams stop tanking and start trying: G-League call-ups,
+# vet signings, real effort.  Two tiers by record rank within the lottery:
+#
+#   Bottom 7 (worst records, picks 1–7 territory):
+#     Wide variance — some bottom teams dramatically improve, some don't.
+#     Range 5–25 creates a relegation/promotion feel.
+#
+#   Top 7 (middling lottery, vying for play-in bubble):
+#     Small nudge only — these teams are closer to .500 already.
+#     Range 5–7.
+LOTTERY_SHIFT_WORST_MIN  = 5.0
+LOTTERY_SHIFT_WORST_MAX  = 25.0
+LOTTERY_SHIFT_MIDDLE_MIN = 5.0
+LOTTERY_SHIFT_MIDDLE_MAX = 7.0
 
 # Placeholder tip-off slots (cycled for 15 games/night)
 _TIP_TIMES = [
@@ -244,14 +252,20 @@ def simulate_chip_window_league(
             else:
                 td["status"] = STATUS_LOTTERY
 
-        # ── Lottery behavior shift — random per team, per season ────────────
-        # Lottery teams stop tanking at game 60 and start competing.
-        # Each team draws its own shift from [LOTTERY_SHIFT_MIN, LOTTERY_SHIFT_MAX].
-        for td in team_data:
-            if td["status"] == STATUS_LOTTERY:
-                td["behavior_shift"] = round(
-                    rng.uniform(LOTTERY_SHIFT_MIN, LOTTERY_SHIFT_MAX), 1
-                )
+        # ── Lottery behavior shift — two tiers by record rank within lottery ──
+        # Sort lottery teams worst → best so we can assign bottom-7 vs top-7.
+        lottery_teams = sorted(
+            [td for td in team_data if td["status"] == STATUS_LOTTERY],
+            key=lambda t: (t["wins_60"], -t["losses_60"], t["id"]),
+        )
+        for rank_0, td in enumerate(lottery_teams):
+            if rank_0 < len(lottery_teams) // 2:
+                # Bottom half: widest variance (worst records, picks 1-7 territory)
+                lo, hi = LOTTERY_SHIFT_WORST_MIN, LOTTERY_SHIFT_WORST_MAX
+            else:
+                # Top half: tighter band (middling lottery, near play-in bubble)
+                lo, hi = LOTTERY_SHIFT_MIDDLE_MIN, LOTTERY_SHIFT_MIDDLE_MAX
+            td["behavior_shift"] = round(rng.uniform(lo, hi), 1)
 
         # ── Quintile starting chips (all 30 teams, worst → best record at G60) ──
         # Groups of 6: worst 6 → 100, next 6 → 80, middle 6 → 60, next 6 → 40, best 6 → 20.
