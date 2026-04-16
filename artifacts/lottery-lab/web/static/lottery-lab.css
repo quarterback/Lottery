@@ -694,10 +694,11 @@ summary:hover { color: var(--accent); }
   display: flex; align-items: center; justify-content: center; gap: 10px;
 }
 
-/* Tab 1: Chip Standings */
+/* Tab 1: Chip Standings — unified 30-team grid */
+/* cols: # | TEAM | W-L | CHIPS | +/- | TONIGHT | DRAFT PICK */
 .st-row {
   display: grid;
-  grid-template-columns: 30px 1fr 64px 120px 46px 26px 100px 46px;
+  grid-template-columns: 30px 1fr 64px 110px 34px 110px 46px;
   align-items: center; padding: 7px 12px;
   border-bottom: 1px solid var(--border); transition: background .1s;
 }
@@ -706,9 +707,16 @@ summary:hover { color: var(--accent); }
 .st-row.header-row {
   background: var(--bg-2); font-size: 9px; font-weight: 700;
   letter-spacing: .08em; text-transform: uppercase; color: var(--fg-faint);
-  padding-top: 5px; padding-bottom: 5px;
+  padding-top: 5px; padding-bottom: 5px; cursor: default;
 }
-.st-row.other-row { grid-template-columns: 30px 1fr 64px 120px 46px 26px 100px; }
+/* Play-in: slightly muted — they're on the bubble, not yet lottery */
+.st-row.playin-row  { opacity: 0.72; }
+/* Playoff: heavily dimmed — not in the draft race */
+.st-row.playoff-row {
+  opacity: 0.35;
+  border-bottom-style: dashed;
+}
+.st-row.playoff-row:hover { opacity: 0.55; }
 .col-start { font-size: 11px; color: var(--fg-faint); }
 
 .pos-circle {
@@ -902,8 +910,9 @@ summary:hover { color: var(--accent); }
   .comparison-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 680px) {
-  .st-row       { grid-template-columns: 26px 1fr 56px 90px 38px 20px; }
-  .st-row.other-row { grid-template-columns: 26px 1fr 56px 90px 38px 20px; }
+  /* mobile: # | TEAM | CHIPS | +/- | PICK  (drop W-L and TONIGHT) */
+  .st-row { grid-template-columns: 26px 1fr 80px 28px 38px; }
+  .st-row .rec-cell, .st-row .col-tonight { display: none; }
   .col-tonight, .col-pick { display: none; }
   .proj-row  { grid-template-columns: 38px 1fr 50px 70px; }
   .col-gap-up, .col-gap-dn { display: none; }

@@ -19,10 +19,10 @@
       </div>
     </div>
     <p style="font-size:12px;color:var(--fg-dim);line-height:1.65;margin-top:12px;margin-bottom:0;max-width:720px">
-      Every team wagers chips on each remaining game — winner gains the opponent's stake, loser loses their own.
-      Chips are clamped at 10 minimum. Starting chips by quintile: worst 6 → 100, next 6 → 80, middle 6 → 60, next 6 → 40, best 6 → 20.
-      Any team may declare a <b>double</b> on their pre-assigned home night.
-      Draft order is fully deterministic: most chips = Pick 1, fewest chips = Pick 14. Ties broken by worse record.
+      Every team wagers chips on each game from 61 through 82. Win and you take the opponent's stake.
+      Lose and you forfeit your own. Lottery teams' final chip totals <b>are the draft order</b> — Pick 1 goes to the most chips, Pick 14 to the fewest. No lottery draw.
+      Playoff and play-in teams are in the chip pool too (their wins affect pots) but they don't compete for picks.
+      The leaderboard shows all 30 teams during the window; on game 82 it locks to the 14 confirmed lottery teams only.
     </p>
   </div>
 
@@ -61,33 +61,34 @@
 
     <!-- ── TAB 1: CHIP STANDINGS ── -->
     <div id="tab-standings" class="tab-panel lb-panel">
-      <div class="section-header" id="st-lottery-header">
-        LOTTERY TEAMS — CHIP ORDER DETERMINES DRAFT PICK
-      </div>
-      <div class="st-row header-row">
-        <div>POS</div><div>TEAM</div><div style="text-align:right">W-L</div>
-        <div>CHIPS</div><div class="col-start">START</div>
-        <div style="font-size:10px;color:var(--fg-faint)">+/−</div>
-        <div class="col-tonight">TONIGHT</div>
-        <div class="col-pick" style="text-align:center">PICK</div>
-      </div>
-      <div id="st-lottery-rows"></div>
 
-      <div class="section-header" style="margin-top:0;border-top:1px solid var(--border)">
-        PLAYOFF & PLAY-IN — CHIP STAKES
-      </div>
-      <div class="st-row other-row header-row">
-        <div>POS</div><div>TEAM</div><div style="text-align:right">W-L</div>
-        <div>CHIPS</div><div class="col-start">START</div>
-        <div style="font-size:10px;color:var(--fg-faint)">+/−</div>
+      <!-- State-aware header (changes between window and final) -->
+      <div class="section-header" id="st-state-header">CHIP STANDINGS</div>
+
+      <!-- Unified header row -->
+      <div class="st-row header-row">
+        <div>#</div>
+        <div>TEAM</div>
+        <div class="rec-cell" style="text-align:right">W-L</div>
+        <div>CHIPS</div>
+        <div>+/−</div>
         <div class="col-tonight">TONIGHT</div>
+        <div style="text-align:center">PICK</div>
       </div>
-      <div id="st-other-rows"></div>
+
+      <!-- All rows rendered here (30 during window, 14 at game 82) -->
+      <div id="st-all-rows"></div>
+
+      <!-- Contextual note about playoff teams (shown during window only) -->
+      <div id="st-playoff-context" style="display:none;margin:10px 0 4px;padding:9px 14px;border-radius:6px;background:var(--bg-2);border:1px solid var(--border);font-size:11px;color:var(--fg-faint)">
+        Playoff teams (dimmed above) are playing tonight — beating them earns their wager and counts toward your chip total.
+        Their position in this list is provisional; they don't compete for draft picks.
+      </div>
 
       <div class="lb-footnote">
-        Start: 20–100 chips by record quintile (worst 6 → 100, next 6 → 80, middle 6 → 60, next 6 → 40, best 6 → 20) ·
+        Start: 20–100 chips by quintile (worst 6 → 100 · next 6 → 80 · mid 6 → 60 · next 6 → 40 · best 6 → 20) ·
         Floor: 10 chips min · Win → +opp wager · Loss → −own wager · 2× = double declared ·
-        ⚡ Upset bonus: lower-record winner earns +(opp wins − your wins) bonus chips ·
+        ⚡ Upset bonus: lower-record winner earns +(opp wins − your wins) extra chips ·
         +/− = chip swing from last game
       </div>
     </div>
@@ -98,7 +99,7 @@
       <div id="tonight-lottery" class="games-grid"></div>
 
       <div class="section-header" style="border-top:1px solid var(--border)">
-        PLAYOFF TEAM CHIP STAKES
+        OTHER GAMES TONIGHT — CHIPS STILL MOVE
       </div>
       <div id="tonight-playoff"></div>
 
@@ -297,117 +298,138 @@ function renderAll(game) {
 
 /* ═══════════════════════════════════════
    TAB 1 — CHIP STANDINGS
+   Two states:
+   • During window (gameIdx 0–20): all 30 teams in chip order,
+     lottery teams full-color with pick circles,
+     play-in teams dimmed, playoff teams heavily dimmed
+   • Final (gameIdx 21 = game 82): only the 14 confirmed lottery
+     teams, shown as the official draft order — clean and locked
 ═══════════════════════════════════════ */
 function renderStandings(gameIdx, nightIdx) {
-  const lottery = lotteryRanked(gameIdx);
-  const others  = lbData.teams
-    .filter(t => t.status !== 'Lottery')
-    .map(t => ({ ...t, _chips: chipsAt(t, gameIdx) }))
-    .sort((a, b) => b._chips - a._chips);
+  const isFinal = gameIdx >= 21;
 
-  const maxChips = Math.max(...lottery.map(t => t._chips), ...others.map(t => t._chips), 1);
-
-  /* --- Lottery rows --- */
-  const lotEl = document.getElementById('st-lottery-rows');
-  lotEl.innerHTML = '';
-
-  lottery.forEach((t, i) => {
-    const rank = i + 1;
-    const pc   = pickColor(rank);
-    const bar  = chipBarColor(rank, lottery.length);
-    const barW = Math.max(2, Math.round((Math.max(0, t._chips) / Math.max(maxChips, 200)) * 80));
-    const m    = tonightMatchup(t.id, nightIdx);
-    const isHome    = m ? m.home_id === t.id : false;
-    const oppName   = m ? (isHome ? m.away_name : m.home_name) : '—';
-    const ownWager  = m ? (isHome ? m.home_wager : m.away_wager).toFixed(1) : '—';
-    const isDouble  = m && (isHome ? m.home_double : m.away_double);
-    const doubled   = gameIdx === 21 && t.doubled;
-
-    const pm = personalityMeta(t.bidding_personality || 'standard');
-    const row = document.createElement('div');
-    row.className = 'st-row';
-    row.title = 'Click for personality details';
-    row.addEventListener('click', () => openTeamDetail(t));
-    row.innerHTML = `
-      <div>
-        <div class="pos-circle" style="background:${pc.bg};color:${pc.fg};border:1px solid ${pc.border}">
-          ${rank}
-        </div>
-      </div>
-      <div>
-        <div class="team-name">${t.name}${doubled ? ' <span class="doubled-badge-sm">2×</span>' : ''}</div>
-        <div class="team-sub" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
-          <span class="lb-status-pill pill-lottery">${t.strategy}</span>
-          <span class="lb-status-pill ${pm.pillCls}">${pm.label}</span>
-        </div>
-      </div>
-      <div class="rec-cell">${t.final_wins}–${t.final_losses}</div>
-      <div class="chips-bar-col">
-        <div class="chips-bar" style="width:${barW}px;background:${bar}"></div>
-        <span class="chips-num ${t._chips < 0 ? 'chips-neg' : ''}">${t._chips.toFixed(1)}</span>
-      </div>
-      <div class="col-start">${t.chips_start ?? '—'}</div>
-      <div>${trendArrow(t, gameIdx)}</div>
-      <div class="tonight-cell col-tonight">
-        ${m ? `<span class="tonight-opp">${oppName}</span><br>
-               <span class="wager-dot"></span>${ownWager} chips${isDouble ? ' <span class="doubled-badge-sm">2×</span>' : ''}` : '<span style="color:var(--fg-faint)">—</span>'}
-      </div>
-      <div class="col-pick">
-        <div class="pick-circle" style="background:${pc.bg};color:${pc.fg};border-color:${pc.border}">
-          ${rank}
-        </div>
-      </div>
-    `;
-    lotEl.appendChild(row);
+  /* All 30 teams, enriched with current chips and per-game delta */
+  const allTeams = lbData.teams.map(t => {
+    const chips = chipsAt(t, gameIdx);
+    const prev  = gameIdx === 0 ? (t.chips_start ?? 60) : chipsAt(t, gameIdx - 1);
+    return { ...t, _chips: chips, _delta: chips - prev };
+  }).sort((a, b) => {
+    if (b._chips !== a._chips) return b._chips - a._chips;
+    if (a.final_wins !== b.final_wins) return a.final_wins - b.final_wins;
+    if (b.final_losses !== a.final_losses) return b.final_losses - a.final_losses;
+    return a.id - b.id;
   });
 
-  /* --- Other (playoff + play-in) rows --- */
-  const otherEl = document.getElementById('st-other-rows');
-  otherEl.innerHTML = '';
+  /* Assign lottery rank (draft pick position) — rank among Lottery teams only */
+  let lotteryRank = 0;
+  allTeams.forEach(t => {
+    t._lotteryRank = t.status === 'Lottery' ? ++lotteryRank : null;
+  });
 
-  others.forEach((t, i) => {
-    const isPlayIn = t.status === 'Play-In';
-    const pillCls  = t.status === 'Safe Playoff' ? 'pill-safe' : 'pill-playin';
-    const pillLbl  = t.status === 'Safe Playoff' ? 'Playoff' : 'Play-In';
-    const bar      = isPlayIn ? '#60a5fa' : '#4ade80';
-    const barW     = Math.max(2, Math.round((Math.max(0, t._chips) / Math.max(maxChips, 200)) * 80));
+  const maxChips = Math.max(...allTeams.map(t => t._chips), 200);
+
+  /* State-aware header */
+  const stateHdr = document.getElementById('st-state-header');
+  const ctxNote  = document.getElementById('st-playoff-context');
+  if (isFinal) {
+    stateHdr.textContent = 'CONFIRMED DRAFT ORDER — FINAL';
+    stateHdr.style.color = 'var(--accent)';
+    ctxNote.style.display = 'none';
+  } else {
+    const gamesLeft = 22 - (gameIdx + 1);
+    stateHdr.textContent = 'CHIP STANDINGS — ' + gamesLeft + ' GAME' + (gamesLeft !== 1 ? 'S' : '') + ' REMAINING';
+    stateHdr.style.color = '';
+    ctxNote.style.display = '';
+  }
+
+  /* Which rows to show */
+  const rows = isFinal ? allTeams.filter(t => t.status === 'Lottery') : allTeams;
+
+  const container = document.getElementById('st-all-rows');
+  container.innerHTML = '';
+
+  rows.forEach((t, i) => {
+    const overallRank = i + 1;
+    const isLottery  = t.status === 'Lottery';
+    const isPlayIn   = t.status === 'Play-In';
+    const isPlayoff  = t.status === 'Safe Playoff';
+
+    /* Row styling class */
+    const rowCls = 'st-row' + (isPlayoff ? ' playoff-row' : isPlayIn ? ' playin-row' : '');
+
+    /* Chip bar */
+    const barW = Math.max(2, Math.round(Math.max(0, t._chips) / maxChips * 80));
+
+    /* Bar color: lottery teams colored by pick, others neutral */
+    let barColor;
+    if (isLottery)       barColor = chipBarColor(t._lotteryRank, 14);
+    else if (isPlayIn)   barColor = '#60a5fa';
+    else                 barColor = 'var(--fg-faint)';
+
+    /* Rank circle (overall chip position, neutral color for non-lottery) */
+    const rcBg  = isLottery ? pickColor(t._lotteryRank).bg  : 'var(--bg-2)';
+    const rcFg  = isLottery ? pickColor(t._lotteryRank).fg  : 'var(--fg-dim)';
+    const rcBdr = isLottery ? pickColor(t._lotteryRank).border : 'var(--border)';
+
+    /* Per-game delta */
+    const d = t._delta;
+    const deltaStr = Math.abs(d) < 0.05
+      ? `<span style="color:var(--fg-faint);font-size:9px">—</span>`
+      : d > 0
+        ? `<span style="color:var(--green);font-size:10px;font-weight:700">+${d.toFixed(1)}</span>`
+        : `<span style="color:var(--red);font-size:10px;font-weight:700">${d.toFixed(1)}</span>`;
+
+    /* Tonight matchup */
     const m        = tonightMatchup(t.id, nightIdx);
     const isHome   = m ? m.home_id === t.id : false;
     const oppName  = m ? (isHome ? m.away_name : m.home_name) : '—';
     const ownWager = m ? (isHome ? m.home_wager : m.away_wager).toFixed(1) : '—';
-    const swapLbl  = t.is_pick_swap_holder ? ' <span style="color:#f5c518;font-size:8px">[SWAP]</span>' : '';
+    const isDbl    = m && (isHome ? m.home_double : m.away_double);
 
-    const opm = personalityMeta(t.bidding_personality || 'standard');
+    /* Status pill */
+    const pillCls = isLottery ? 'pill-lottery' : isPlayIn ? 'pill-playin' : 'pill-safe';
+    const pillLbl = isLottery ? 'Lottery' : isPlayIn ? 'Play-In' : 'Playoff';
+
+    /* Draft pick cell — only for lottery teams */
+    let pickCell;
+    if (isLottery && t._lotteryRank != null) {
+      const pc = pickColor(t._lotteryRank);
+      pickCell = `<div class="pick-circle" style="background:${pc.bg};color:${pc.fg};border-color:${pc.border}">${t._lotteryRank}</div>`;
+    } else {
+      pickCell = `<span style="color:var(--fg-faint);font-size:11px">—</span>`;
+    }
+
+    const pm  = personalityMeta(t.bidding_personality || 'standard');
     const row = document.createElement('div');
-    row.className = 'st-row other-row';
-    row.title = 'Click for personality details';
+    row.className = rowCls;
     row.addEventListener('click', () => openTeamDetail(t));
     row.innerHTML = `
       <div>
-        <div class="pos-circle" style="background:var(--bg-2);color:var(--fg-dim);border:1px solid var(--border)">
-          ${i + 1}
+        <div class="pos-circle" style="background:${rcBg};color:${rcFg};border:1px solid ${rcBdr};font-size:${overallRank > 9 ? '9' : '11'}px">
+          ${overallRank}
         </div>
       </div>
       <div>
-        <div class="team-name">${t.name}${swapLbl}</div>
-        <div class="team-sub" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+        <div class="team-name">${t.name}</div>
+        <div class="team-sub" style="display:flex;gap:3px;align-items:center;flex-wrap:wrap">
           <span class="lb-status-pill ${pillCls}">${pillLbl}</span>
-          <span class="lb-status-pill ${opm.pillCls}">${opm.label}</span>
+          ${!isPlayoff ? `<span class="lb-status-pill ${pm.pillCls}">${pm.label}</span>` : ''}
         </div>
       </div>
       <div class="rec-cell">${t.final_wins}–${t.final_losses}</div>
       <div class="chips-bar-col">
-        <div class="chips-bar" style="width:${barW}px;background:${bar}"></div>
+        <div class="chips-bar" style="width:${barW}px;background:${barColor}"></div>
         <span class="chips-num ${t._chips < 0 ? 'chips-neg' : ''}">${t._chips.toFixed(1)}</span>
       </div>
-      <div class="col-start">${t.chips_start ?? '—'}</div>
-      <div>${trendArrow(t, gameIdx)}</div>
+      <div>${deltaStr}</div>
       <div class="tonight-cell col-tonight">
         ${m ? `<span class="tonight-opp">${oppName}</span><br>
-               <span class="wager-dot"></span>${ownWager} chips` : '<span style="color:var(--fg-faint)">—</span>'}
+               <span class="wager-dot"></span>${ownWager} chips${isDbl ? ' <span class="doubled-badge-sm">2×</span>' : ''}`
+            : '<span style="color:var(--fg-faint)">—</span>'}
       </div>
+      <div class="col-pick" style="text-align:center">${pickCell}</div>
     `;
-    otherEl.appendChild(row);
+    container.appendChild(row);
   });
 }
 
@@ -481,7 +503,6 @@ function renderTonight(nightIdx) {
         </div>
         <div class="gc-pot">
           <span class="wager-dot"></span>Pot: <b>${m.pot.toFixed(1)} chips</b>
-          ${m.home_is_pick_swap || m.away_is_pick_swap ? ' &nbsp;<span style="font-size:9px;color:#f5c518">[SWAP HOLDER]</span>' : ''}
           ${m.upset_bonus > 0 ? ` &nbsp;<span style="font-size:9px;color:#f5c518;font-weight:700">⚡ Upset Bonus: +${m.upset_bonus} chips to winner</span>` : ''}
         </div>
         <div class="gc-narrative">${m.narrative}</div>
@@ -498,14 +519,12 @@ function renderTonight(nightIdx) {
     pEl.innerHTML = '<div style="padding:14px;text-align:center;color:var(--fg-faint);font-size:11px">No playoff-only matchups this night</div>';
   } else {
     playoffGames.forEach(m => {
-      const swap = m.home_is_pick_swap ? m.home_name : (m.away_is_pick_swap ? m.away_name : null);
       const div = document.createElement('div');
       div.className = 'playoff-card';
       div.innerHTML = `
         <span>${m.home_name} vs ${m.away_name}</span>
         <span style="color:var(--fg-faint)">·</span>
         <span>Pot: ${m.pot.toFixed(1)} chips</span>
-        ${swap ? `<span style="color:var(--fg-faint)">·</span><span style="color:#f5c518;font-size:10px">${swap} holds swap rights</span>` : ''}
         <span style="margin-left:auto;font-size:10px;color:var(--fg-faint)">${m.tip_time}</span>
       `;
       pEl.appendChild(div);
