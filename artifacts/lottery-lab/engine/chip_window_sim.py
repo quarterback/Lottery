@@ -16,9 +16,15 @@ BIG_BET = 25.0
 DOUBLE_THRESHOLD = 100.0   # reference line for trajectory chart only; NOT a double eligibility requirement
 PLAY_IN_BONUS = 7.5        # consolation for play-in teams that miss playoffs
 
-# Quintile starting chips (assigned by record rank at game 60, worst → best)
-# Ranks 1-6 → 100, 7-12 → 80, 13-18 → 60, 19-24 → 40, 25-30 → 20
-QUINTILE_CHIPS = [100.0, 80.0, 60.0, 40.0, 20.0]
+# Starting chips by record rank at game 60 (worst → best):
+# Ranks 1-3 → 140, 4-6 → 120, 7-12 → 80, 13-18 → 60, 19-24 → 40, 25-30 → 20
+def _chips_for_rank(rank_0: int) -> float:
+    if rank_0 < 3:   return 140.0
+    if rank_0 < 6:   return 120.0
+    if rank_0 < 12:  return 80.0
+    if rank_0 < 18:  return 60.0
+    if rank_0 < 24:  return 40.0
+    return 20.0
 
 SAFE_PLAYOFF_COUNT = 12
 PLAY_IN_COUNT = 8
@@ -163,8 +169,8 @@ def simulate_chip_window_league(
     ─ ALL 30 teams participate in the chip pool.
     ─ 22-night chip window: each night, 30 teams are randomly paired into
       15 head-to-head matchups. Home/away is randomly assigned.
-    ─ Quintile starting chips by record at G60:
-        Worst 6 → 100, next 6 → 80, middle 6 → 60, next 6 → 40, best 6 → 20.
+    ─ Starting chips by record at G60:
+        Worst 3 → 140, next 3 → 120, next 6 → 80, next 6 → 60, next 6 → 40, best 6 → 20.
     ─ Pot mechanic: both teams announce wagers; winner gains opponent's wager
       (net); loser loses own wager. Chips clamped at MIN_BET (10) — never negative.
     ─ Analytics bidding: bets use 2-decimal precision to minimise ties.
@@ -267,20 +273,18 @@ def simulate_chip_window_league(
                 lo, hi = LOTTERY_SHIFT_MIDDLE_MIN, LOTTERY_SHIFT_MIDDLE_MAX
             td["behavior_shift"] = round(rng.uniform(lo, hi), 1)
 
-        # ── Quintile starting chips (all 30 teams, worst → best record at G60) ──
-        # Groups of 6: worst 6 → 100, next 6 → 80, middle 6 → 60, next 6 → 40, best 6 → 20.
-        # Always exactly 6 per bucket. Ties in wins_60 are broken by:
-        #   more losses (worse record) → lower rank → higher chips
-        #   then by team id (stable, deterministic) — ties at a boundary
-        #   naturally fall into the lower (fewer chips) bucket.
+        # ── Starting chips (all 30 teams, worst → best record at G60) ────────
+        # Worst 3 → 140, next 3 → 120, next 6 → 80, next 6 → 60, next 6 → 40, best 6 → 20.
+        # Ties in wins_60 broken by more losses (worse) → lower rank → more chips,
+        # then by team id (stable deterministic tie-break).
         by_wins_asc = sorted(
             team_data,
             key=lambda t: (t["wins_60"], -t.get("losses_60", 0), t["id"]),
         )
         for rank_0, td in enumerate(by_wins_asc):
-            quintile_idx = min(rank_0 // 6, 4)
-            td["chips_start"] = QUINTILE_CHIPS[quintile_idx]
-            td["chips_end"]   = QUINTILE_CHIPS[quintile_idx]
+            start = _chips_for_rank(rank_0)
+            td["chips_start"] = start
+            td["chips_end"]   = start
 
         # ── Assign strategies ────────────────────────────────────────────────
         for td in team_data:
