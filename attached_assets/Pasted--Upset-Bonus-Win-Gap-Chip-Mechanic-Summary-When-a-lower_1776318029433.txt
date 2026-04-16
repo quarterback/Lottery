@@ -1,0 +1,70 @@
+# Upset Bonus: Win-Gap Chip Mechanic
+
+## Summary
+
+When a lower-record team wins a chip window game against a higher-record team, they receive a bonus chip award equal to the raw difference in wins between the two teams at the time of the game.
+
+```
+bonus_chips = opponent_wins - your_wins  (only paid on a win, only when positive)
+```
+
+If your team has fewer wins than your opponent and you win the game, you collect the normal pot plus the bonus. If you lose, you collect nothing — the bonus does not apply to losses.
+
+---
+
+## Example
+
+- Team A: 18 wins, bids 25
+- Team B: 42 wins, bids 10
+- Pot: 35 chips
+- Team A wins → collects 35 (pot) + 24 (bonus: 42 - 18) = **59 chips**
+- Team B wins → collects 35 (pot) + 0 bonus = **35 chips**
+
+---
+
+## Why No Coefficient
+
+The win gap is the multiplier. No additional scaling factor is needed — the raw difference between win totals produces bonus values that are meaningful but self-bounded. The maximum realistic bonus is approximately 50 chips (a near-winless team beating a 50-win team), which is significant without being distortive. Smaller gaps produce proportionally smaller bonuses. The math requires no tuning parameter and no explanation beyond the formula itself.
+
+---
+
+## Design Properties
+
+**Does not reward tanking.** The bonus only pays out on a win. A team cannot manufacture a worse record to inflate future upset bonuses — losing games to look worse also costs chips every game. The incentive is strictly to win, not to lose more.
+
+**Self-calibrating.** The bonus scales automatically with the actual competitive gap at game time. No hardcoded tiers, no bracket thresholds, no edge cases at quintile boundaries. If the gap is 0 or negative (you have more wins than your opponent), no bonus applies.
+
+**Creates asymmetric bidding strategy.** The lower-record team has incentive to bid aggressively because they collect pot plus bonus on a win. The higher-record team must decide whether to bid high — inflating a pot they might lose plus trigger the bonus against themselves — or bid conservatively to limit their downside exposure. This produces genuine pregame strategic tension, especially when a playoff team with pick swap exposure is playing a bottom-quintile team.
+
+**Compounds with quintile starting chips.** Bottom-quintile teams already enter the chip window with more starting firepower (100 chips). Upset bonus wins against stronger opponents accelerate their chip accumulation further, giving teams that genuinely try a realistic path to top-4 picks without any record-based passive benefit.
+
+**Legible to fans.** The bonus is visible and calculable before tip-off. Anyone watching can look at the win totals, compute the gap, and know exactly what an upset would be worth. Announcers can state it in one sentence. It makes underdog chip window games immediately worth watching even without a rooting interest.
+
+---
+
+## Implementation Notes
+
+- Compute `bonus_chips` at game resolution time using each team's win total as of that game date
+- Apply only when `opponent_wins > your_wins` (strictly positive gap)
+- Add to winner's chip total after normal pot distribution
+- Clamp winner's chips to no upper bound — bonus chips are real chips
+- Loser's chip deduction is unchanged: `max(MIN_BET, chips - wager)`
+- Win totals used should reflect record at game 60 snapshot or live record during window — confirm which with sim lead
+
+---
+
+## Interaction With Existing Mechanics
+
+| Mechanic | Interaction |
+|---|---|
+| Minimum bet floor (10 chips) | No change — floor applies to wager, not bonus |
+| Quintile starting chips | Compounds — bad teams start with more and earn more on upsets |
+| Double declaration | Bonus applies normally inside a double game — pot is doubled, bonus is not |
+| Pick swap / playoff team bids | Playoff teams face higher downside risk bidding against bad teams |
+| Draft order (chip standings) | Bonus chips count as normal chips toward final standings |
+
+---
+
+## Open Question
+
+Win totals at resolution: use **game 60 snapshot** (fixed at window open, prevents any in-window manipulation) or **live record** (more dynamic, reflects actual performance during window). Game 60 snapshot is simpler and manipulation-proof. Live record rewards winning streaks more aggressively. Recommend game 60 snapshot for v1.
