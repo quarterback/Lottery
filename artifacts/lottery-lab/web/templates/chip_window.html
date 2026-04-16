@@ -180,6 +180,64 @@
     </div>
   </div>
 
+  <hr class="section-rule" id="analytics-rule" style="display:none">
+
+  <!-- ── Analytics section ────────────────────────────────────── -->
+  <div id="analytics-section" style="display:none;margin-top:8px">
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0 12px;border-bottom:1px solid var(--border)">
+      <div style="font-size:var(--fs-sm);color:var(--fg-dim);text-transform:uppercase;letter-spacing:.12em;flex:1">Chip Window Analytics</div>
+      <span style="font-size:10px;color:var(--fg-faint)">Computed across all simulated seasons</span>
+      <button type="button" onclick="toggleAnalytics()" id="analytics-toggle" class="btn" style="font-size:10px;padding:3px 12px">Show ▾</button>
+    </div>
+    <div id="analytics-body" style="display:none;margin-top:16px">
+      <div class="an-grid">
+
+        <!-- 1: Double Effectiveness -->
+        <div class="an-panel">
+          <div class="an-panel-title">Double Effectiveness</div>
+          <p class="an-panel-desc">Avg chip gain on each team's double night vs their per-night baseline, across all simulated seasons. Teams sorted by double gain.</p>
+          <div id="an-double-eff-body"></div>
+        </div>
+
+        <!-- 2: Gini Curve -->
+        <div class="an-panel">
+          <div class="an-panel-title">Chip Inequality Over Window</div>
+          <p class="an-panel-desc">Gini coefficient of lottery teams' chip totals each night. Rising line = rich get richer. Falling = regression to mean.</p>
+          <svg id="an-gini-svg" viewBox="0 0 400 150" style="width:100%;display:block"></svg>
+        </div>
+
+        <!-- 3: Biggest Swings -->
+        <div class="an-panel">
+          <div class="an-panel-title">Biggest Single-Night Swings</div>
+          <p class="an-panel-desc">Largest chip transfers in one game across all simulated seasons. <span class="doubled-badge" style="font-size:8px">2×</span> = double night multiplier.</p>
+          <div id="an-swings-body"></div>
+        </div>
+
+        <!-- 4: Personality ROI -->
+        <div class="an-panel">
+          <div class="an-panel-title">Bidding Personality ROI</div>
+          <p class="an-panel-desc">Bold, Cautious, Volatile, and Standard bidding personalities — avg final chips and avg draft pick across all lottery teams.</p>
+          <div id="an-pers-body"></div>
+        </div>
+
+        <!-- 5: Scatter -->
+        <div class="an-panel" style="display:flex;flex-direction:column;align-items:center">
+          <div class="an-panel-title" style="align-self:flex-start">Starting Rank vs Final Pick</div>
+          <p class="an-panel-desc" style="align-self:flex-start">One dot per lottery team per season. Green = outcome matched starting rank. Red = diverged. Diagonal = perfect system.</p>
+          <svg id="an-scatter-svg" viewBox="0 0 220 220" style="width:100%;max-width:240px;display:block"></svg>
+        </div>
+
+        <!-- 6: Timing Distribution -->
+        <div class="an-panel">
+          <div class="an-panel-title">Double Declaration Timing</div>
+          <p class="an-panel-desc">Which chip window game lottery teams chose to declare their double across all simulated seasons.</p>
+          <svg id="an-timing-svg" viewBox="0 0 400 130" style="width:100%;display:block"></svg>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -306,6 +364,7 @@ function renderAll() {
 
   renderSeason(1, 22);
   renderLeaderboard();
+  renderAnalytics();
 }
 
 function onSeasonSlide(val) {
@@ -575,6 +634,316 @@ function renderLeaderboard() {
     `;
     tbody.appendChild(tr);
   });
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+function giniCoeff(values) {
+  const n = values.length;
+  if (n === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mean = sorted.reduce((a, b) => a + b, 0) / n;
+  if (mean <= 0) return 0;
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += (2 * (i + 1) - n - 1) * sorted[i];
+  return Math.max(0, sum / (n * n * mean));
+}
+
+function toggleAnalytics() {
+  const body = document.getElementById('analytics-body');
+  const btn  = document.getElementById('analytics-toggle');
+  if (!body || !btn) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? 'Show ▾' : 'Hide ▴';
+}
+
+function renderAnalytics() {
+  if (!simData) return;
+  document.getElementById('analytics-rule').style.display  = 'block';
+  document.getElementById('analytics-section').style.display = 'block';
+
+  const allSeasons = simData.seasons;
+
+  // ── 1. Gini curve: per night across all seasons ────────────────
+  const giniCurve = [];
+  for (let ni = 0; ni < 22; ni++) {
+    const vals = [];
+    allSeasons.forEach(s => {
+      s.teams.filter(t => t.status === 'Lottery').forEach(t => {
+        const c = t.chip_trajectory?.[ni];
+        if (c != null) vals.push(c);
+      });
+    });
+    giniCurve.push(giniCoeff(vals));
+  }
+
+  // ── 2. Double effectiveness per team ──────────────────────────
+  const dblMap = {};
+  allSeasons.forEach(s => {
+    s.teams.filter(t => t.status === 'Lottery' && t.doubled && t.double_night >= 0).forEach(t => {
+      const ni   = t.double_night;
+      const prev = ni === 0 ? (t.chips_start ?? 60) : (t.chip_trajectory[ni - 1] ?? t.chips_start ?? 60);
+      const curr = t.chip_trajectory[ni] ?? prev;
+      const delta = curr - prev;
+      const avgNight = ((t.chips_end ?? curr) - (t.chips_start ?? 60)) / 22;
+      // Win on double night?
+      const match = (s.schedule[ni] || []).find(m => m.home_id === t.id || m.away_id === t.id);
+      const won = match ? (match.home_id === t.id ? match.home_won : !match.home_won) : null;
+      if (!dblMap[t.id]) dblMap[t.id] = { name: t.name, deltas: [], avgNights: [], nights: [], wins: 0, total: 0 };
+      dblMap[t.id].deltas.push(delta);
+      dblMap[t.id].avgNights.push(avgNight);
+      dblMap[t.id].nights.push(ni + 1);
+      dblMap[t.id].total++;
+      if (won) dblMap[t.id].wins++;
+    });
+  });
+  const doubleRows = Object.values(dblMap).map(d => ({
+    name:     d.name,
+    avgNight: d.nights.reduce((a, b) => a + b, 0) / d.nights.length,
+    winRate:  d.wins / d.total,
+    avgDelta: d.deltas.reduce((a, b) => a + b, 0) / d.deltas.length,
+    avgBase:  d.avgNights.reduce((a, b) => a + b, 0) / d.avgNights.length,
+  })).sort((a, b) => b.avgDelta - a.avgDelta);
+
+  // ── 3. Biggest single-night swings ────────────────────────────
+  const swings = [];
+  allSeasons.forEach((s, si) => {
+    s.schedule.forEach((night, ni) => {
+      night.forEach(m => {
+        const gain = m.home_won
+          ? m.home_chips_after - m.home_chips_before
+          : m.away_chips_after - m.away_chips_before;
+        swings.push({
+          season:   si + 1,
+          game:     61 + ni,
+          winner:   m.home_won ? m.home_name : m.away_name,
+          loser:    m.home_won ? m.away_name : m.home_name,
+          gain,
+          isDouble: !!(m.home_double || m.away_double),
+        });
+      });
+    });
+  });
+  swings.sort((a, b) => b.gain - a.gain);
+
+  // ── 4. Personality ROI ────────────────────────────────────────
+  const persMap = {};
+  allSeasons.forEach(s => {
+    s.teams.filter(t => t.status === 'Lottery').forEach(t => {
+      const p = t.bidding_personality || 'standard';
+      if (!persMap[p]) persMap[p] = { chips: [], picks: [] };
+      persMap[p].chips.push(t.chips_end ?? 0);
+      if (t.chip_draft_rank != null) persMap[p].picks.push(t.chip_draft_rank);
+    });
+  });
+  const persRows = Object.entries(persMap).map(([p, d]) => ({
+    personality: p,
+    avgChips:    d.chips.reduce((a, b) => a + b, 0) / d.chips.length,
+    avgPick:     d.picks.length ? d.picks.reduce((a, b) => a + b, 0) / d.picks.length : null,
+    count:       d.chips.length,
+  })).sort((a, b) => (a.avgPick ?? 99) - (b.avgPick ?? 99));
+
+  // ── 5. Starting rank vs final pick scatter ────────────────────
+  const scatterDots = [];
+  allSeasons.forEach(s => {
+    const lottery = s.teams.filter(t => t.status === 'Lottery');
+    const ranked = [...lottery].sort((a, b) => {
+      if (b.chips_start !== a.chips_start) return b.chips_start - a.chips_start;
+      return a.wins_60 - b.wins_60;
+    });
+    ranked.forEach((t, i) => {
+      if (t.chip_draft_rank != null) scatterDots.push({ x: i + 1, y: t.chip_draft_rank });
+    });
+  });
+
+  // ── 6. Double declaration timing ──────────────────────────────
+  const doubleByNight = Array(22).fill(0);
+  allSeasons.forEach(s => {
+    s.teams.filter(t => t.status === 'Lottery' && t.doubled && t.double_night >= 0)
+      .forEach(t => { doubleByNight[t.double_night]++; });
+  });
+
+  // ── Render each panel ─────────────────────────────────────────
+  anRenderDoubleEff(doubleRows);
+  anRenderGini(giniCurve);
+  anRenderSwings(swings.slice(0, 5));
+  anRenderPersonality(persRows);
+  anRenderScatter(scatterDots);
+  anRenderTiming(doubleByNight);
+}
+
+function anRenderDoubleEff(rows) {
+  const el = document.getElementById('an-double-eff-body');
+  if (!el) return;
+  if (rows.length === 0) { el.innerHTML = '<div style="color:var(--fg-faint);font-size:10px">No double data yet</div>'; return; }
+  let html = `<table class="an-tbl">
+    <thead><tr>
+      <th style="text-align:left">Team</th>
+      <th>Avg G</th><th>Win%</th><th>Dbl Gain</th><th>Avg Gain</th>
+    </tr></thead><tbody>`;
+  rows.slice(0, 14).forEach(r => {
+    const gainCol = r.avgDelta > 2 ? 'var(--green)' : r.avgDelta < -2 ? 'var(--red)' : 'var(--fg-dim)';
+    const winCol  = r.winRate >= 0.5 ? 'var(--green)' : 'var(--red)';
+    html += `<tr>
+      <td style="text-align:left;color:var(--fg)">${r.name.split(' ').pop()}</td>
+      <td>G${(60 + r.avgNight).toFixed(0)}</td>
+      <td style="color:${winCol}">${(r.winRate * 100).toFixed(0)}%</td>
+      <td style="color:${gainCol};font-weight:600">${r.avgDelta > 0 ? '+' : ''}${r.avgDelta.toFixed(1)}</td>
+      <td style="color:var(--fg-faint)">${r.avgBase > 0 ? '+' : ''}${r.avgBase.toFixed(1)}</td>
+    </tr>`;
+  });
+  el.innerHTML = html + '</tbody></table>';
+}
+
+function anRenderGini(curve) {
+  const svg = document.getElementById('an-gini-svg');
+  if (!svg || !curve.length) return;
+  const W = 400, H = 150, PL = 34, PR = 10, PT = 12, PB = 26;
+  const iW = W - PL - PR, iH = H - PT - PB;
+  const maxG = Math.max(0.05, ...curve) * 1.15;
+  const cx = i  => PL + (i / 21) * iW;
+  const cy = g  => PT + (1 - g / maxG) * iH;
+  let html = '';
+  // Grid
+  [0, 0.1, 0.2, 0.3, 0.4].filter(v => v <= maxG * 1.1).forEach(v => {
+    const y = cy(v);
+    html += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W-PR}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="1"/>`;
+    html += `<text x="${PL-4}" y="${(y+3).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="end">${v.toFixed(2)}</text>`;
+  });
+  // X labels
+  [0, 5, 10, 15, 21].forEach(i => {
+    html += `<text x="${cx(i).toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="middle">G${61+i}</text>`;
+  });
+  // Area fill
+  const areaD = `M${cx(0).toFixed(1)},${cy(0).toFixed(1)} ` +
+    curve.map((g, i) => `L${cx(i).toFixed(1)},${cy(g).toFixed(1)}`).join(' ') +
+    ` L${cx(21).toFixed(1)},${cy(0).toFixed(1)} Z`;
+  html += `<path d="${areaD}" fill="var(--accent)" opacity="0.07"/>`;
+  // Line
+  const pts = curve.map((g, i) => `${cx(i).toFixed(1)},${cy(g).toFixed(1)}`).join(' ');
+  html += `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/>`;
+  // Dots
+  curve.forEach((g, i) => {
+    html += `<circle cx="${cx(i).toFixed(1)}" cy="${cy(g).toFixed(1)}" r="2.2" fill="var(--accent)" opacity="0.75"/>`;
+  });
+  svg.innerHTML = html;
+}
+
+function anRenderSwings(swings) {
+  const el = document.getElementById('an-swings-body');
+  if (!el) return;
+  if (!swings.length) { el.innerHTML = '<div style="color:var(--fg-faint);font-size:10px">No data</div>'; return; }
+  const maxG = swings[0]?.gain ?? 1;
+  let html = '';
+  swings.forEach((s, i) => {
+    const barW = Math.round(Math.max(0, s.gain) / maxG * 100);
+    const dbl = s.isDouble ? '<span class="doubled-badge" style="font-size:8px;padding:0 3px;margin-left:3px">2×</span>' : '';
+    html += `<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+        <span style="font-size:10px;color:var(--fg)">${i+1}. ${s.winner.split(' ').pop()} beat ${s.loser.split(' ').pop()}${dbl}</span>
+        <span style="font-size:10px;color:var(--green);font-weight:700">+${s.gain.toFixed(1)}</span>
+      </div>
+      <div style="font-size:9px;color:var(--fg-faint);margin-bottom:3px">Season ${s.season} · G${s.game}</div>
+      <div style="height:4px;background:var(--border);border-radius:2px">
+        <div style="height:100%;width:${barW}%;background:var(--green);border-radius:2px"></div>
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+function anRenderPersonality(rows) {
+  const el = document.getElementById('an-pers-body');
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = '<div style="color:var(--fg-faint);font-size:10px">No data</div>'; return; }
+  const COLORS = { bold: '#fb923c', cautious: '#34d399', volatile: '#c084fc', standard: '#94a3b8' };
+  const LABELS = { bold: 'Bold', cautious: 'Cautious', volatile: 'Volatile', standard: 'Standard' };
+  let html = `<table class="an-tbl"><thead><tr>
+    <th style="text-align:left">Style</th><th>Avg Chips</th><th>Avg Pick</th><th>n</th>
+  </tr></thead><tbody>`;
+  rows.forEach(r => {
+    const col = COLORS[r.personality] || '#888';
+    const lbl = LABELS[r.personality] || r.personality;
+    const pickCol = r.avgPick != null
+      ? (r.avgPick <= 4 ? 'var(--green)' : r.avgPick <= 9 ? 'var(--accent)' : 'var(--red)')
+      : 'var(--fg-faint)';
+    html += `<tr>
+      <td style="text-align:left"><span style="display:inline-block;width:8px;height:8px;background:${col};border-radius:50%;margin-right:5px"></span><span style="color:var(--fg)">${lbl}</span></td>
+      <td>${r.avgChips.toFixed(1)}</td>
+      <td style="color:${pickCol};font-weight:600">${r.avgPick != null ? r.avgPick.toFixed(1) : '—'}</td>
+      <td style="color:var(--fg-faint)">${r.count}</td>
+    </tr>`;
+  });
+  el.innerHTML = html + '</tbody></table>';
+}
+
+function anRenderScatter(dots) {
+  const svg = document.getElementById('an-scatter-svg');
+  if (!svg || !dots.length) return;
+  const W = 220, H = 220, PAD = 26;
+  const iW = W - 2*PAD, iH = H - 2*PAD;
+  const sx = v => PAD + ((v - 1) / 13) * iW;
+  const sy = v => PAD + ((v - 1) / 13) * iH;
+  let html = '';
+  // Diagonal reference
+  html += `<line x1="${sx(1).toFixed(1)}" y1="${sy(1).toFixed(1)}" x2="${sx(14).toFixed(1)}" y2="${sy(14).toFixed(1)}" stroke="var(--border-2)" stroke-width="1" stroke-dasharray="4,3" opacity="0.7"/>`;
+  // Grid + axis labels
+  [1, 4, 7, 10, 14].forEach(v => {
+    const x = sx(v), y = sy(v);
+    html += `<line x1="${x.toFixed(1)}" y1="${PAD}" x2="${x.toFixed(1)}" y2="${PAD+iH}" stroke="var(--border)" stroke-width="0.5" opacity="0.5"/>`;
+    html += `<line x1="${PAD}" y1="${y.toFixed(1)}" x2="${PAD+iW}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="0.5" opacity="0.5"/>`;
+    html += `<text x="${x.toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="middle">${v}</text>`;
+    html += `<text x="${(PAD-3).toFixed(1)}" y="${(y+2).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="end">${v}</text>`;
+  });
+  // Axis labels
+  html += `<text x="${(PAD+iW/2).toFixed(1)}" y="${H-1}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="middle">Starting Rank →</text>`;
+  html += `<text x="7" y="${(PAD+iH/2).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="middle" transform="rotate(-90 7 ${(PAD+iH/2).toFixed(1)})">← Final Pick</text>`;
+  // Aggregate dots
+  const cntMap = {};
+  dots.forEach(d => { const k = `${d.x},${d.y}`; cntMap[k] = (cntMap[k]||0)+1; });
+  Object.entries(cntMap).forEach(([k, cnt]) => {
+    const [x, y] = k.split(',').map(Number);
+    const diff = Math.abs(x - y);
+    const col = diff === 0 ? 'var(--green)' : diff <= 2 ? 'var(--accent)' : 'var(--red)';
+    const r   = Math.min(6, 2 + Math.sqrt(cnt) * 0.9);
+    const op  = Math.min(0.9, 0.35 + cnt * 0.04);
+    html += `<circle cx="${sx(x).toFixed(1)}" cy="${sy(y).toFixed(1)}" r="${r.toFixed(1)}" fill="${col}" opacity="${op.toFixed(2)}"/>`;
+  });
+  svg.innerHTML = html;
+}
+
+function anRenderTiming(byNight) {
+  const svg = document.getElementById('an-timing-svg');
+  if (!svg) return;
+  const W = 400, H = 130, PL = 28, PR = 10, PT = 8, PB = 24;
+  const iW = W - PL - PR, iH = H - PT - PB;
+  const maxCnt = Math.max(1, ...byNight);
+  const barW = iW / 22;
+  let html = '';
+  // Y grid
+  [0, Math.ceil(maxCnt/2), maxCnt].forEach(v => {
+    const y = PT + (1 - v/maxCnt)*iH;
+    html += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W-PR}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="1"/>`;
+    html += `<text x="${PL-3}" y="${(y+3).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="end">${v}</text>`;
+  });
+  // Bars
+  byNight.forEach((cnt, ni) => {
+    if (!cnt) return;
+    const x  = PL + ni * barW + barW*0.1;
+    const bw = barW * 0.8;
+    const bh = (cnt/maxCnt)*iH;
+    const y  = PT + iH - bh;
+    const hi = cnt === maxCnt;
+    html += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" fill="${hi ? 'var(--accent)' : 'var(--accent-dim)'}" opacity="0.85" rx="1"/>`;
+    if (cnt >= 2) html += `<text x="${(x+bw/2).toFixed(1)}" y="${(y-2).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="middle">${cnt}</text>`;
+  });
+  // X labels
+  [0, 4, 9, 14, 19, 21].forEach(ni => {
+    const x = PL + ni*barW + barW/2;
+    html += `<text x="${x.toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="middle">G${61+ni}</text>`;
+  });
+  svg.innerHTML = html;
 }
 
 // ── CSV export ────────────────────────────────────────────────────────────────
