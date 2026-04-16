@@ -984,10 +984,9 @@ summary:hover { color: var(--accent); }
   .comparison-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 680px) {
-  /* mobile: TEAM | W-L | CHIPS | PICK  (drop WINDOW, BEHIND, TONIGHT) */
+  /* mobile: lb-table scrolls horizontally — all 7 columns remain visible */
   .st-row { grid-template-columns: 1fr 52px 80px 38px; }
   .st-row .col-window, .st-row .col-behind, .st-row .col-tonight { display: none; }
-  .lb-table .col-window, .lb-table .col-behind, .lb-table .col-tonight { display: none; }
   .proj-row  { grid-template-columns: 38px 1fr 50px 70px; }
   .col-gap-up, .col-gap-dn { display: none; }
 }
