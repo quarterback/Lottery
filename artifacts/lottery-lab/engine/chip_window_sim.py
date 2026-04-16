@@ -805,6 +805,7 @@ def result_to_json(result: SimResult) -> dict:
                 "fatigue_nights":      td.get("fatigue_nights", []),
                 "rally_mode":          td.get("rally_mode", False),
                 "rally_mode_night":    td.get("rally_mode_night"),
+                "total_upset_bonus":   td.get("total_upset_bonus", 0.0),
             })
 
         seasons_json.append({
