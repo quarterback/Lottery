@@ -231,7 +231,12 @@ function lotteryRanked(gameIdx) {
   return lbData.teams
     .filter(t => t.status === 'Lottery')
     .map(t => ({ ...t, _chips: chipsAt(t, gameIdx) }))
-    .sort((a, b) => b._chips - a._chips);
+    .sort((a, b) => {
+      if (b._chips !== a._chips) return b._chips - a._chips;          // chips DESC
+      if (a.wins_60 !== b.wins_60) return a.wins_60 - b.wins_60;     // worse record first
+      if (a.losses_60 !== b.losses_60) return b.losses_60 - a.losses_60; // more losses first
+      return a.id - b.id;                                              // stable fallback
+    });
 }
 
 /* ── Find tonight's matchup for a team ── */

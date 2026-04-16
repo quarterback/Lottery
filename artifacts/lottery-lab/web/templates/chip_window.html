@@ -331,7 +331,12 @@ function renderSeason(seasonNum, gameNum) {
 
   // Re-compute chip draft rank among lottery teams at this game point
   const lottery = teams.filter(t => t.status === 'Lottery');
-  const lotteryByChips = [...lottery].sort((a, b) => b.chips_now - a.chips_now);
+  const lotteryByChips = [...lottery].sort((a, b) => {
+    if (b.chips_now !== a.chips_now) return b.chips_now - a.chips_now;
+    if (a.wins_60 !== b.wins_60) return a.wins_60 - b.wins_60;
+    if (a.losses_60 !== b.losses_60) return b.losses_60 - a.losses_60;
+    return a.id - b.id;
+  });
   lotteryByChips.forEach((t, i) => { t.chip_rank_now = i + 1; });
 
   // Render standings sorted by final_rank (overall league rank)
