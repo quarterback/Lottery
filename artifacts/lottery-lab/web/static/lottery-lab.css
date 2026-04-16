@@ -695,10 +695,11 @@ summary:hover { color: var(--accent); }
 }
 
 /* Tab 1: Chip Standings — unified 30-team grid */
-/* cols: # | TEAM | W-L | CHIPS | +/- | TONIGHT | DRAFT PICK */
+/* cols: TEAM | W-L | WINDOW | CHIPS | BEHIND | TONIGHT | PICK */
 .st-row {
   display: grid;
-  grid-template-columns: 30px 1fr 64px 110px 34px 110px 46px;
+  grid-template-columns: 1fr 58px 70px 110px 72px 108px 42px;
+  column-gap: 4px;
   align-items: center; padding: 7px 12px;
   border-bottom: 1px solid var(--border); transition: background .1s;
 }
@@ -709,15 +710,20 @@ summary:hover { color: var(--accent); }
   letter-spacing: .08em; text-transform: uppercase; color: var(--fg-faint);
   padding-top: 5px; padding-bottom: 5px; cursor: default;
 }
-/* Play-in: slightly muted — they're on the bubble, not yet lottery */
-.st-row.playin-row  { opacity: 0.72; }
-/* Playoff: heavily dimmed — not in the draft race */
-.st-row.playoff-row {
-  opacity: 0.35;
-  border-bottom-style: dashed;
-}
-.st-row.playoff-row:hover { opacity: 0.55; }
+/* Teams below the playoff line — no opacity change, the divider does the work */
 .col-start { font-size: 11px; color: var(--fg-faint); }
+
+/* Moving playoff divider */
+.st-playoff-divider {
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 12px; margin: 1px 0;
+  background: var(--bg-2);
+}
+.st-divider-line { flex: 1; height: 1px; background: var(--border); }
+.st-divider-label {
+  font-size: 9px; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--fg-faint); white-space: nowrap;
+}
 
 .pos-circle {
   width: 22px; height: 22px; border-radius: 50%; display: flex;
@@ -910,10 +916,9 @@ summary:hover { color: var(--accent); }
   .comparison-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 680px) {
-  /* mobile: # | TEAM | CHIPS | +/- | PICK  (drop W-L and TONIGHT) */
-  .st-row { grid-template-columns: 26px 1fr 80px 28px 38px; }
-  .st-row .rec-cell, .st-row .col-tonight { display: none; }
-  .col-tonight, .col-pick { display: none; }
+  /* mobile: TEAM | W-L | CHIPS | PICK  (drop WINDOW, BEHIND, TONIGHT) */
+  .st-row { grid-template-columns: 1fr 52px 80px 38px; }
+  .st-row .col-window, .st-row .col-behind, .st-row .col-tonight { display: none; }
   .proj-row  { grid-template-columns: 38px 1fr 50px 70px; }
   .col-gap-up, .col-gap-dn { display: none; }
 }

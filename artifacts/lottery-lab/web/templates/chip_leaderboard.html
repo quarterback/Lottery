@@ -67,12 +67,12 @@
 
       <!-- Unified header row -->
       <div class="st-row header-row">
-        <div>#</div>
         <div>TEAM</div>
-        <div class="rec-cell" style="text-align:right">W-L</div>
+        <div style="text-align:right">W-L</div>
+        <div class="col-window" style="text-align:right">WINDOW</div>
         <div>CHIPS</div>
-        <div>+/−</div>
-        <div class="col-tonight">TONIGHT</div>
+        <div class="col-behind">BEHIND</div>
+        <div class="col-tonight">TONIGHT'S WAGER</div>
         <div style="text-align:center">PICK</div>
       </div>
 
@@ -296,23 +296,36 @@ function renderAll(game) {
   renderTraj(gameIdx);
 }
 
+/* ── Chip window record for a team up to a given night ── */
+function chipWindowRecord(teamId, nightIdx) {
+  let wins = 0, losses = 0;
+  for (let ni = 0; ni <= nightIdx; ni++) {
+    const night = (lbData.schedule || [])[ni] || [];
+    const m = night.find(g => g.home_id === teamId || g.away_id === teamId);
+    if (!m || m.home_won == null) continue;
+    const won = (m.home_id === teamId) ? m.home_won : !m.home_won;
+    if (won) wins++; else losses++;
+  }
+  return { wins, losses };
+}
+
 /* ═══════════════════════════════════════
    TAB 1 — CHIP STANDINGS
    Two states:
-   • During window (gameIdx 0–20): all 30 teams in chip order,
-     lottery teams full-color with pick circles,
-     play-in teams dimmed, playoff teams heavily dimmed
-   • Final (gameIdx 21 = game 82): only the 14 confirmed lottery
-     teams, shown as the official draft order — clean and locked
+   • During window: all 30 teams in chip order, with a moving
+     divider line separating lottery teams from playoff/play-in.
+     No status pills or personality labels — the divider does the work.
+   • Final (game 82): 14 confirmed lottery teams only = draft order.
 ═══════════════════════════════════════ */
 function renderStandings(gameIdx, nightIdx) {
   const isFinal = gameIdx >= 21;
 
-  /* All 30 teams, enriched with current chips and per-game delta */
+  /* All 30 teams sorted by chips (tie-break: worse record, then id) */
   const allTeams = lbData.teams.map(t => {
     const chips = chipsAt(t, gameIdx);
     const prev  = gameIdx === 0 ? (t.chips_start ?? 60) : chipsAt(t, gameIdx - 1);
-    return { ...t, _chips: chips, _delta: chips - prev };
+    const cwr   = chipWindowRecord(t.id, nightIdx);
+    return { ...t, _chips: chips, _delta: chips - prev, _cwW: cwr.wins, _cwL: cwr.losses };
   }).sort((a, b) => {
     if (b._chips !== a._chips) return b._chips - a._chips;
     if (a.final_wins !== b.final_wins) return a.final_wins - b.final_wins;
@@ -320,7 +333,7 @@ function renderStandings(gameIdx, nightIdx) {
     return a.id - b.id;
   });
 
-  /* Assign lottery rank (draft pick position) — rank among Lottery teams only */
+  /* Assign lottery rank = draft pick position */
   let lotteryRank = 0;
   allTeams.forEach(t => {
     t._lotteryRank = t.status === 'Lottery' ? ++lotteryRank : null;
@@ -334,63 +347,65 @@ function renderStandings(gameIdx, nightIdx) {
   if (isFinal) {
     stateHdr.textContent = 'CONFIRMED DRAFT ORDER — FINAL';
     stateHdr.style.color = 'var(--accent)';
-    ctxNote.style.display = 'none';
+    if (ctxNote) ctxNote.style.display = 'none';
   } else {
     const gamesLeft = 22 - (gameIdx + 1);
     stateHdr.textContent = 'CHIP STANDINGS — ' + gamesLeft + ' GAME' + (gamesLeft !== 1 ? 'S' : '') + ' REMAINING';
     stateHdr.style.color = '';
-    ctxNote.style.display = '';
+    if (ctxNote) ctxNote.style.display = 'none';
   }
 
-  /* Which rows to show */
+  /* Which rows to render */
   const rows = isFinal ? allTeams.filter(t => t.status === 'Lottery') : allTeams;
+
+  /* Leader = top of the displayed rows (chip-sorted).
+     "Behind" is meaningful relative to whoever is at the top of the list a fan sees. */
+  const leaderChips = rows[0]?._chips ?? 0;
+
+  /* Find divider position: just after the last Lottery team in chip order */
+  let dividerAfterIdx = -1;
+  if (!isFinal) {
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (rows[i].status === 'Lottery') { dividerAfterIdx = i; break; }
+    }
+  }
 
   const container = document.getElementById('st-all-rows');
   container.innerHTML = '';
 
   rows.forEach((t, i) => {
-    const overallRank = i + 1;
-    const isLottery  = t.status === 'Lottery';
-    const isPlayIn   = t.status === 'Play-In';
-    const isPlayoff  = t.status === 'Safe Playoff';
+    /* Insert moving divider after last lottery team */
+    if (!isFinal && i === dividerAfterIdx + 1) {
+      const div = document.createElement('div');
+      div.className = 'st-playoff-divider';
+      div.innerHTML = `
+        <div class="st-divider-line"></div>
+        <span class="st-divider-label">playoff / play-in line — as of today</span>
+        <div class="st-divider-line"></div>
+      `;
+      container.appendChild(div);
+    }
 
-    /* Row styling class */
-    const rowCls = 'st-row' + (isPlayoff ? ' playoff-row' : isPlayIn ? ' playin-row' : '');
+    const isLottery = t.status === 'Lottery';
 
-    /* Chip bar */
-    const barW = Math.max(2, Math.round(Math.max(0, t._chips) / maxChips * 80));
+    /* Chip bar color: lottery by pick rank, others a neutral blue-grey */
+    const barColor = isLottery ? chipBarColor(t._lotteryRank, 14) : '#4a5568';
+    const barW     = Math.max(2, Math.round(Math.max(0, t._chips) / maxChips * 80));
 
-    /* Bar color: lottery teams colored by pick, others neutral */
-    let barColor;
-    if (isLottery)       barColor = chipBarColor(t._lotteryRank, 14);
-    else if (isPlayIn)   barColor = '#60a5fa';
-    else                 barColor = 'var(--fg-faint)';
-
-    /* Rank circle (overall chip position, neutral color for non-lottery) */
-    const rcBg  = isLottery ? pickColor(t._lotteryRank).bg  : 'var(--bg-2)';
-    const rcFg  = isLottery ? pickColor(t._lotteryRank).fg  : 'var(--fg-dim)';
-    const rcBdr = isLottery ? pickColor(t._lotteryRank).border : 'var(--border)';
-
-    /* Per-game delta */
-    const d = t._delta;
-    const deltaStr = Math.abs(d) < 0.05
-      ? `<span style="color:var(--fg-faint);font-size:9px">—</span>`
-      : d > 0
-        ? `<span style="color:var(--green);font-size:10px;font-weight:700">+${d.toFixed(1)}</span>`
-        : `<span style="color:var(--red);font-size:10px;font-weight:700">${d.toFixed(1)}</span>`;
+    /* "Behind leader" chip gap */
+    const behind = leaderChips - t._chips;
+    const behindStr = behind < 0.05
+      ? `<span style="color:var(--accent);font-size:10px;font-weight:700">Leader</span>`
+      : `<span style="color:var(--fg-dim);font-size:10px">−${behind.toFixed(1)}</span>`;
 
     /* Tonight matchup */
-    const m        = tonightMatchup(t.id, nightIdx);
-    const isHome   = m ? m.home_id === t.id : false;
-    const oppName  = m ? (isHome ? m.away_name : m.home_name) : '—';
-    const ownWager = m ? (isHome ? m.home_wager : m.away_wager).toFixed(1) : '—';
-    const isDbl    = m && (isHome ? m.home_double : m.away_double);
+    const m       = tonightMatchup(t.id, nightIdx);
+    const isHome  = m ? m.home_id === t.id : false;
+    const oppName = m ? (isHome ? m.away_name : m.home_name) : null;
+    const wager   = m ? (isHome ? m.home_wager : m.away_wager).toFixed(1) : null;
+    const isDbl   = m && (isHome ? m.home_double : m.away_double);
 
-    /* Status pill */
-    const pillCls = isLottery ? 'pill-lottery' : isPlayIn ? 'pill-playin' : 'pill-safe';
-    const pillLbl = isLottery ? 'Lottery' : isPlayIn ? 'Play-In' : 'Playoff';
-
-    /* Draft pick cell — only for lottery teams */
+    /* Draft pick cell — lottery teams only */
     let pickCell;
     if (isLottery && t._lotteryRank != null) {
       const pc = pickColor(t._lotteryRank);
@@ -399,33 +414,28 @@ function renderStandings(gameIdx, nightIdx) {
       pickCell = `<span style="color:var(--fg-faint);font-size:11px">—</span>`;
     }
 
-    const pm  = personalityMeta(t.bidding_personality || 'standard');
     const row = document.createElement('div');
-    row.className = rowCls;
+    row.className = 'st-row';
     row.addEventListener('click', () => openTeamDetail(t));
     row.innerHTML = `
       <div>
-        <div class="pos-circle" style="background:${rcBg};color:${rcFg};border:1px solid ${rcBdr};font-size:${overallRank > 9 ? '9' : '11'}px">
-          ${overallRank}
-        </div>
-      </div>
-      <div>
         <div class="team-name">${t.name}</div>
-        <div class="team-sub" style="display:flex;gap:3px;align-items:center;flex-wrap:wrap">
-          <span class="lb-status-pill ${pillCls}">${pillLbl}</span>
-          ${!isPlayoff ? `<span class="lb-status-pill ${pm.pillCls}">${pm.label}</span>` : ''}
-        </div>
+        <div class="team-sub" style="font-size:10px;color:var(--fg-faint);margin-top:1px">${t.final_wins + t.final_losses > 0 ? (t.final_wins + '–' + t.final_losses + ' overall') : ''}</div>
       </div>
-      <div class="rec-cell">${t.final_wins}–${t.final_losses}</div>
+      <div style="text-align:right;font-size:11px;color:var(--fg-dim)">${t.final_wins}–${t.final_losses}</div>
+      <div class="col-window" style="text-align:right">
+        <span style="font-size:11px;color:${t._cwW > t._cwL ? 'var(--green)' : t._cwL > t._cwW ? 'var(--red)' : 'var(--fg-dim)'};font-weight:600">${t._cwW}–${t._cwL}</span>
+      </div>
       <div class="chips-bar-col">
         <div class="chips-bar" style="width:${barW}px;background:${barColor}"></div>
         <span class="chips-num ${t._chips < 0 ? 'chips-neg' : ''}">${t._chips.toFixed(1)}</span>
       </div>
-      <div>${deltaStr}</div>
+      <div class="col-behind">${behindStr}</div>
       <div class="tonight-cell col-tonight">
-        ${m ? `<span class="tonight-opp">${oppName}</span><br>
-               <span class="wager-dot"></span>${ownWager} chips${isDbl ? ' <span class="doubled-badge-sm">2×</span>' : ''}`
-            : '<span style="color:var(--fg-faint)">—</span>'}
+        ${oppName
+          ? `<span class="tonight-opp">vs ${oppName}</span><br>
+             <span class="wager-dot"></span>${wager} chips${isDbl ? ' <span class="doubled-badge-sm">2×</span>' : ''}`
+          : '<span style="color:var(--fg-faint)">—</span>'}
       </div>
       <div class="col-pick" style="text-align:center">${pickCell}</div>
     `;
