@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Lottery Lab — Deployment Diagnostic</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, system-ui, sans-serif; background: #0a0a0a; color: #e8e8e8; max-width: 640px; margin: 60px auto; padding: 0 20px; }
+    h1 { color: #ff8c00; font-size: 18px; letter-spacing: .05em; text-transform: uppercase; }
+    code { background: #1c1c1c; padding: 2px 6px; border-radius: 2px; color: #ff8c00; }
+    a { color: #ff8c00; }
+    p { color: #aaa; }
+  </style>
+</head>
+<body>
+  <h1>Lottery Lab — static fallback</h1>
+  <p>If you're seeing this page, Vercel served the static <code>public/index.html</code> instead of routing to the Python serverless function at <code>/api/index</code>.</p>
+  <p>That means either the function failed to build or the rewrite rule isn't engaging.</p>
+  <p>Try opening <a href="/api/index">/api/index</a> directly — if it returns the Lottery Lab UI, rewrites are the issue. If it 404s, the function isn't deployed.</p>
+</body>
+</html>

@@ -1,9 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
-  "buildCommand": "mkdir -p public",
+  "buildCommand": "echo build-complete",
   "outputDirectory": "public",
-  "installCommand": "echo skip-node-install",
+  "functions": {
+    "api/index.py": {
+      "memory": 1024,
+      "maxDuration": 15,
+      "includeFiles": "artifacts/lottery-lab/**"
+    }
+  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
   ]
