@@ -746,14 +746,14 @@ function renderAnalytics() {
 
   // ── 5. Starting rank vs final pick scatter ────────────────────
   const scatterDots = [];
-  allSeasons.forEach(s => {
+  allSeasons.forEach((s, si) => {
     const lottery = s.teams.filter(t => t.status === 'Lottery');
     const ranked = [...lottery].sort((a, b) => {
       if (b.chips_start !== a.chips_start) return b.chips_start - a.chips_start;
       return a.wins_60 - b.wins_60;
     });
     ranked.forEach((t, i) => {
-      if (t.chip_draft_rank != null) scatterDots.push({ x: i + 1, y: t.chip_draft_rank });
+      if (t.chip_draft_rank != null) scatterDots.push({ x: i + 1, y: t.chip_draft_rank, team: t.name, season: si + 1 });
     });
   });
 
@@ -809,6 +809,35 @@ function anRenderDoubleEff(rows) {
   el.innerHTML = html + '</tbody></table>';
 }
 
+// ── Shared analytics tooltip ───────────────────────────────────────────────
+function anGetTooltip() {
+  let tip = document.getElementById('an-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'an-tooltip';
+    tip.className = 'an-tooltip';
+    document.body.appendChild(tip);
+  }
+  return tip;
+}
+function anShowTooltip(e, text) {
+  const tip = anGetTooltip();
+  tip.textContent = text;
+  tip.style.opacity = '1';
+  anMoveTooltip(e);
+}
+function anMoveTooltip(e) {
+  const tip = anGetTooltip();
+  const x = e.clientX + 14, y = e.clientY - 10;
+  const maxX = window.innerWidth  - tip.offsetWidth  - 8;
+  const maxY = window.innerHeight - tip.offsetHeight - 8;
+  tip.style.left = Math.max(8, Math.min(x, maxX)) + 'px';
+  tip.style.top  = Math.max(8, Math.min(y, maxY)) + 'px';
+}
+function anHideTooltip() {
+  anGetTooltip().style.opacity = '0';
+}
+
 function anRenderGini(curve) {
   const svg = document.getElementById('an-gini-svg');
   if (!svg || !curve.length) return;
@@ -836,11 +865,18 @@ function anRenderGini(curve) {
   // Line
   const pts = curve.map((g, i) => `${cx(i).toFixed(1)},${cy(g).toFixed(1)}`).join(' ');
   html += `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/>`;
-  // Dots
+  // Dots — r enlarged for easier hover; data-tip carries tooltip text
   curve.forEach((g, i) => {
-    html += `<circle cx="${cx(i).toFixed(1)}" cy="${cy(g).toFixed(1)}" r="2.2" fill="var(--accent)" opacity="0.75"/>`;
+    const tipText = `Game G${61+i}&#10;Gini: ${g.toFixed(4)}`;
+    html += `<circle cx="${cx(i).toFixed(1)}" cy="${cy(g).toFixed(1)}" r="4" fill="var(--accent)" opacity="0.75" style="cursor:crosshair" data-tip="${tipText}"/>`;
   });
   svg.innerHTML = html;
+  // Event delegation on SVG
+  svg.onmousemove = e => {
+    const c = e.target.closest('[data-tip]');
+    if (c) anShowTooltip(e, c.dataset.tip); else anHideTooltip();
+  };
+  svg.onmouseleave = () => anHideTooltip();
 }
 
 function anRenderSwings(swings) {
@@ -912,18 +948,34 @@ function anRenderScatter(dots) {
   // Axis labels
   html += `<text x="${(PAD+iW/2).toFixed(1)}" y="${H-1}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="middle">Starting Rank →</text>`;
   html += `<text x="7" y="${(PAD+iH/2).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="middle" transform="rotate(-90 7 ${(PAD+iH/2).toFixed(1)})">← Final Pick</text>`;
-  // Aggregate dots
-  const cntMap = {};
-  dots.forEach(d => { const k = `${d.x},${d.y}`; cntMap[k] = (cntMap[k]||0)+1; });
-  Object.entries(cntMap).forEach(([k, cnt]) => {
+  // Aggregate dots — build a map from "x,y" to list of {team, season}
+  const groupMap = {};
+  dots.forEach(d => {
+    const k = `${d.x},${d.y}`;
+    if (!groupMap[k]) groupMap[k] = [];
+    groupMap[k].push({ team: d.team, season: d.season });
+  });
+  Object.entries(groupMap).forEach(([k, entries]) => {
     const [x, y] = k.split(',').map(Number);
+    const cnt  = entries.length;
     const diff = Math.abs(x - y);
-    const col = diff === 0 ? 'var(--green)' : diff <= 2 ? 'var(--accent)' : 'var(--red)';
-    const r   = Math.min(6, 2 + Math.sqrt(cnt) * 0.9);
-    const op  = Math.min(0.9, 0.35 + cnt * 0.04);
-    html += `<circle cx="${sx(x).toFixed(1)}" cy="${sy(y).toFixed(1)}" r="${r.toFixed(1)}" fill="${col}" opacity="${op.toFixed(2)}"/>`;
+    const col  = diff === 0 ? 'var(--green)' : diff <= 2 ? 'var(--accent)' : 'var(--red)';
+    const r    = Math.min(6, 2 + Math.sqrt(cnt) * 0.9);
+    const op   = Math.min(0.9, 0.35 + cnt * 0.04);
+    // Build tooltip: show up to 5 entries, then a "+N more" line
+    const MAX_SHOWN = 5;
+    const lines = entries.slice(0, MAX_SHOWN).map(e => `${e.team} — Season ${e.season}: started #${x}, finished Pick ${y}`);
+    if (cnt > MAX_SHOWN) lines.push(`+${cnt - MAX_SHOWN} more`);
+    const tipText = lines.join('&#10;');
+    html += `<circle cx="${sx(x).toFixed(1)}" cy="${sy(y).toFixed(1)}" r="${r.toFixed(1)}" fill="${col}" opacity="${op.toFixed(2)}" style="cursor:crosshair" data-tip="${tipText.replace(/"/g, '&quot;')}"/>`;
   });
   svg.innerHTML = html;
+  // Event delegation on SVG
+  svg.onmousemove = e => {
+    const c = e.target.closest('[data-tip]');
+    if (c) anShowTooltip(e, c.dataset.tip); else anHideTooltip();
+  };
+  svg.onmouseleave = () => anHideTooltip();
 }
 
 function anRenderTiming(byNight, meta) {
