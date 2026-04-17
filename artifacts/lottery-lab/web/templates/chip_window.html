@@ -285,6 +285,16 @@ function setSort(field) {
   renderSeason(currentSeason, currentGame);
 }
 
+// Build a short abbreviation that keeps multi-word city names intact.
+// Single-word: first 3 chars ("BOS", "MIA"). Multi-word: initials, with
+// special handling so "LA X" stays "LAC"/"LAL" and not "LC"/"LL".
+function teamAbbr(name) {
+  const words = name.split(' ');
+  if (words.length === 1) return name.substring(0, 3).toUpperCase();
+  if (words[0] === 'LA') return ('LA' + words[1][0]).toUpperCase();
+  return words.map(w => w[0]).join('').toUpperCase();
+}
+
 const STRATEGY_HINTS = {
   standard:     'Proportional: bid 15–40% of stack (scales with chips, min 10)',
   aggressive:   'High roller: bid 30–60% of stack per game (min 10)',
@@ -429,7 +439,7 @@ function renderSeasonSummary(seasonNum) {
       ? ' <span class="doubled-badge" style="font-size:8px;padding:0 3px;vertical-align:middle">2×</span>' : '';
     swingEl.innerHTML =
       `<span style="color:var(--green);font-weight:700">+${topSwing.gain.toFixed(1)}</span>` +
-      ` ${topSwing.winner.split(' ').pop()} def. ${topSwing.loser.split(' ').pop()}${dbl}` +
+      ` ${topSwing.winner} def. ${topSwing.loser}${dbl}` +
       ` <span style="color:var(--fg-faint);font-size:10px">G${topSwing.game}</span>`;
   } else {
     swingEl.textContent = '—';
@@ -451,7 +461,7 @@ function renderSeasonSummary(seasonNum) {
     const col = topDouble.delta > 0 ? 'var(--green)' : topDouble.delta < 0 ? 'var(--red)' : 'var(--fg-dim)';
     doubleEl.innerHTML =
       `<span style="color:${col};font-weight:700">${topDouble.delta > 0 ? '+' : ''}${topDouble.delta.toFixed(1)}</span>` +
-      ` ${topDouble.name.split(' ').pop()}` +
+      ` ${topDouble.name}` +
       ` <span style="color:var(--fg-faint);font-size:10px">G${topDouble.game}</span>`;
   } else {
     doubleEl.textContent = 'No doubles yet';
@@ -579,7 +589,7 @@ function renderSeason(seasonNum, gameNum) {
       const resultColor = teamWon ? 'var(--green)' : 'var(--red)';
       const resultLetter = teamWon ? 'W' : 'L';
       const dblBadge = ownDbl ? ' <span class="doubled-badge">2×</span>' : '';
-      const oppAbbr = oppName.split(' ').slice(-1)[0].substring(0, 3).toUpperCase();
+      const oppAbbr = teamAbbr(oppName);
       const upsetBadge = (teamWon && m.upset_bonus > 0)
         ? ` <span title="Upset bonus: +${m.upset_bonus} chips (win-gap reward)" style="color:#f5c518;font-size:9px;font-weight:700">⚡+${m.upset_bonus}</span>`
         : '';
@@ -892,7 +902,7 @@ function anRenderDoubleEff(rows) {
     const gainCol = r.avgDelta > 2 ? 'var(--green)' : r.avgDelta < -2 ? 'var(--red)' : 'var(--fg-dim)';
     const winCol  = r.winRate >= 0.5 ? 'var(--green)' : 'var(--red)';
     html += `<tr>
-      <td style="text-align:left;color:var(--fg)">${r.name.split(' ').pop()}</td>
+      <td style="text-align:left;color:var(--fg)">${r.name}</td>
       <td>G${(60 + r.avgNight).toFixed(0)}</td>
       <td style="color:${winCol}">${(r.winRate * 100).toFixed(0)}%</td>
       <td style="color:${gainCol};font-weight:600">${r.avgDelta > 0 ? '+' : ''}${r.avgDelta.toFixed(1)}</td>
@@ -983,7 +993,7 @@ function anRenderSwings(swings) {
     const dbl = s.isDouble ? '<span class="doubled-badge" style="font-size:8px;padding:0 3px;margin-left:3px">2×</span>' : '';
     html += `<div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;margin-bottom:2px">
-        <span style="font-size:10px;color:var(--fg)">${i+1}. ${s.winner.split(' ').pop()} beat ${s.loser.split(' ').pop()}${dbl}</span>
+        <span style="font-size:10px;color:var(--fg)">${i+1}. ${s.winner} beat ${s.loser}${dbl}</span>
         <span style="font-size:10px;color:var(--green);font-weight:700">+${s.gain.toFixed(1)}</span>
       </div>
       <div style="font-size:9px;color:var(--fg-faint);margin-bottom:3px">Season ${s.season} · G${s.game}</div>
