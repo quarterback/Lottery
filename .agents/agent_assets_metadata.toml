@@ -18,3 +18,9 @@ id = "6VOZgHJe8GEJ1dZdTe2n2"
 uri = "file://artifacts/lottery-lab/CHIP_WINDOW_MODEL.md"
 type = "text"
 title = "Chip Window — Model Reference"
+
+[[outputs]]
+id = "-xPKLdYX7JBbB7lAVbH6c"
+uri = "file://artifacts/lottery-lab/web/static/social-card.png"
+type = "image"
+title = "Twitter / OG Social Card (1200×630)"
