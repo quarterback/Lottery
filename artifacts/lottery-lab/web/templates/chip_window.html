@@ -88,6 +88,25 @@
     </div>
   </div>
 
+  <!-- ── Per-season analytics summary card ─────────────────── -->
+  <div id="season-summary-card" style="display:none;margin-bottom:24px;background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px">
+    <div style="font-size:10px;font-weight:700;color:var(--fg-dim);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.6px">Season <span id="sscard-season-num">1</span> Highlights</div>
+    <div style="display:flex;gap:32px;flex-wrap:wrap">
+      <div style="min-width:170px">
+        <div style="font-size:9px;color:var(--fg-faint);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Biggest Swing</div>
+        <div id="sscard-swing" style="font-size:12px;color:var(--fg);line-height:1.5">—</div>
+      </div>
+      <div style="min-width:170px">
+        <div style="font-size:9px;color:var(--fg-faint);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Best Double Night</div>
+        <div id="sscard-double" style="font-size:12px;color:var(--fg);line-height:1.5">—</div>
+      </div>
+      <div style="min-width:110px">
+        <div style="font-size:9px;color:var(--fg-faint);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Final Gini</div>
+        <div id="sscard-gini" style="font-size:12px;color:var(--fg);line-height:1.5">—</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Main content grid ──────────────────────────────────── -->
   <div id="standings-section">
     <div class="cw-grid">
@@ -363,6 +382,7 @@ function renderAll() {
   document.getElementById('leaderboard-section').style.display = 'block';
 
   renderSeason(1, 22);
+  renderSeasonSummary(1);
   renderLeaderboard();
   renderAnalytics();
 }
@@ -371,6 +391,79 @@ function onSeasonSlide(val) {
   currentSeason = parseInt(val);
   document.getElementById('season-slider-label').textContent = 'Season ' + val;
   renderSeason(currentSeason, currentGame);
+  renderSeasonSummary(currentSeason);
+}
+
+// ── Per-season analytics summary card ────────────────────────────────────────
+
+function renderSeasonSummary(seasonNum) {
+  if (!simData) return;
+  const card = document.getElementById('season-summary-card');
+  if (!card) return;
+  const s = simData.seasons.find(x => x.season_num === seasonNum);
+  if (!s) return;
+
+  document.getElementById('sscard-season-num').textContent = seasonNum;
+
+  // 1. Biggest single-night chip swing this season
+  let topSwing = null;
+  s.schedule.forEach((night, ni) => {
+    night.forEach(m => {
+      const gain = m.home_won
+        ? (m.home_chips_after - m.home_chips_before)
+        : (m.away_chips_after - m.away_chips_before);
+      if (topSwing === null || gain > topSwing.gain) {
+        topSwing = {
+          winner:   m.home_won ? m.home_name : m.away_name,
+          loser:    m.home_won ? m.away_name : m.home_name,
+          gain,
+          game:     61 + ni,
+          isDouble: !!(m.home_double || m.away_double),
+        };
+      }
+    });
+  });
+  const swingEl = document.getElementById('sscard-swing');
+  if (topSwing) {
+    const dbl = topSwing.isDouble
+      ? ' <span class="doubled-badge" style="font-size:8px;padding:0 3px;vertical-align:middle">2×</span>' : '';
+    swingEl.innerHTML =
+      `<span style="color:var(--green);font-weight:700">+${topSwing.gain.toFixed(1)}</span>` +
+      ` ${topSwing.winner.split(' ').pop()} def. ${topSwing.loser.split(' ').pop()}${dbl}` +
+      ` <span style="color:var(--fg-faint);font-size:10px">G${topSwing.game}</span>`;
+  } else {
+    swingEl.textContent = '—';
+  }
+
+  // 2. Lottery team with the highest chip gain on their double night
+  let topDouble = null;
+  s.teams.filter(t => t.status === 'Lottery' && t.doubled && t.double_night >= 0).forEach(t => {
+    const ni   = t.double_night;
+    const prev = ni === 0 ? (t.chips_start ?? 60) : (t.chip_trajectory?.[ni - 1] ?? t.chips_start ?? 60);
+    const curr = t.chip_trajectory?.[ni] ?? prev;
+    const delta = curr - prev;
+    if (topDouble === null || delta > topDouble.delta) {
+      topDouble = { name: t.name, delta, game: 61 + ni };
+    }
+  });
+  const doubleEl = document.getElementById('sscard-double');
+  if (topDouble) {
+    const col = topDouble.delta > 0 ? 'var(--green)' : topDouble.delta < 0 ? 'var(--red)' : 'var(--fg-dim)';
+    doubleEl.innerHTML =
+      `<span style="color:${col};font-weight:700">${topDouble.delta > 0 ? '+' : ''}${topDouble.delta.toFixed(1)}</span>` +
+      ` ${topDouble.name.split(' ').pop()}` +
+      ` <span style="color:var(--fg-faint);font-size:10px">G${topDouble.game}</span>`;
+  } else {
+    doubleEl.textContent = 'No doubles yet';
+  }
+
+  // 3. Final Gini coefficient (chip inequality across lottery teams at season end)
+  const finalChips = s.teams.filter(t => t.status === 'Lottery').map(t => t.chips_end ?? 0);
+  const gini = giniCoeff(finalChips);
+  document.getElementById('sscard-gini').innerHTML =
+    `<span style="font-weight:700;color:var(--accent)">${gini.toFixed(3)}</span>`;
+
+  card.style.display = 'block';
 }
 
 function onGameSlide(val) {
