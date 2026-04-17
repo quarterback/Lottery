@@ -62,10 +62,14 @@
   <div id="sim-summary" style="display:none;margin-bottom:24px">
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <span id="summary-text" style="font-size:11px;color:var(--fg-dim)"></span>
-      <button type="button" class="btn" id="export-csv-btn" onclick="exportCsv()"
-        style="margin-left:auto;font-size:11px;padding:4px 10px">
-        Export CSV ↓
-      </button>
+      <div style="display:flex;gap:6px;margin-left:auto">
+        <button type="button" class="btn" id="export-csv-btn" onclick="exportCsv()"
+          style="font-size:11px;padding:4px 10px">CSV ↓</button>
+        <button type="button" class="btn" onclick="exportJson()"
+          style="font-size:11px;padding:4px 10px">JSON ↓</button>
+        <button type="button" class="btn" onclick="printPage()"
+          style="font-size:11px;padding:4px 10px">Print / PDF ⎙</button>
+      </div>
     </div>
   </div>
 
@@ -1138,6 +1142,31 @@ function anRenderTiming(byNight, meta) {
       <span>n=${meta.lateCount} · avg pick <span style="color:${lateCol};font-weight:600">${fmt(meta.lateAvgPick)}</span></span>
     </div>`;
   }
+}
+
+// ── Print / PDF ───────────────────────────────────────────────────────────────
+
+function printPage() {
+  // Expand analytics section so it prints
+  const body = document.getElementById('analytics-body');
+  const btn  = document.getElementById('analytics-toggle');
+  if (body && body.style.display === 'none') {
+    body.style.display = 'block';
+    if (btn) btn.textContent = 'Hide ▴';
+  }
+  window.print();
+}
+
+// ── JSON export ───────────────────────────────────────────────────────────────
+
+function exportJson() {
+  if (!simData) return;
+  const json = JSON.stringify(simData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `chip_window_seed${simData.seed}_${simData.strategy}.json`;
+  a.click();
 }
 
 // ── CSV export ────────────────────────────────────────────────────────────────

@@ -1065,6 +1065,83 @@ summary:hover { color: var(--accent); }
   .theme-switch label { display: none; }
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PRINT / PDF
+   Hide controls, override dark theme, expand analytics for clean output.
+   ══════════════════════════════════════════════════════════════════════ */
+@media print {
+  /* ── Redefine theme vars for white paper ────────────────────────────── */
+  :root {
+    --bg:           #ffffff;
+    --bg-alt:       #f6f6f6;
+    --bg-2:         #eeeeee;
+    --fg:           #111111;
+    --fg-dim:       #444444;
+    --fg-faint:     #888888;
+    --accent:       #b85a00;
+    --accent-dim:   #7a3a00;
+    --accent-hi:    #d07000;
+    --accent-bg:    #fff4e8;
+    --green:        #1a6e38;
+    --green-bg:     #e8f8ef;
+    --green-border: #5a9a6a;
+    --red:          #b82020;
+    --blue:         #1a52a8;
+    --border:       #cccccc;
+    --border-2:     #bbbbbb;
+    color-scheme:   light;
+  }
+
+  /* ── Global resets ──────────────────────────────────────────────────── */
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  body  { background: #fff; color: #111; }
+  main  { padding: 8px 0; }
+  a     { color: var(--accent); }
+
+  /* ── Hide interactive / chrome elements ────────────────────────────── */
+  header,
+  #cw-form,
+  #season-nav-wrap,
+  #season-summary-card,
+  #analytics-toggle,
+  #cw-spinner,
+  #sim-summary .btn,
+  #sim-summary > div > div,   /* button row */
+  .section-rule { display: none !important; }
+
+  /* ── Show results (they may have been toggled off) ──────────────────── */
+  #sim-summary         { display: block !important; }
+  #standings-section   { display: block !important; }
+  #lb-rule             { display: block !important; }
+  #leaderboard-section { display: block !important; }
+  #analytics-section   { display: block !important; }
+  #analytics-body      { display: block !important; }
+
+  /* ── Page setup ─────────────────────────────────────────────────────── */
+  @page { margin: 1.4cm 1.6cm; }
+
+  /* ── Prevent orphaned panels ────────────────────────────────────────── */
+  .cw-grid     { display: block; }
+  .cw-grid > * { break-inside: avoid; margin-bottom: 20px; }
+  .an-grid     { grid-template-columns: 1fr 1fr; }
+  .an-panel    { break-inside: avoid; }
+  .chart-wrap  { break-inside: avoid; }
+  .table-wrap  { break-inside: avoid; }
+
+  /* ── Table styling on white ─────────────────────────────────────────── */
+  th { background: #eeeeee !important; color: #444 !important; }
+  tr:hover td { background: transparent; }
+  .cw-pill   { border: 1px solid currentColor; }
+  .pick-circle { background: #eeeeee !important; color: #111 !important; border-color: #ccc !important; }
+
+  /* ── Chart SVG visibility ───────────────────────────────────────────── */
+  .chart-wrap { background: #f8f8f8; border-color: #ccc; }
+  .an-tooltip { display: none !important; }
+
+  /* ── Summary text remains visible ──────────────────────────────────── */
+  #summary-text { color: #444 !important; font-size: 11px; }
+}
+
 /* ── Analytics chart tooltip ─────────────────────────────────────────────── */
 .an-tooltip {
   position: fixed;
