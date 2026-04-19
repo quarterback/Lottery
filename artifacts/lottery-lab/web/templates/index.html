@@ -69,6 +69,22 @@
       </div>
     </div>
 
+    <!-- League Selector -->
+    <div class="mt-32 mb-16">
+      <div class="section-title">League</div>
+      <input type="hidden" id="league-input" name="league" value="nba">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px" id="league-pills">
+        {% for lg_id, lg_name in leagues.items() %}
+        <button type="button" class="pill-btn{% if lg_id == 'nba' %} pill-active{% endif %}"
+          data-league="{{ lg_id }}"
+          onclick="selectLeague(this)">{{ lg_name }}</button>
+        {% endfor %}
+      </div>
+      <span style="font-size:var(--fs-sm);color:var(--fg-dim);display:block;margin-top:6px">
+        Scales team count, schedule length, and playoff structure automatically.
+      </span>
+    </div>
+
     <!-- Submit -->
     <div class="mt-24" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       <button type="submit" class="btn btn-primary submit-btn" onclick="startSim()">
@@ -253,6 +269,12 @@
       const cb = label.querySelector('input');
       label.classList.toggle('checked', cb.checked);
     });
+  }
+
+  function selectLeague(btn) {
+    document.querySelectorAll('#league-pills .pill-btn').forEach(b => b.classList.remove('pill-active'));
+    btn.classList.add('pill-active');
+    document.getElementById('league-input').value = btn.dataset.league;
   }
 
   function startSim() {

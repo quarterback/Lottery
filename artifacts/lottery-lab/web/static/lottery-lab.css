@@ -621,6 +621,15 @@ summary:hover { color: var(--accent); }
 .strategy-btn.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-dim); font-weight: 700; }
 .strategy-btn:hover:not(.active) { background: var(--bg-alt); color: var(--fg); }
 
+.pill-btn {
+  font-size: 11px; padding: 4px 12px; border: 1px solid var(--border-2);
+  background: var(--bg-2); color: var(--fg-dim); cursor: pointer;
+  border-radius: 20px; transition: background .12s, color .12s, border-color .12s;
+  font-family: var(--font);
+}
+.pill-btn.pill-active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-dim); font-weight: 700; }
+.pill-btn:hover:not(.pill-active) { background: var(--bg-alt); color: var(--fg); }
+
 .tonight-cell { font-size: 10px; white-space: nowrap; }
 
 .pick-circle {

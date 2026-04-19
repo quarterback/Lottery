@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from typing import Optional
 
 from engine.chip_window_sim import simulate_chip_window_league, result_to_json
+from engine.leagues import LEAGUES, get_league, LeagueConfig, NBA_CONFIG
 from engine.lottery_sim import (
     ALL_SYSTEMS,
     SYSTEM_MAP,
@@ -182,15 +183,17 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
 
 # ── Pre-computation helpers ────────────────────────────────────────────────
 
-def make_bar_rows(metrics: MetricsBundle, top_n: int = 14) -> list[dict]:
+def make_bar_rows(metrics: MetricsBundle, top_n: int = 14, lg: LeagueConfig | None = None) -> list[dict]:
     """Return rows sorted by pick-1% descending. Each row includes all 5 pick slots."""
+    cfg = lg or NBA_CONFIG
     rows = []
-    for team_id in range(NUM_TEAMS):
+    for team_id in range(cfg.num_teams):
+        name = cfg.team_names[team_id] if team_id < len(cfg.team_names) else f"Team {team_id}"
         slots = metrics.pick_distribution.get(team_id, [0.0] * 5)
         pick1 = slots[0] if slots else 0.0
         rows.append({
-            "name": NBA_TEAM_NAMES[team_id],
-            "pct": round(pick1, 2),           # primary sort / bar chart value = pick-1%
+            "name": name,
+            "pct": round(pick1, 2),
             "pick1_pct": round(slots[0] if len(slots) > 0 else 0.0, 2),
             "pick2_pct": round(slots[1] if len(slots) > 1 else 0.0, 2),
             "pick3_pct": round(slots[2] if len(slots) > 2 else 0.0, 2),
@@ -270,13 +273,14 @@ def build_comparison_rows(m0: MetricsBundle, m1: MetricsBundle) -> list[dict]:
     return rows
 
 
-def make_win_dist_bars(avg_wins_by_rank: list[float], color: str, series_idx: int, n_series: int) -> list[dict]:
+def make_win_dist_bars(avg_wins_by_rank: list[float], color: str, series_idx: int, n_series: int, lg: LeagueConfig | None = None) -> list[dict]:
     """Return bar rect specs for the win distribution chart (one rect per rank)."""
+    cfg = lg or NBA_CONFIG
     chart_w, chart_h = 800, 180
     pad_l, pad_r, pad_t, pad_b = 36, 16, 12, 24
     inner_w = chart_w - pad_l - pad_r
     inner_h = chart_h - pad_t - pad_b
-    max_v = float(GAMES_PER_SEASON)
+    max_v = float(cfg.games_per_season)
     n = len(avg_wins_by_rank)
     group_w = inner_w / max(n, 1)
     bar_w = group_w * 0.85 / max(n_series, 1)
@@ -293,24 +297,30 @@ def make_win_dist_bars(avg_wins_by_rank: list[float], color: str, series_idx: in
     return rects
 
 
-def build_win_dist_chart_meta() -> dict:
+def build_win_dist_chart_meta(lg: LeagueConfig | None = None) -> dict:
+    cfg = lg or NBA_CONFIG
     chart_w, chart_h = 800, 180
     pad_l, pad_r, pad_t, pad_b = 36, 16, 12, 24
     inner_w = chart_w - pad_l - pad_r
     inner_h = chart_h - pad_t - pad_b
-    max_v = float(GAMES_PER_SEASON)
+    max_v = float(cfg.games_per_season)
 
+    # Adaptive grid labels based on games_per_season
+    step = max(10, cfg.games_per_season // 8)
+    grid_vals = list(range(step, cfg.games_per_season, step))
     grid = []
-    for v in [20, 30, 40, 50, 60, 70]:
+    for v in grid_vals:
         gy = pad_t + inner_h * (1.0 - v / max_v)
         grid.append({"v": str(v), "y": round(gy, 1)})
 
+    n_teams = cfg.num_teams
+    rank_step = max(1, n_teams // 6)
     rank_labels = []
-    for rank in [1, 5, 10, 15, 16, 20, 25, 30]:
-        gx = pad_l + ((rank - 1) / max(NUM_TEAMS - 1, 1)) * inner_w
+    for rank in range(1, n_teams + 1, rank_step):
+        gx = pad_l + ((rank - 1) / max(n_teams - 1, 1)) * inner_w
         rank_labels.append({"label": str(rank), "x": round(gx, 1)})
 
-    cutoff_x = round(pad_l + ((PLAYOFF_SPOTS - 1) / max(NUM_TEAMS - 1, 1)) * inner_w, 1)
+    cutoff_x = round(pad_l + ((cfg.playoff_spots - 1) / max(n_teams - 1, 1)) * inner_w, 1)
 
     return {
         "chart_w": chart_w,
@@ -323,12 +333,14 @@ def build_win_dist_chart_meta() -> dict:
     }
 
 
-def build_effort_chart_meta() -> dict:
+def build_effort_chart_meta(lg: LeagueConfig | None = None) -> dict:
+    cfg = lg or NBA_CONFIG
     chart_w, chart_h = 800, 180
     pad_l, pad_r, pad_t, pad_b = 36, 16, 12, 24
     inner_w = chart_w - pad_l - pad_r
     inner_h = chart_h - pad_t - pad_b
     min_v, span = 0.4, 0.65
+    weeks_per_season = cfg.weeks_per_season
 
     grid = []
     for v in [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
@@ -336,8 +348,9 @@ def build_effort_chart_meta() -> dict:
         grid.append({"v": f"{v:.1f}", "y": round(gy, 1)})
 
     week_labels = []
-    for wk in range(0, WEEKS_PER_SEASON, 4):
-        gx = pad_l + (wk / max(WEEKS_PER_SEASON - 1, 1)) * inner_w
+    step = max(1, weeks_per_season // 6)
+    for wk in range(0, weeks_per_season, step):
+        gx = pad_l + (wk / max(weeks_per_season - 1, 1)) * inner_w
         week_labels.append({"label": f"W{wk + 1}", "x": round(gx, 1)})
 
     return {
@@ -351,17 +364,19 @@ def build_effort_chart_meta() -> dict:
     }
 
 
-def build_standings_table(metrics: MetricsBundle) -> list[dict]:
+def build_standings_table(metrics: MetricsBundle, lg: LeagueConfig | None = None) -> list[dict]:
     """Build standings table rows sorted by avg wins descending."""
+    cfg = lg or NBA_CONFIG
     rows = []
-    for tid in range(NUM_TEAMS):
+    for tid in range(cfg.num_teams):
+        name = cfg.team_names[tid] if tid < len(cfg.team_names) else f"Team {tid}"
         avg_w = metrics.avg_wins_by_team.get(tid, 0.0)
-        avg_l = round(GAMES_PER_SEASON - avg_w, 1)
+        avg_l = round(cfg.games_per_season - avg_w, 1)
         slots = metrics.pick_distribution.get(tid, [0.0] * 5)
         pick1 = slots[0] if slots else 0.0
-        top5_sum = sum(slots)  # total % across all 5 picks (each slot sums to 100 across teams)
+        top5_sum = sum(slots)
         rows.append({
-            "name": NBA_TEAM_NAMES[tid],
+            "name": name,
             "avg_wins": avg_w,
             "avg_losses": avg_l,
             "pick1_pct": round(pick1, 2),
@@ -385,6 +400,7 @@ async def index(request: Request):
             "explainers": explainers,
             "season_keys": SEASON_KEYS,
             "show_historical": False,
+            "leagues": {k: v.name for k, v in LEAGUES.items()},
         },
     )
 
@@ -396,12 +412,15 @@ async def simulate(
     runs: int = Form(default=50),
     seasons: int = Form(default=15),
     seed: Optional[str] = Form(default=None),
+    league: str = Form(default="nba"),
 ):
     runs = max(5, min(500, runs))
     seasons = max(3, min(30, seasons))
     seed_val: Optional[int] = None
     if seed and seed.strip().isdigit():
         seed_val = int(seed.strip())
+
+    lg = get_league(league)
 
     selected = [SYSTEM_MAP[s] for s in systems if s in SYSTEM_MAP][:2]
     if not selected:
@@ -410,11 +429,11 @@ async def simulate(
     t0 = time.perf_counter()
     results: list[MetricsBundle] = []
     for system in selected:
-        m = monte_carlo(system, runs=runs, seasons=seasons, seed=seed_val)
+        m = monte_carlo(system, runs=runs, seasons=seasons, seed=seed_val, league=lg)
         results.append(m)
     elapsed = round(time.perf_counter() - t0, 2)
 
-    bar_rows_list = [make_bar_rows(m) for m in results]
+    bar_rows_list = [make_bar_rows(m, lg=lg) for m in results]
     n_series = len(results)
     effort_bars = [
         make_effort_bars(m.effort_by_week, CHART_COLORS[i], i, n_series)
@@ -436,17 +455,17 @@ async def simulate(
         pick_tables.append(table_rows)
 
     win_dist_bars = [
-        make_win_dist_bars(m.avg_wins_by_rank, CHART_COLORS[i], i, n_series)
+        make_win_dist_bars(m.avg_wins_by_rank, CHART_COLORS[i], i, n_series, lg=lg)
         for i, m in enumerate(results)
     ]
-    win_dist_meta = build_win_dist_chart_meta()
-    effort_meta = build_effort_chart_meta()
+    win_dist_meta = build_win_dist_chart_meta(lg=lg)
+    effort_meta = build_effort_chart_meta(lg=lg)
     comparison_rows = build_comparison_rows(results[0], results[1]) if len(results) == 2 else []
     is_comparison = len(results) == 2
 
     # Standings tables
     standings_tables = [
-        build_standings_table(m)
+        build_standings_table(m, lg=lg)
         for m in results
     ]
 
@@ -560,6 +579,9 @@ async def simulate(
             "selected_systems": [s.name for s in selected],
             "colors": CHART_COLORS,
             "systems": [s.name for s in ALL_SYSTEMS],
+            "league": league,
+            "league_name": lg.name,
+            "leagues": {k: v.name for k, v in LEAGUES.items()},
         },
     )
 
@@ -824,6 +846,7 @@ async def chip_window_run(
     seasons: int = Form(default=10),
     seed: Optional[str] = Form(default=None),
     strategy: str = Form(default="standard"),
+    league: str = Form(default="nba"),
 ):
     seasons = max(5, min(15, seasons))
     seed_val: Optional[int] = None
@@ -832,7 +855,8 @@ async def chip_window_run(
     if strategy not in ("standard", "aggressive", "conservative"):
         strategy = "standard"
 
-    result = simulate_chip_window_league(seasons=seasons, seed=seed_val, strategy=strategy)
+    lg = get_league(league)
+    result = simulate_chip_window_league(seasons=seasons, seed=seed_val, strategy=strategy, league=lg)
     return result_to_json(result)
 
 

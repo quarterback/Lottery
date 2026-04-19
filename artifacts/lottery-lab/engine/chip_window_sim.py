@@ -5,9 +5,10 @@ import random
 from dataclasses import dataclass
 from typing import Optional
 
+from engine.leagues import LeagueConfig, NBA_CONFIG, chips_for_rank as _league_chips_for_rank
 from engine.lottery_sim import NBA_TEAM_NAMES
 
-# ── Constants ────────────────────────────────────────────────────────────────
+# ── Constants (NBA defaults — kept for backward compatibility) ────────────────
 GAMES_BEFORE_WINDOW = 60
 GAMES_IN_WINDOW = 22
 TOTAL_GAMES = 82
@@ -16,16 +17,9 @@ BIG_BET = 25.0
 DOUBLE_THRESHOLD = 100.0   # reference line for trajectory chart only; NOT a double eligibility requirement
 PLAY_IN_BONUS = 7.5        # consolation for play-in teams that miss playoffs
 
-# Starting chips by record rank at game 60 (worst → best):
-# Ranks 1-3 → 140, 4-6 → 120, 7-9 → 100, 10-12 → 80, 13-18 → 60, 19-24 → 40, 25-30 → 20
-def _chips_for_rank(rank_0: int) -> float:
-    if rank_0 < 3:   return 140.0
-    if rank_0 < 6:   return 120.0
-    if rank_0 < 9:   return 100.0
-    if rank_0 < 12:  return 80.0
-    if rank_0 < 18:  return 60.0
-    if rank_0 < 24:  return 40.0
-    return 20.0
+def _chips_for_rank(rank_0: int, n_teams: int = 30) -> float:
+    """Starting chips by zero-based rank (0=worst), scaled to league team count."""
+    return _league_chips_for_rank(rank_0, n_teams)
 
 SAFE_PLAYOFF_COUNT = 12
 PLAY_IN_COUNT = 8
@@ -82,10 +76,10 @@ def _h2h_prob(talent_a: float, talent_b: float) -> float:
     return (wp_a * (1.0 - wp_b)) / denom if denom > 0.0 else 0.5
 
 
-def _simulate_60_games(talent: float, rng: random.Random) -> tuple[int, int]:
+def _simulate_60_games(talent: float, rng: random.Random, games_before: int = GAMES_BEFORE_WINDOW) -> tuple[int, int]:
     wp = _win_prob(talent)
-    wins = sum(1 for _ in range(GAMES_BEFORE_WINDOW) if rng.random() < wp)
-    return wins, GAMES_BEFORE_WINDOW - wins
+    wins = sum(1 for _ in range(games_before) if rng.random() < wp)
+    return wins, games_before - wins
 
 
 def _pick_bet(chips: float, strategy: str, rng: random.Random,
@@ -162,16 +156,16 @@ def simulate_chip_window_league(
     seasons: int = 10,
     seed: Optional[int] = None,
     strategy: str = "standard",
+    league: Optional[LeagueConfig] = None,
 ) -> SimResult:
     """
-    Simulate seasons × 30-team league with the Bid Standardization chip window.
+    Simulate seasons × n-team league with the Bid Standardization chip window.
 
     Mechanics (paper-accurate):
-    ─ ALL 30 teams participate in the chip pool.
-    ─ 22-night chip window: each night, 30 teams are randomly paired into
-      15 head-to-head matchups. Home/away is randomly assigned.
-    ─ Starting chips by record at G60:
-        Worst 3 → 140, next 3 → 120, next 3 → 100, next 3 → 80, next 6 → 60, next 6 → 40, best 6 → 20.
+    ─ ALL n teams participate in the chip pool.
+    ─ chip_window_length-night chip window: each night, teams are randomly paired.
+    ─ Starting chips by record at game chip_window_start:
+        Scaled proportionally to 7 tiers [140/120/100/80/60/40/20].
     ─ Pot mechanic: both teams announce wagers; winner gains opponent's wager
       (net); loser loses own wager. Chips clamped at MIN_BET (10) — never negative.
     ─ Analytics bidding: bets use 2-decimal precision to minimise ties.
@@ -179,14 +173,23 @@ def simulate_chip_window_league(
     ─ Double: home team may declare their pre-assigned home night as the double.
       Both teams wager normally; the winner earns 2× the opponent's wager (payout
       multiplier only). Loser's own deduction stays at 1×.
-    ─ Draft order: 14 lottery teams sorted by chips DESC → Pick 1–14.
-      Fully deterministic. Picks 15–30 by record.
+    ─ Draft order: lottery teams sorted by chips DESC → Pick 1..n_lottery.
+      Fully deterministic. Remaining picks by record.
     ─ Strategy assignments:
         Lottery   → user-selected strategy
         Play-In   → always aggressive (dual incentive: seeding + chips)
         Safe PO   → conservative by default; ~25% are "pick swap holders"
                     who bid aggressively vs. lottery opponents
     """
+    lg = league or NBA_CONFIG
+    n_teams          = lg.num_teams
+    games_before_wnd = lg.chip_window_start
+    games_in_wnd     = lg.chip_window_length
+    playoff_count    = lg.playoff_spots
+    safe_count       = lg.safe_playoff_count
+    play_in_count    = lg.play_in_count
+    team_names       = lg.team_names
+
     if strategy not in VALID_STRATEGIES:
         strategy = "standard"
     if seed is None:
@@ -196,13 +199,13 @@ def simulate_chip_window_league(
 
     # Initial talent distribution: gauss(50,10) clipped [18,76]
     talents: list[float] = []
-    for _ in range(30):
+    for _ in range(n_teams):
         talents.append(max(18.0, min(76.0, rng.gauss(50, 10))))
     talents.sort(reverse=True)
 
-    titles: dict[int, int]        = {i: 0   for i in range(30)}
-    playoff_apps: dict[int, int]  = {i: 0   for i in range(30)}
-    total_chips_sum: dict[int, float] = {i: 0.0 for i in range(30)}
+    titles: dict[int, int]        = {i: 0   for i in range(n_teams)}
+    playoff_apps: dict[int, int]  = {i: 0   for i in range(n_teams)}
+    total_chips_sum: dict[int, float] = {i: 0.0 for i in range(n_teams)}
 
     season_summaries: list[SeasonSummary] = []
 
@@ -210,12 +213,12 @@ def simulate_chip_window_league(
 
         # ── Build team records for this season ──────────────────────────────
         team_data: list[dict] = []
-        for i in range(30):
+        for i in range(n_teams):
             t = max(18.0, min(76.0, talents[i] + rng.gauss(0, 2.5)))
-            w60, l60 = _simulate_60_games(t, rng)
+            w60, l60 = _simulate_60_games(t, rng, games_before=games_before_wnd)
             team_data.append({
                 "id":              i,
-                "name":            NBA_TEAM_NAMES[i],
+                "name":            team_names[i] if i < len(team_names) else f"Team {i}",
                 "talent":          round(t, 1),
                 "wins_60":         w60,
                 "losses_60":       l60,
@@ -250,12 +253,12 @@ def simulate_chip_window_league(
                 "behavior_shift":      0.0,   # talent boost during chip window (lottery only)
             })
 
-        # ── Classify status by wins through game 60 ──────────────────────────
+        # ── Classify status by wins through game chip_window_start ─────────
         by_wins = sorted(team_data, key=lambda t: t["wins_60"], reverse=True)
         for rank, td in enumerate(by_wins):
-            if rank < SAFE_PLAYOFF_COUNT:
+            if rank < safe_count:
                 td["status"] = STATUS_SAFE
-            elif rank < PLAYOFF_COUNT:
+            elif rank < playoff_count:
                 td["status"] = STATUS_PLAYIN
             else:
                 td["status"] = STATUS_LOTTERY
@@ -284,7 +287,7 @@ def simulate_chip_window_league(
             key=lambda t: (t["wins_60"], -t.get("losses_60", 0), t["id"]),
         )
         for rank_0, td in enumerate(by_wins_asc):
-            start = _chips_for_rank(rank_0)
+            start = _chips_for_rank(rank_0, n_teams)
             td["chips_start"] = start
             td["chips_end"]   = start
 
@@ -333,16 +336,18 @@ def simulate_chip_window_league(
         # store a target fatigue fraction and resolve actual nights after pairings.
         _FATIGUE_FRAC = 0.30
 
-        # ── Build 22-night random pairings ───────────────────────────────────
+        # ── Build chip-window-length night random pairings ───────────────────
         ids = [td["id"] for td in team_data]
         team_by_id = {td["id"]: td for td in team_data}
 
+        # For odd-team leagues, one team gets a bye each night (the last in the shuffle)
+        pair_count = n_teams // 2
         night_pairings: list[list[tuple[int, int]]] = []
-        for _ in range(GAMES_IN_WINDOW):
+        for _ in range(games_in_wnd):
             shuffled = ids[:]
             rng.shuffle(shuffled)
             pairs: list[tuple[int, int]] = []
-            for i in range(0, 30, 2):
+            for i in range(0, pair_count * 2, 2):
                 a, b = shuffled[i], shuffled[i + 1]
                 home = a if rng.random() < 0.5 else b
                 away = b if home == a else a
@@ -367,8 +372,8 @@ def simulate_chip_window_league(
         # 22 chip-window nights as fatigue/rest nights.
         for td in team_data:
             if td["status"] == STATUS_SAFE:
-                all_nights = list(range(GAMES_IN_WINDOW))
-                k = max(1, round(GAMES_IN_WINDOW * _FATIGUE_FRAC))
+                all_nights = list(range(games_in_wnd))
+                k = max(1, round(games_in_wnd * _FATIGUE_FRAC))
                 td["fatigue_nights"] = sorted(rng.sample(all_nights, k))
 
         # ── Chip window simulation (night-by-night) ──────────────────────────
@@ -675,16 +680,16 @@ def simulate_chip_window_league(
         ))
 
         # ── Talent evolution (season-to-season) ──────────────────────────────
-        for i in range(30):
+        for i in range(n_teams):
             talents[i] = max(18.0, min(76.0, talents[i] + rng.gauss(0, 1.5)))
 
     # ── Cumulative leaderboard ───────────────────────────────────────────────
     leaderboard = []
-    for i in range(30):
+    for i in range(n_teams):
         avg_chips = round(total_chips_sum[i] / seasons, 1)
         leaderboard.append({
             "id":       i,
-            "name":     NBA_TEAM_NAMES[i],
+            "name":     team_names[i] if i < len(team_names) else f"Team {i}",
             "titles":   titles[i],
             "playoffs": playoff_apps[i],
             "avg_chips": avg_chips,
@@ -853,13 +858,14 @@ def result_to_json(result: SimResult) -> dict:
                 "behavior_shift":      td.get("behavior_shift", 0.0),
             })
 
+        champion_name_map = {td["id"]: td["name"] for td in s.teams}
         seasons_json.append({
             "season_num":    s.season_num,
             "teams":         teams_json,
             "champion_id":   s.champion_id,
-            "champion_name": NBA_TEAM_NAMES[s.champion_id],
+            "champion_name": champion_name_map.get(s.champion_id, f"Team {s.champion_id}"),
             "playoff_ids":   s.playoff_ids,
-            "schedule":      s.schedule,   # 22 nights × 15 matchups
+            "schedule":      s.schedule,   # games_in_wnd nights × (n_teams/2) matchups
         })
 
     return {

@@ -5,6 +5,8 @@ import random
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
+from engine.leagues import LeagueConfig, NBA_CONFIG
+
 
 NUM_TEAMS = 30
 PLAYOFF_SPOTS = 16
@@ -39,6 +41,8 @@ class DraftConstraints:
     top1_history: dict[int, list[int]] = field(default_factory=dict)   # team_id -> [years since pick]
     top3_history: dict[int, list[int]] = field(default_factory=dict)   # team_id -> [years since pick]
     current_year: int = 0
+    playoff_spots: int = PLAYOFF_SPOTS
+    num_teams: int = NUM_TEAMS
 
 
 @dataclass
@@ -132,7 +136,8 @@ def weighted_lottery_draw(
 def _non_playoff_teams(season: SeasonResult, num_playoff: int = PLAYOFF_SPOTS) -> list[tuple[int, int, int]]:
     """Return lottery teams sorted worst-to-best (worst record first)."""
     sorted_standings = sorted(season.standings, key=lambda x: x[1])  # ascending wins
-    return sorted_standings[:NUM_TEAMS - num_playoff]
+    n_lottery = max(1, len(sorted_standings) - num_playoff)
+    return sorted_standings[:n_lottery]
 
 
 def _rank_by_wins_asc(season: SeasonResult, team_id: int) -> int:
@@ -152,13 +157,27 @@ def _rank_by_wins_asc(season: SeasonResult, team_id: int) -> int:
 NBA_ODDS = [14.0, 14.0, 14.0, 12.5, 10.5, 9.0, 7.5, 6.0, 4.5, 3.0, 2.0, 1.5, 1.0, 0.5]
 
 
+def _adapt_odds(odds: list[float], n: int) -> list[float]:
+    """Scale a fixed-length odds array to any lottery team count n.
+
+    Truncates if n < len(odds); pads by repeating the minimum value when n > len(odds).
+    The returned list is NOT normalised — callers pass them as weights to weighted_lottery_draw.
+    """
+    if n <= len(odds):
+        return odds[:n]
+    # Extend: repeat the last (smallest) value for extra teams
+    extension = [odds[-1]] * (n - len(odds))
+    return list(odds) + extension
+
+
 class CurrentNBA:
     name = "Current NBA"
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        lottery = _non_playoff_teams(season)  # worst first
-        weights = {lottery[i][0]: NBA_ODDS[i] for i in range(len(lottery))}
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)  # worst first
+        adapted = _adapt_odds(NBA_ODDS, len(lottery))
+        weights = {lottery[i][0]: adapted[i] for i in range(len(lottery))}
         lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
         wins_map = {t[0]: t[1] for t in lottery}
@@ -189,7 +208,7 @@ class FlatBottom:
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        lottery = _non_playoff_teams(season)
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)
         weights = {t[0]: 1.0 for t in lottery}
         lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
@@ -211,7 +230,7 @@ class PlayInBoost:
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        lottery = _non_playoff_teams(season)  # worst first
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)  # worst first
         n = len(lottery)
         play_in_count = min(PLAY_IN_SLOTS, n)
         floor_count = n - play_in_count
@@ -289,7 +308,7 @@ class UEFACoefficient:
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        lottery = _non_playoff_teams(season)
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)
         weights = {}
         for tid, _, _ in lottery:
             coeff = _uefa_coefficient(tid, history)
@@ -379,7 +398,7 @@ class RCL:
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        lottery = _non_playoff_teams(season)
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)
         base_weights: dict[int, float] = {}
         for tid, wins, _ in lottery:
             coeff = _rcl_coefficient(tid, history)
@@ -437,15 +456,7 @@ class LotteryTournament:
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        lottery = _non_playoff_teams(season)
-        # Bottom 8 play single-elim tournament; winner gets #1 pick
-        bottom8 = lottery[:8]  # worst 8
-        top6 = lottery[8:]     # best 6 non-playoff teams
-
-        # Simulate tournament: each matchup won probabilistically
-        # Teams with better records are slightly more likely to win
-        tournament_bracket = [t[0] for t in bottom8]
-        rng.shuffle(tournament_bracket)
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)
 
         def get_wins(tid):
             for t_id, wins, _ in lottery:
@@ -455,28 +466,37 @@ class LotteryTournament:
 
         def play_game(a, b):
             wa, wb = get_wins(a), get_wins(b)
-            # Better team wins slightly more often but upset is possible
             p_a = 0.5 + (wa - wb) * 0.01
             p_a = max(0.2, min(0.8, p_a))
             return a if rng.random() < p_a else b
 
-        # Round 1: 8 -> 4
-        r1 = [play_game(tournament_bracket[i], tournament_bracket[i + 1])
-              for i in range(0, 8, 2)]
-        # Round 2: 4 -> 2
-        r2 = [play_game(r1[i], r1[i + 1]) for i in range(0, 4, 2)]
-        # Final: 2 -> 1
-        champion = play_game(r2[0], r2[1])
+        # Scale tournament to largest power-of-2 that fits the lottery pool (min 2)
+        n = len(lottery)
+        tournament_size = 2
+        while tournament_size * 2 <= min(n, 8):
+            tournament_size *= 2
 
-        # #1 pick = tournament champion
-        # #2-#8 picks by record (worst first) among other bottom-8 teams
+        bottom_t = lottery[:tournament_size]   # worst tournament_size teams enter
+        rest     = lottery[tournament_size:]   # remaining teams get picks by record
+
+        tournament_bracket = [t[0] for t in bottom_t]
+        rng.shuffle(tournament_bracket)
+
+        # Run rounds until one champion remains
+        current_round = tournament_bracket[:]
+        while len(current_round) > 1:
+            next_round = []
+            for i in range(0, len(current_round), 2):
+                winner = play_game(current_round[i], current_round[i + 1])
+                next_round.append(winner)
+            current_round = next_round
+        champion = current_round[0]
+
         losers = [t for t in tournament_bracket if t != champion]
-        losers_sorted = sorted(losers, key=get_wins)  # worst record first
+        losers_sorted = sorted(losers, key=get_wins)
+        rest_sorted = sorted([t[0] for t in rest], key=get_wins)
 
-        # top6 get picks 9-14 by record (worst first)
-        top6_sorted = sorted([t[0] for t in top6], key=get_wins)
-
-        return [champion] + losers_sorted + top6_sorted
+        return [champion] + losers_sorted + rest_sorted
 
     def tank_incentive(self, team_id, standings, history):
         if not history:
@@ -498,7 +518,7 @@ class PureInversion:
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        lottery = _non_playoff_teams(season)
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)
         # Best non-playoff team picks first, worst picks last
         # Sort by wins descending (best first)
         sorted_best_first = sorted(lottery, key=lambda t: t[1], reverse=True)
@@ -521,8 +541,7 @@ class GoldPlan:
         season = history[-1]
         # Draft order based on wins AFTER elimination from playoff contention
         # Teams with most post-elimination wins pick first
-        sorted_standings = sorted(season.standings, key=lambda x: x[1])
-        lottery = sorted_standings[:LOTTERY_TEAMS]
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)
 
         def post_elim_wins(tid):
             elim_week = season.eliminated_week.get(tid, WEEKS_PER_SEASON)
@@ -564,14 +583,13 @@ NBA_TEAM_NAMES = [
 ]
 
 
-def default_teams(seed: int | None = None) -> list[Team]:
+def default_teams(seed: int | None = None, league: LeagueConfig | None = None) -> list[Team]:
+    lg = league or NBA_CONFIG
     rng = random.Random(seed)
     teams = []
-    for i, name in enumerate(NBA_TEAM_NAMES):
-        # true_talent: normal distribution around 50
+    for i, name in enumerate(lg.team_names):
         talent = rng.gauss(50, 15)
         talent = max(10, min(90, talent))
-        # tank_propensity: skewed; most teams moderate, some high tankers
         propensity = rng.betavariate(1.5, 3.0)
         teams.append(Team(id=i, name=name, true_talent=talent, tank_propensity=propensity))
     return teams
@@ -587,14 +605,19 @@ def _win_probability(talent_a: float, talent_b: float) -> float:
     return 1.0 / (1.0 + math.exp(-diff / 8.0))
 
 
-def _playoff_probability(team_id: int, standings: list[tuple[int, int, int]], week: int) -> float:
+def _playoff_probability(
+    team_id: int,
+    standings: list[tuple[int, int, int]],
+    week: int,
+    *,
+    weeks_per_season: int = WEEKS_PER_SEASON,
+    playoff_spots: int = PLAYOFF_SPOTS,
+) -> float:
     """Sigmoid estimate of making playoffs based on current standing."""
     sorted_by_wins = sorted(standings, key=lambda x: x[1], reverse=True)
     rank = next(i + 1 for i, (tid, _, _) in enumerate(sorted_by_wins) if tid == team_id)
-    # At midseason, rank 16 has ~50% playoff odds; rank 12 ~90%, rank 20 ~10%
-    progress = week / WEEKS_PER_SEASON
-    cutoff = PLAYOFF_SPOTS
-    # As season progresses, standings solidify
+    progress = week / weeks_per_season
+    cutoff = playoff_spots
     sharpness = 1.0 + progress * 3.0
     logit = (cutoff - rank + 0.5) * sharpness * 0.4
     return 1.0 / (1.0 + math.exp(-logit))
@@ -606,12 +629,18 @@ def _compute_effort_multiplier(
     standings: list[tuple[int, int, int]],
     history: list[SeasonResult],
     week: int,
+    *,
+    weeks_per_season: int = WEEKS_PER_SEASON,
+    playoff_spots: int = PLAYOFF_SPOTS,
 ) -> float:
     """
     Effort multiplier for a team this week.
     1.0 = full effort; < 1.0 = tanking.
     """
-    playoff_p = _playoff_probability(team.id, standings, week)
+    playoff_p = _playoff_probability(
+        team.id, standings, week,
+        weeks_per_season=weeks_per_season, playoff_spots=playoff_spots,
+    )
 
     # Tank incentive: how much does losing help their lottery position?
     raw_incentive = system.tank_incentive(team.id, standings, history)
@@ -633,14 +662,18 @@ def _is_mathematically_eliminated(
     team_id: int,
     standings: list[tuple[int, int, int]],
     week: int,
+    *,
+    games_per_season: int = GAMES_PER_SEASON,
+    weeks_per_season: int = WEEKS_PER_SEASON,
+    playoff_spots: int = PLAYOFF_SPOTS,
 ) -> bool:
     """Simple playoff elimination check."""
-    games_remaining = int((GAMES_PER_SEASON / WEEKS_PER_SEASON) * (WEEKS_PER_SEASON - week))
+    games_remaining = int((games_per_season / weeks_per_season) * (weeks_per_season - week))
     current_wins = next(w for tid, w, _ in standings if tid == team_id)
     max_possible_wins = current_wins + games_remaining
 
     sorted_by_wins = sorted(standings, key=lambda x: x[1], reverse=True)
-    cutoff_wins = sorted_by_wins[PLAYOFF_SPOTS - 1][1] if len(sorted_by_wins) >= PLAYOFF_SPOTS else 0
+    cutoff_wins = sorted_by_wins[playoff_spots - 1][1] if len(sorted_by_wins) >= playoff_spots else 0
 
     return max_possible_wins < cutoff_wins
 
@@ -650,33 +683,44 @@ def simulate_season(
     system: LotterySystem,
     history: list[SeasonResult],
     rng: random.Random,
+    league: LeagueConfig | None = None,
 ) -> tuple[SeasonResult, list[list[float]]]:
     """
-    Simulate one NBA season. Returns (SeasonResult, effort_log[week][team_idx]).
+    Simulate one season. Returns (SeasonResult, effort_log[week][team_idx]).
     """
+    lg = league or NBA_CONFIG
     wins = {t.id: 0 for t in teams}
     losses = {t.id: 0 for t in teams}
     h2h: dict[tuple[int, int], tuple[int, int]] = {}
     eliminated_week: dict[int, int] = {}
     effort_log: list[list[float]] = []
 
-    games_per_week = GAMES_PER_SEASON // WEEKS_PER_SEASON
-    extra_games = GAMES_PER_SEASON % WEEKS_PER_SEASON
+    games_per_week = lg.games_per_season // lg.weeks_per_season
+    extra_games = lg.games_per_season % lg.weeks_per_season
 
-    for week in range(1, WEEKS_PER_SEASON + 1):
+    for week in range(1, lg.weeks_per_season + 1):
         # Build current standings
         standings = [(t.id, wins[t.id], losses[t.id]) for t in teams]
 
         # Compute effort multipliers
         efforts = {}
         for t in teams:
-            efforts[t.id] = _compute_effort_multiplier(t, system, standings, history, week)
+            efforts[t.id] = _compute_effort_multiplier(
+                t, system, standings, history, week,
+                weeks_per_season=lg.weeks_per_season,
+                playoff_spots=lg.playoff_spots,
+            )
 
         effort_log.append([efforts[t.id] for t in teams])
 
         # Check eliminations
         for t in teams:
-            if t.id not in eliminated_week and _is_mathematically_eliminated(t.id, standings, week):
+            if t.id not in eliminated_week and _is_mathematically_eliminated(
+                t.id, standings, week,
+                games_per_season=lg.games_per_season,
+                weeks_per_season=lg.weeks_per_season,
+                playoff_spots=lg.playoff_spots,
+            ):
                 eliminated_week[t.id] = week
 
         # Simulate games this week
@@ -735,18 +779,20 @@ def simulate_run(
     system: LotterySystem,
     seasons: int = 15,
     seed: int | None = None,
+    league: LeagueConfig | None = None,
 ) -> RunResult:
+    lg = league or NBA_CONFIG
     rng = random.Random(seed)
-    teams = default_teams(seed)
+    teams = default_teams(seed, league=lg)
     history: list[SeasonResult] = []
     draft_orders: list[list[int]] = []
     all_effort_logs: list[list[list[float]]] = []
-    constraints = DraftConstraints()
+    constraints = DraftConstraints(playoff_spots=lg.playoff_spots, num_teams=lg.num_teams)
 
     # Slowly evolve team talents over years (player development / free agency)
     for year in range(seasons):
         constraints.current_year = year
-        season_result, effort_log = simulate_season(teams, system, history, rng)
+        season_result, effort_log = simulate_season(teams, system, history, rng, league=lg)
         history.append(season_result)
         all_effort_logs.append(effort_log)
 
@@ -794,19 +840,23 @@ def _gini(values: list[float]) -> float:
     return (fair_area - area) / fair_area if fair_area > 0 else 0.0
 
 
-def compute_metrics(run: RunResult, teams: list[Team]) -> MetricsBundle:
+def compute_metrics(run: RunResult, teams: list[Team], league: LeagueConfig | None = None) -> MetricsBundle:
+    lg = league or NBA_CONFIG
     seasons = run.seasons
     draft_orders = run.draft_orders
     team_ids = run.team_ids
+    n_teams = len(team_ids)
+    weeks_per_season = lg.weeks_per_season
 
     # --- Late-season effort ---
     late_effort_vals = []
     early_effort_vals = []
     for s_idx, effort_log in enumerate(run.effort_log):
         season = seasons[s_idx]
-        # Bottom 6 teams by wins
+        # Bottom 6 teams by wins (or bottom 20% if small league)
+        bottom_n = max(2, n_teams // 5)
         sorted_stands = sorted(season.standings, key=lambda x: x[1])
-        bottom6_ids = {t[0] for t in sorted_stands[:6]}
+        bottom6_ids = {t[0] for t in sorted_stands[:bottom_n]}
 
         for week_idx, week_efforts in enumerate(effort_log):
             for t_idx, eff in enumerate(week_efforts):
@@ -814,9 +864,11 @@ def compute_metrics(run: RunResult, teams: list[Team]) -> MetricsBundle:
                 if tid not in bottom6_ids:
                     continue
                 week_num = week_idx + 1
-                if week_num >= WEEKS_PER_SEASON - 7:  # last ~20 games
+                late_cutoff = max(1, weeks_per_season - 7)
+                early_cutoff = max(1, weeks_per_season - 12)
+                if week_num >= late_cutoff:  # last portion of season
                     late_effort_vals.append(eff)
-                elif week_num <= 19:  # first ~62 games
+                elif week_num <= early_cutoff:  # first portion
                     early_effort_vals.append(eff)
 
     late_avg = sum(late_effort_vals) / len(late_effort_vals) if late_effort_vals else 0.5
@@ -893,23 +945,22 @@ def compute_metrics(run: RunResult, teams: list[Team]) -> MetricsBundle:
         for tid in team_ids
     }
 
-    # --- Effort by week (avg across all seasons, bottom-6 teams only) ---
+    # --- Effort by week (avg across all seasons, bottom teams only) ---
     effort_by_week: list[float] = []
-    for week_idx in range(WEEKS_PER_SEASON):
+    for week_idx in range(weeks_per_season):
         week_effs = []
         for s_idx2, effort_log in enumerate(run.effort_log):
             if week_idx < len(effort_log):
-                # Identify bottom-6 teams for this specific season
                 season_b6 = {
-                    t[0] for t in sorted(seasons[s_idx2].standings, key=lambda x: x[1])[:6]
+                    t[0] for t in sorted(seasons[s_idx2].standings, key=lambda x: x[1])[:max(2, n_teams // 5)]
                 }
                 for t_idx, eff in enumerate(effort_log[week_idx]):
                     if team_ids[t_idx] in season_b6:
                         week_effs.append(eff)
         effort_by_week.append(sum(week_effs) / len(week_effs) if week_effs else 1.0)
 
-    # --- Win distribution by rank (avg wins of rank-1..NUM_TEAMS teams) ---
-    rank_wins: list[list[float]] = [[] for _ in range(NUM_TEAMS)]
+    # --- Win distribution by rank (avg wins of rank-1..n_teams teams) ---
+    rank_wins: list[list[float]] = [[] for _ in range(n_teams)]
     for season in seasons:
         sorted_wins = sorted([w for _, w, _ in season.standings], reverse=True)
         for rank, wins in enumerate(sorted_wins):
@@ -958,18 +1009,22 @@ def monte_carlo(
     runs: int = 100,
     seasons: int = 15,
     seed: int | None = None,
+    league: LeagueConfig | None = None,
 ) -> MetricsBundle:
     """
     Run Monte Carlo simulation and average the MetricsBundles.
     """
+    lg = league or NBA_CONFIG
+    n_teams = lg.num_teams
+    weeks_per_season = lg.weeks_per_season
     rng_seed = seed
 
     all_metrics: list[MetricsBundle] = []
     for run_idx in range(runs):
         run_seed = (rng_seed + run_idx) if rng_seed is not None else None
-        run_result = simulate_run(system, seasons=seasons, seed=run_seed)
-        teams = default_teams(run_seed)
-        metrics = compute_metrics(run_result, teams)
+        run_result = simulate_run(system, seasons=seasons, seed=run_seed, league=lg)
+        teams = default_teams(run_seed, league=lg)
+        metrics = compute_metrics(run_result, teams, league=lg)
         all_metrics.append(metrics)
 
     def avg(key):
@@ -977,13 +1032,13 @@ def monte_carlo(
 
     # Average effort_by_week
     avg_effort_by_week = []
-    for week_idx in range(WEEKS_PER_SEASON):
+    for week_idx in range(weeks_per_season):
         week_vals = [m.effort_by_week[week_idx] for m in all_metrics if week_idx < len(m.effort_by_week)]
         avg_effort_by_week.append(sum(week_vals) / len(week_vals) if week_vals else 1.0)
 
     # Average pick_distribution per slot (5 slots per team)
     avg_pick_dist: dict[int, list[float]] = {}
-    for i in range(NUM_TEAMS):
+    for i in range(n_teams):
         slot_avgs = []
         for slot_idx in range(5):
             pcts = [m.pick_distribution.get(i, [0.0] * 5)[slot_idx] for m in all_metrics]
@@ -992,19 +1047,19 @@ def monte_carlo(
 
     # Average avg_wins_by_rank
     avg_wins_by_rank: list[float] = []
-    for rank in range(NUM_TEAMS):
+    for rank in range(n_teams):
         vals = [m.avg_wins_by_rank[rank] for m in all_metrics if rank < len(m.avg_wins_by_rank)]
         avg_wins_by_rank.append(round(sum(vals) / len(vals), 1) if vals else 0.0)
 
     # Average avg_wins_by_team
     avg_wins_by_team_mc: dict[int, float] = {}
-    for i in range(NUM_TEAMS):
+    for i in range(n_teams):
         vals = [m.avg_wins_by_team.get(i, 0.0) for m in all_metrics]
         avg_wins_by_team_mc[i] = round(sum(vals) / len(vals), 1) if vals else 0.0
 
     # Average pick1_by_team
     avg_pick1_by_team: dict[int, float] = {}
-    for i in range(NUM_TEAMS):
+    for i in range(n_teams):
         vals = [m.pick1_by_team.get(i, 0.0) for m in all_metrics]
         avg_pick1_by_team[i] = round(sum(vals) / len(vals), 2) if vals else 0.0
 
@@ -1159,7 +1214,7 @@ class ChipWindow:
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        lottery = _non_playoff_teams(season)  # worst first (rank 0 = worst record)
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)  # worst first (rank 0 = worst record)
         n = len(lottery)
 
         # Quintile starting chips by record rank (worst first, exactly 6 per bucket).
@@ -1208,13 +1263,14 @@ class TheWheel:
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        lottery = _non_playoff_teams(season)  # worst first
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)  # worst first
         year = constraints.current_year
+        n_teams = constraints.num_teams
 
-        # Each team's wheel slot for this year: (team_id + year) % 30
+        # Each team's wheel slot for this year: (team_id + year) % n_teams
         # Lower slot = earlier pick
         def wheel_slot(tid):
-            return (tid + year) % 30
+            return (tid + year) % n_teams
 
         # Sort lottery teams by wheel slot ascending (lowest slot = pick 1)
         sorted_by_slot = sorted(lottery, key=lambda t: wheel_slot(t[0]))
@@ -1239,8 +1295,9 @@ class LegacyNBA:
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        lottery = _non_playoff_teams(season)  # worst first
-        weights = {lottery[i][0]: LEGACY_NBA_ODDS[i] for i in range(len(lottery))}
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)  # worst first
+        adapted = _adapt_odds(LEGACY_NBA_ODDS, len(lottery))
+        weights = {lottery[i][0]: adapted[i] for i in range(len(lottery))}
         lottery_picks = weighted_lottery_draw(weights, min(LEGACY_LOTTERY_PICKS, len(weights)), rng)
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
         wins_map = {t[0]: t[1] for t in lottery}
@@ -1272,7 +1329,7 @@ class EqualOdds:
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        lottery = _non_playoff_teams(season)  # worst first
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)  # worst first
         # Picks 1-4 drawn by equal-weight lottery from all 14 teams.
         # Picks 5-14 go strictly by record (worst first).
         weights = {t[0]: 1.0 for t in lottery}
@@ -1296,7 +1353,7 @@ class TopFourOnly:
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        lottery = _non_playoff_teams(season)  # worst first
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)  # worst first
         # Only the 4 worst teams enter a weighted lottery for picks 1-4.
         # Worst team gets the highest weight (rank 1=4pts, rank 2=3pts, rank 3=2pts, rank 4=1pt).
         # Teams 5-14 receive picks 5-14 strictly by record.

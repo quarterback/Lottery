@@ -10,11 +10,12 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Kind**: Python/FastAPI web app (not a React artifact)
 - **Preview path**: `/` (port 21381)
 - **Workflow**: "Lottery Lab" — runs `cd artifacts/lottery-lab && uvicorn main:app --host 0.0.0.0 --port 21381 --reload`
-- **Purpose**: NBA draft lottery scenario simulator comparing 8 systems via Monte Carlo simulations
-- **Features**: System comparison, per-slot pick distributions, sortable tables, historical NBA seasons mode (2000-01 through 2025-26)
+- **Purpose**: Multi-sport draft lottery simulator comparing 13 systems via Monte Carlo + Chip Window head-to-head bidding simulator
+- **Features**: League selector (NBA/NHL/MLB/WNBA/PWHL/MLS), system comparison, per-slot pick distributions, sortable tables, historical NBA seasons mode (2000-01 through 2025-26), chip window simulator
 - **Stack**: Python 3.11, FastAPI, Jinja2 templates, inline SVG charts, Bloomberg terminal dark theme CSS
-- **Key files**: `engine/lottery_sim.py` (sim engine), `web/router.py` (FastAPI routes), `web/templates/` (Jinja2), `data/historical_seasons.py` (26 seasons of data)
+- **Key files**: `engine/lottery_sim.py` (sim engine), `engine/leagues.py` (LeagueConfig + 6 league defs), `engine/chip_window_sim.py` (chip window sim), `web/router.py` (FastAPI routes), `web/templates/` (Jinja2), `data/historical_seasons.py` (26 seasons of data)
 - **Tests**: 21 tests in `tests/test_lottery_sim.py`, all passing
+- **Multi-sport**: All 13 lottery systems scale to any league's team/playoff count. `_adapt_odds()` clips/pads NBA_ODDS arrays for non-14 lottery pools. `LotteryTournament` scales to nearest power-of-2 bracket. Chip window uses `chips_for_rank()` from `leagues.py` with 7-tier proportional breakpoints.
 - **Note**: The `artifacts/lottery-lab: web` workflow (auto-created by the artifact system for Vite) should remain NOT STARTED — uvicorn handles the server via the "Lottery Lab" workflow
 
 ## Stack

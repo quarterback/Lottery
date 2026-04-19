@@ -46,6 +46,19 @@
         <span class="field-hint" id="strategy-hint">Adaptive: wager scales 10–25 with chip position</span>
         <input type="hidden" id="cw-strategy" value="standard">
       </div>
+      <div class="field" style="min-width:260px">
+        <label>League</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px" id="cw-league-pills">
+          <button type="button" class="pill-btn pill-active" data-league="nba" onclick="selectCwLeague(this)">NBA</button>
+          <button type="button" class="pill-btn" data-league="nhl" onclick="selectCwLeague(this)">NHL</button>
+          <button type="button" class="pill-btn" data-league="mlb" onclick="selectCwLeague(this)">MLB</button>
+          <button type="button" class="pill-btn" data-league="wnba" onclick="selectCwLeague(this)">WNBA</button>
+          <button type="button" class="pill-btn" data-league="pwhl" onclick="selectCwLeague(this)">PWHL</button>
+          <button type="button" class="pill-btn" data-league="mls" onclick="selectCwLeague(this)">MLS</button>
+        </div>
+        <input type="hidden" id="cw-league" value="nba">
+        <span class="field-hint">Scales team count, schedule, and playoff spots</span>
+      </div>
       <div>
         <button type="button" class="btn btn-primary" id="cw-run-btn" onclick="runSim()">
           Run Simulation →
@@ -313,6 +326,12 @@ function selectStrategy(val) {
   });
 }
 
+function selectCwLeague(btn) {
+  document.querySelectorAll('#cw-league-pills .pill-btn').forEach(b => b.classList.remove('pill-active'));
+  btn.classList.add('pill-active');
+  document.getElementById('cw-league').value = btn.dataset.league;
+}
+
 // ── Fetch + run ──────────────────────────────────────────────────────────────
 
 async function runSim() {
@@ -324,10 +343,12 @@ async function runSim() {
   const seasons = document.getElementById('cw-seasons').value;
   const seed = document.getElementById('cw-seed').value;
   const strategy = document.getElementById('cw-strategy').value;
+  const league = document.getElementById('cw-league').value;
 
   const body = new URLSearchParams();
   body.append('seasons', seasons);
   body.append('strategy', strategy);
+  body.append('league', league);
   if (seed.trim()) body.append('seed', seed.trim());
 
   try {
