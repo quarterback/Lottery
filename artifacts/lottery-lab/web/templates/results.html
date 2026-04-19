@@ -140,14 +140,14 @@
           </thead>
           <tbody>
             {% for row in rows %}
-            {% if loop.index == 17 %}
+            {% if loop.index == playoff_spots + 1 %}
             <tr>
               <td colspan="6" style="text-align:center;color:var(--fg-faint);font-size:9px;padding:4px;border-top:2px dashed var(--border-2);">
                 ── lottery eligible ──
               </td>
             </tr>
             {% endif %}
-            <tr {% if loop.index > 16 %}style="color:var(--fg-dim)"{% endif %}>
+            <tr {% if loop.index > playoff_spots %}style="color:var(--fg-dim)"{% endif %}>
               <td style="color:var(--fg-faint)">{{ loop.index }}</td>
               <td style="text-align:left;color:var(--fg)">{{ row.name }}</td>
               <td>{{ row.avg_wins }}</td>

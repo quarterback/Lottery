@@ -581,6 +581,7 @@ async def simulate(
             "systems": [s.name for s in ALL_SYSTEMS],
             "league": league,
             "league_name": lg.name,
+            "playoff_spots": lg.playoff_spots,
             "leagues": {k: v.name for k, v in LEAGUES.items()},
         },
     )
@@ -709,6 +710,7 @@ async def historical_form(request: Request):
             "explainers": {name: SYSTEM_EXPLAINERS.get(name, {}) for name in system_names},
             "show_historical": True,
             "season_keys": SEASON_KEYS,
+            "leagues": {k: v.name for k, v in LEAGUES.items()},
         },
     )
 
@@ -731,6 +733,7 @@ async def historical_run(
                 "explainers": {s.name: SYSTEM_EXPLAINERS.get(s.name, {}) for s in ALL_SYSTEMS},
                 "show_historical": True,
                 "season_keys": SEASON_KEYS,
+                "leagues": {k: v.name for k, v in LEAGUES.items()},
                 "error": f"Unknown season: {season_key}",
             },
         )

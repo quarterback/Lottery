@@ -142,13 +142,13 @@ def _non_playoff_teams(season: SeasonResult, num_playoff: int = PLAYOFF_SPOTS) -
     return sorted_standings[:n_lottery]
 
 
-def _rank_by_wins_asc(season: SeasonResult, team_id: int) -> int:
-    """Return lottery rank of team_id (1 = worst record, 14 = best non-playoff)."""
-    lottery = _non_playoff_teams(season)
+def _rank_by_wins_asc(season: SeasonResult, team_id: int, playoff_spots: int = PLAYOFF_SPOTS) -> int:
+    """Return lottery rank of team_id (1 = worst record, n_lottery = best non-playoff)."""
+    lottery = _non_playoff_teams(season, playoff_spots)
     for rank, (tid, _, _) in enumerate(lottery, start=1):
         if tid == team_id:
             return rank
-    return LOTTERY_TEAMS  # fallback
+    return len(lottery) if lottery else LOTTERY_TEAMS  # fallback
 
 
 # ---------------------------------------------------------------------------
@@ -257,9 +257,11 @@ class PlayInBoost:
     def tank_incentive(self, team_id, standings, history):
         if not history:
             return 0.4
+        lottery = _non_playoff_teams(history[-1])
+        n_lottery = len(lottery)
         rank = _rank_by_wins_asc(history[-1], team_id)
-        # Play-in teams don't benefit from losing, others do somewhat
-        if rank >= LOTTERY_TEAMS - 3:
+        # Play-in teams (near best non-playoff) don't benefit from losing
+        if rank >= n_lottery - 3:
             return 0.05  # play-in team: little incentive to tank
         elif rank <= 3:
             return 0.8
@@ -280,7 +282,7 @@ def _uefa_coefficient(team_id: int, history: list[SeasonResult], playoff_spots: 
             # Made playoffs — high score
             scores.append(10.0)
             continue
-        rank = _rank_by_wins_asc(season, team_id)
+        rank = _rank_by_wins_asc(season, team_id, playoff_spots)
         lottery_teams = len(lottery)
         # Best non-playoff = 1 pt (rank n), worst = n pts (rank 1)
         base = lottery_teams + 1 - rank
@@ -346,7 +348,7 @@ def _rcl_coefficient(team_id: int, history: list[SeasonResult], playoff_spots: i
         if team_id not in lottery_ids:
             scores.append(0.0)  # playoff team gets 0 coefficient
             continue
-        rank = _rank_by_wins_asc(season, team_id)
+        rank = _rank_by_wins_asc(season, team_id, playoff_spots)
         lottery_teams = len(lottery)
         base = lottery_teams + 1 - rank
 
