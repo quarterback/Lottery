@@ -448,6 +448,7 @@ tr:hover td    { background: var(--bg-alt); }
 }
 .results-title { font-size: var(--fs-lg); color: var(--fg); font-weight: 700; }
 .results-meta  { font-size: var(--fs-sm); color: var(--fg-faint); }
+.results-league-name { font-weight: 600; color: var(--fg-dim); }
 
 .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 
