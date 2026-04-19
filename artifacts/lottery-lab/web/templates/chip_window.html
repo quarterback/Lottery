@@ -7,16 +7,15 @@
 
   <div class="results-header" style="margin-bottom:8px">
     <span class="results-title">Chip Window Simulator</span>
-    <span class="results-meta">Bid Standardization · 22-game chip window · all 30 teams</span>
+    <span class="results-meta" id="cw-meta-label">Bid Standardization · chip window · all teams</span>
   </div>
   <p style="font-size:var(--fs-sm);color:var(--fg-dim);line-height:1.7;margin-bottom:24px;max-width:760px">
-    Activates at <b>game 60</b> for all 30 teams. Starting chips are assigned by record rank:
-    worst 3 → <b>140</b>, next 3 → 120, next 3 → 100, next 3 → 80, next 6 → 60,
-    next 6 → 40, best 6 → 20 — giving the weakest teams the most firepower.
+    Activates at a configurable game threshold for all teams. Starting chips are assigned by record rank
+    across 7 tiers (140 → 20) — giving the weakest teams the most firepower.
     Chips are clamped at <b>10 minimum</b>. Every team gets one <b>double</b> — declared by choosing which
     home game to apply it. That night both teams wager normally, but the <b>winner earns 2× chips</b>
-    (double the opponent's wager). The 14 lottery teams' final chip totals
-    determine draft order directly: <b>most chips = Pick 1</b>, fewest = Pick 14.
+    (double the opponent's wager). The lottery teams' final chip totals
+    determine draft order directly: <b>most chips = Pick 1</b>.
     No lottery draw. Ties are broken by worse record. <b>Tanking is structurally impossible.</b>
   </p>
 
@@ -399,24 +398,34 @@ function renderAll() {
   seasonSlider.value = 1;
   currentSeason = 1;
 
+  const cwLen   = simData.chip_window_length || 22;
+  const cwStart = simData.chip_window_start  || 60;
+  const gSeason = simData.games_per_season   || (cwStart + cwLen);
+  const nTeams  = simData.num_teams          || 30;
+  const lgName  = simData.league_name        || 'NBA';
+
   const gameSlider = document.getElementById('game-slider');
-  gameSlider.max = 22;
-  gameSlider.value = 22;
-  currentGame = 22;
-  document.getElementById('game-slider-label').textContent = 'G82';
+  gameSlider.max = cwLen;
+  gameSlider.value = cwLen;
+  currentGame = cwLen;
+  document.getElementById('game-slider-label').textContent = 'G' + gSeason;
   document.getElementById('game-delta-label').textContent = 'Final standings';
+
+  // Update page meta label with league-specific info
+  const metaEl = document.getElementById('cw-meta-label');
+  if (metaEl) metaEl.textContent = 'Bid Standardization · ' + lgName + ' · ' + cwLen + '-game chip window · all ' + nTeams + ' teams';
 
   document.getElementById('sim-summary').style.display = 'block';
   document.getElementById('summary-text').textContent =
     sc + ' seasons · seed ' + simData.seed + ' · ' + (simData.strategy || 'standard') +
-    ' strategy (lottery) · 30 teams · 22-game window · wagers 10–25 chips';
+    ' strategy (lottery) · ' + lgName + ' · ' + nTeams + ' teams · ' + cwLen + '-game window · wagers 10–25 chips';
 
   document.getElementById('season-nav-wrap').style.display = 'block';
   document.getElementById('standings-section').style.display = 'block';
   document.getElementById('lb-rule').style.display = 'block';
   document.getElementById('leaderboard-section').style.display = 'block';
 
-  renderSeason(1, 22);
+  renderSeason(1, cwLen);
   renderSeasonSummary(1);
   renderLeaderboard();
   renderAnalytics();
@@ -452,7 +461,7 @@ function renderSeasonSummary(seasonNum) {
           winner:   m.home_won ? m.home_name : m.away_name,
           loser:    m.home_won ? m.away_name : m.home_name,
           gain,
-          game:     61 + ni,
+          game:     ((simData && simData.chip_window_start) || 60) + 1 + ni,
           isDouble: !!(m.home_double || m.away_double),
         };
       }
@@ -478,7 +487,7 @@ function renderSeasonSummary(seasonNum) {
     const curr = t.chip_trajectory?.[ni] ?? prev;
     const delta = curr - prev;
     if (topDouble === null || delta > topDouble.delta) {
-      topDouble = { name: t.name, delta, game: 61 + ni };
+      topDouble = { name: t.name, delta, game: ((simData && simData.chip_window_start) || 60) + 1 + ni };
     }
   });
   const doubleEl = document.getElementById('sscard-double');
@@ -503,10 +512,13 @@ function renderSeasonSummary(seasonNum) {
 
 function onGameSlide(val) {
   currentGame = parseInt(val);
-  const gameLabel = 60 + currentGame;
+  const cwStart  = (simData && simData.chip_window_start)  || 60;
+  const cwLen    = (simData && simData.chip_window_length)  || 22;
+  const gSeason  = (simData && simData.games_per_season)   || 82;
+  const gameLabel = cwStart + currentGame;
   document.getElementById('game-slider-label').textContent = 'G' + gameLabel;
   document.getElementById('game-delta-label').textContent =
-    currentGame === 22 ? 'Final standings' : `After game ${gameLabel} of 82`;
+    currentGame === cwLen ? 'Final standings' : `After game ${gameLabel} of ${gSeason}`;
   renderSeason(currentSeason, currentGame);
 }
 
@@ -844,7 +856,7 @@ function renderAnalytics() {
           : m.away_chips_after - m.away_chips_before;
         swings.push({
           season:   si + 1,
-          game:     61 + ni,
+          game:     ((simData && simData.chip_window_start) || 60) + 1 + ni,
           winner:   m.home_won ? m.home_name : m.away_name,
           loser:    m.home_won ? m.away_name : m.home_name,
           gain,

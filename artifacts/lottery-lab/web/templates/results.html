@@ -6,7 +6,7 @@
 
   <div class="results-header">
     <span class="results-title">Simulation Results</span>
-    <span class="results-meta">{{ runs }} runs × {{ seasons }} seasons · {{ elapsed }}s</span>
+    <span class="results-meta">{{ league_name }} · {{ runs }} runs × {{ seasons }} seasons · {{ elapsed }}s</span>
     <a href="/" class="btn btn-secondary" style="margin-left:auto;padding:6px 14px;font-size:11px;">← New Run</a>
   </div>
 
@@ -356,6 +356,7 @@
     <form method="POST" action="/simulate" id="rerun-form" style="display:inline;">
       <input type="hidden" name="runs" value="{{ runs }}">
       <input type="hidden" name="seasons" value="{{ seasons }}">
+      <input type="hidden" name="league" value="{{ league }}">
       {% for s in selected_systems %}
       <input type="hidden" name="systems" value="{{ s }}">
       {% endfor %}

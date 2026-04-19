@@ -148,6 +148,12 @@ class SimResult:
     seed: int
     seasons_count: int
     strategy: str = "standard"
+    league_id: str = "nba"
+    league_name: str = "NBA"
+    num_teams: int = 30
+    chip_window_start: int = 60
+    chip_window_length: int = 22
+    games_per_season: int = 82
 
 
 # ── Main simulation ──────────────────────────────────────────────────────────
@@ -697,11 +703,17 @@ def simulate_chip_window_league(
     leaderboard.sort(key=lambda r: (r["titles"], r["playoffs"]), reverse=True)
 
     return SimResult(
-        seasons       = season_summaries,
-        leaderboard   = leaderboard,
-        seed          = seed,
-        seasons_count = seasons,
-        strategy      = strategy,
+        seasons            = season_summaries,
+        leaderboard        = leaderboard,
+        seed               = seed,
+        seasons_count      = seasons,
+        strategy           = strategy,
+        league_id          = lg.id,
+        league_name        = lg.name,
+        num_teams          = n_teams,
+        chip_window_start  = games_before_wnd,
+        chip_window_length = games_in_wnd,
+        games_per_season   = games_before_wnd + games_in_wnd,
     )
 
 
@@ -869,9 +881,15 @@ def result_to_json(result: SimResult) -> dict:
         })
 
     return {
-        "seasons":       seasons_json,
-        "leaderboard":   result.leaderboard,
-        "seed":          result.seed,
-        "seasons_count": result.seasons_count,
-        "strategy":      result.strategy,
+        "seasons":            seasons_json,
+        "leaderboard":        result.leaderboard,
+        "seed":               result.seed,
+        "seasons_count":      result.seasons_count,
+        "strategy":           result.strategy,
+        "league_id":          result.league_id,
+        "league_name":        result.league_name,
+        "num_teams":          result.num_teams,
+        "chip_window_start":  result.chip_window_start,
+        "chip_window_length": result.chip_window_length,
+        "games_per_season":   result.games_per_season,
     }

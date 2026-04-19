@@ -43,6 +43,8 @@ class DraftConstraints:
     current_year: int = 0
     playoff_spots: int = PLAYOFF_SPOTS
     num_teams: int = NUM_TEAMS
+    games_per_season: int = GAMES_PER_SEASON
+    weeks_per_season: int = WEEKS_PER_SEASON
 
 
 @dataclass
@@ -268,19 +270,20 @@ class PlayInBoost:
 # System 4: UEFA Coefficient
 # ---------------------------------------------------------------------------
 
-def _uefa_coefficient(team_id: int, history: list[SeasonResult]) -> float:
+def _uefa_coefficient(team_id: int, history: list[SeasonResult], playoff_spots: int = PLAYOFF_SPOTS) -> float:
     """Rolling 3-year weighted performance score."""
     scores = []
     for season in history[-3:]:
-        lottery = _non_playoff_teams(season)
+        lottery = _non_playoff_teams(season, playoff_spots)
         lottery_ids = [t[0] for t in lottery]
         if team_id not in lottery_ids:
             # Made playoffs — high score
             scores.append(10.0)
             continue
         rank = _rank_by_wins_asc(season, team_id)
-        # Best non-playoff = 1 pt (rank 14), worst = 10 pts (rank 1)
-        base = LOTTERY_TEAMS + 1 - rank
+        lottery_teams = len(lottery)
+        # Best non-playoff = 1 pt (rank n), worst = n pts (rank 1)
+        base = lottery_teams + 1 - rank
 
         # Tier performance: wins vs lottery teams - losses vs lottery teams
         h2h_diff = 0
@@ -311,7 +314,7 @@ class UEFACoefficient:
         lottery = _non_playoff_teams(season, constraints.playoff_spots)
         weights = {}
         for tid, _, _ in lottery:
-            coeff = _uefa_coefficient(tid, history)
+            coeff = _uefa_coefficient(tid, history, playoff_spots=constraints.playoff_spots)
             # Higher coeff (worse historical team) = better lottery odds
             weights[tid] = coeff
         lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
@@ -334,17 +337,18 @@ class UEFACoefficient:
 # System 5: RCL (Rolling Competitive Lottery)
 # ---------------------------------------------------------------------------
 
-def _rcl_coefficient(team_id: int, history: list[SeasonResult]) -> float:
+def _rcl_coefficient(team_id: int, history: list[SeasonResult], playoff_spots: int = PLAYOFF_SPOTS) -> float:
     """LC = (Y1 * 0.5) + (Y2 * 0.3) + (Y3 * 0.2)"""
     scores = []
     for season in history[-3:]:
-        lottery = _non_playoff_teams(season)
+        lottery = _non_playoff_teams(season, playoff_spots)
         lottery_ids = [t[0] for t in lottery]
         if team_id not in lottery_ids:
             scores.append(0.0)  # playoff team gets 0 coefficient
             continue
         rank = _rank_by_wins_asc(season, team_id)
-        base = LOTTERY_TEAMS + 1 - rank  # 1-14
+        lottery_teams = len(lottery)
+        base = lottery_teams + 1 - rank
 
         h2h_diff = 0
         for other_id in lottery_ids:
@@ -401,7 +405,7 @@ class RCL:
         lottery = _non_playoff_teams(season, constraints.playoff_spots)
         base_weights: dict[int, float] = {}
         for tid, wins, _ in lottery:
-            coeff = _rcl_coefficient(tid, history)
+            coeff = _rcl_coefficient(tid, history, playoff_spots=constraints.playoff_spots)
             if wins < 20:
                 coeff *= 0.85
             base_weights[tid] = coeff
@@ -543,12 +547,13 @@ class GoldPlan:
         # Teams with most post-elimination wins pick first
         lottery = _non_playoff_teams(season, constraints.playoff_spots)
 
+        wps = constraints.weeks_per_season
+
         def post_elim_wins(tid):
-            elim_week = season.eliminated_week.get(tid, WEEKS_PER_SEASON)
+            elim_week = season.eliminated_week.get(tid, wps)
             # Wins per week estimation from total wins
             total_wins = next(w for t_id, w, _ in lottery if t_id == tid)
-            games_per_week = GAMES_PER_SEASON / WEEKS_PER_SEASON
-            wins_before_elim = total_wins * (elim_week / WEEKS_PER_SEASON)
+            wins_before_elim = total_wins * (elim_week / wps)
             post_wins = max(0, total_wins - wins_before_elim)
             return post_wins
 
@@ -787,7 +792,12 @@ def simulate_run(
     history: list[SeasonResult] = []
     draft_orders: list[list[int]] = []
     all_effort_logs: list[list[list[float]]] = []
-    constraints = DraftConstraints(playoff_spots=lg.playoff_spots, num_teams=lg.num_teams)
+    constraints = DraftConstraints(
+        playoff_spots=lg.playoff_spots,
+        num_teams=lg.num_teams,
+        games_per_season=lg.games_per_season,
+        weeks_per_season=lg.weeks_per_season,
+    )
 
     # Slowly evolve team talents over years (player development / free agency)
     for year in range(seasons):
