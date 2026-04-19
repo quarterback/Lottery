@@ -330,9 +330,9 @@ def simulate_chip_window_league(
         for td in eligible_for_streak:
             if rng.random() < 0.20:
                 td["has_hot_streak"]   = True
-                start = rng.randint(0, GAMES_IN_WINDOW - 5)     # night index 0–17
-                length = rng.randint(5, 8)
-                end = min(start + length - 1, GAMES_IN_WINDOW - 1)
+                start = rng.randint(0, max(0, games_in_wnd - 5))
+                length = rng.randint(min(5, games_in_wnd), min(8, games_in_wnd))
+                end = min(start + length - 1, games_in_wnd - 1)
                 td["hot_streak_nights"] = {"start": start, "end": end}
                 td["hot_streak_boost"]  = round(rng.uniform(0.08, 0.15), 3)
 
@@ -578,9 +578,10 @@ def simulate_chip_window_league(
                 trajectories[tid].append(round(chips[tid], 1))
 
             # ── Rally mode check (post-night) ─────────────────────────────────
-            # Flip lottery teams into rally mode if chips ≤ 20 and ≥ 10 nights remain.
-            nights_remaining = GAMES_IN_WINDOW - 1 - night_idx  # nights after this one
-            if nights_remaining >= 10:
+            # Flip lottery teams into rally mode if chips ≤ 20 and enough nights remain.
+            nights_remaining = games_in_wnd - 1 - night_idx  # nights after this one
+            rally_threshold = max(2, games_in_wnd // 2)
+            if nights_remaining >= rally_threshold:
                 for td in team_data:
                     if (td["status"] == STATUS_LOTTERY
                             and not td["rally_mode"]
@@ -659,7 +660,7 @@ def simulate_chip_window_league(
         final_sorted = sorted(team_data, key=lambda t: t["final_wins"], reverse=True)
         for rank, td in enumerate(final_sorted):
             td["final_rank"] = rank + 1
-            if rank < PLAYOFF_COUNT:
+            if rank < playoff_count:
                 td["playoff"] = True
                 playoff_apps[td["id"]] += 1
 
