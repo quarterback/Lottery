@@ -183,9 +183,11 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
 
 # ── Pre-computation helpers ────────────────────────────────────────────────
 
-def make_bar_rows(metrics: MetricsBundle, top_n: int = 14, lg: LeagueConfig | None = None) -> list[dict]:
-    """Return rows sorted by pick-1% descending. Each row includes all 5 pick slots."""
+def make_bar_rows(metrics: MetricsBundle, top_n: int | None = None, lg: LeagueConfig | None = None) -> list[dict]:
+    """Return rows sorted by pick-1% descending. Each row includes all 5 pick slots.
+    top_n defaults to the league's lottery team count (num_teams - playoff_spots)."""
     cfg = lg or NBA_CONFIG
+    n = top_n if top_n is not None else cfg.lottery_teams
     rows = []
     for team_id in range(cfg.num_teams):
         name = cfg.team_names[team_id] if team_id < len(cfg.team_names) else f"Team {team_id}"
@@ -201,7 +203,7 @@ def make_bar_rows(metrics: MetricsBundle, top_n: int = 14, lg: LeagueConfig | No
             "pick5_pct": round(slots[4] if len(slots) > 4 else 0.0, 2),
         })
     rows.sort(key=lambda r: r["pick1_pct"], reverse=True)
-    return rows[:top_n]
+    return rows[:n]
 
 
 def make_effort_bars(week_efforts: list[float], color: str, series_idx: int, n_series: int) -> list[dict]:
