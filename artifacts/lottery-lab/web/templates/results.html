@@ -2,6 +2,8 @@
 {% block title %}Lottery Lab — Results{% endblock %}
 
 {% block content %}
+{# Append " · LEAGUE" to every system badge when a non-NBA league is active #}
+{% set sys_suffix = ' · ' ~ league_name if league != 'nba' else '' %}
 <div class="mt-24">
 
   <div class="results-header">
@@ -12,7 +14,7 @@
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;">
     {% for r in results %}
-    <span class="system-badge badge-{{ loop.index0 }}">{{ r.system_name }}</span>
+    <span class="system-badge badge-{{ loop.index0 }}">{{ r.system_name }}{{ sys_suffix }}</span>
     {% endfor %}
   </div>
 
@@ -23,7 +25,7 @@
     {% if ex %}
     <div style="background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-        <span class="system-badge badge-{{ idx }}" style="font-size:10px">{{ results[idx].system_name }}</span>
+        <span class="system-badge badge-{{ idx }}" style="font-size:10px">{{ results[idx].system_name }}{{ sys_suffix }}</span>
         <span style="font-size:10px;color:var(--fg-faint);text-transform:uppercase;letter-spacing:0.1em">How it works</span>
       </div>
       <p style="font-size:var(--fs-sm);color:var(--fg-dim);line-height:1.7;margin-bottom:{% if ex.odds or ex.odds_note %}10px{% else %}0{% endif %}">
@@ -76,8 +78,8 @@
       <thead>
         <tr>
           <th style="text-align:left">Metric</th>
-          <th><span class="system-badge badge-0" style="font-size:10px">{{ results[0].system_name }}</span></th>
-          <th><span class="system-badge badge-1" style="font-size:10px">{{ results[1].system_name }}</span></th>
+          <th><span class="system-badge badge-0" style="font-size:10px">{{ results[0].system_name }}{{ sys_suffix }}</span></th>
+          <th><span class="system-badge badge-1" style="font-size:10px">{{ results[1].system_name }}{{ sys_suffix }}</span></th>
           <th>Δ (2 − 1)</th>
         </tr>
       </thead>
@@ -101,7 +103,7 @@
 
   {% else %}
   <!-- Single system metric cards -->
-  <div class="section-title">Key Metrics — {{ results[0].system_name }}</div>
+  <div class="section-title">Key Metrics — {{ results[0].system_name }}{{ sys_suffix }}</div>
   <div class="metrics-grid">
     {% for card in metric_cards %}
     <div class="metric-card">
@@ -124,7 +126,7 @@
     {% set idx = loop.index0 %}
     <div>
       {% if is_comparison %}
-      <div class="mb-8"><span class="system-badge badge-{{ idx }}">{{ results[idx].system_name }}</span></div>
+      <div class="mb-8"><span class="system-badge badge-{{ idx }}">{{ results[idx].system_name }}{{ sys_suffix }}</span></div>
       {% endif %}
       <div class="table-wrap">
         <table>
@@ -176,7 +178,7 @@
     {% set idx = loop.index0 %}
     <div class="chart-wrap">
       <div class="chart-title">
-        <span class="system-badge badge-{{ idx }}" style="font-size:10px">{{ results[idx].system_name }}</span>
+        <span class="system-badge badge-{{ idx }}" style="font-size:10px">{{ results[idx].system_name }}{{ sys_suffix }}</span>
         — % of seasons with pick #1 (lottery teams)
       </div>
       <svg viewBox="0 0 {{ svg_data.total_w }} {{ svg_data.chart_svg_h }}"
@@ -232,7 +234,7 @@
       {% for bars in effort_bars %}
       <div class="legend-item">
         <div class="legend-dot" style="background:{{ bars[0].color if bars else '#888' }}"></div>
-        {{ results[loop.index0].system_name }}
+        {{ results[loop.index0].system_name }}{{ sys_suffix }}
       </div>
       {% endfor %}
     </div>
@@ -274,7 +276,7 @@
       {% for bars in win_dist_bars %}
       <div class="legend-item">
         <div class="legend-dot" style="background:{{ bars[0].color if bars else '#888' }}"></div>
-        {{ results[loop.index0].system_name }}
+        {{ results[loop.index0].system_name }}{{ sys_suffix }}
       </div>
       {% endfor %}
     </div>
@@ -290,7 +292,7 @@
     {% set idx = loop.index0 %}
     <div>
       <div class="mb-8">
-        <span class="system-badge badge-{{ idx }}">{{ results[idx].system_name }}</span>
+        <span class="system-badge badge-{{ idx }}">{{ results[idx].system_name }}{{ sys_suffix }}</span>
       </div>
       <div class="table-wrap">
         <table class="pick-detail-table" id="pick-table-{{ idx }}" data-sort-col="0" data-sort-dir="desc">
