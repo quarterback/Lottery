@@ -48,12 +48,14 @@
       <div class="field" style="min-width:260px">
         <label>League</label>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px" id="cw-league-pills">
+          {% if leagues %}
+            {% for lid, lname in leagues.items() %}
+            <button type="button" class="pill-btn {% if loop.first %}pill-active{% endif %}"
+              data-league="{{ lid }}" onclick="selectCwLeague(this)">{{ lname }}</button>
+            {% endfor %}
+          {% else %}
           <button type="button" class="pill-btn pill-active" data-league="nba" onclick="selectCwLeague(this)">NBA</button>
-          <button type="button" class="pill-btn" data-league="nhl" onclick="selectCwLeague(this)">NHL</button>
-          <button type="button" class="pill-btn" data-league="mlb" onclick="selectCwLeague(this)">MLB</button>
-          <button type="button" class="pill-btn" data-league="wnba" onclick="selectCwLeague(this)">WNBA</button>
-          <button type="button" class="pill-btn" data-league="pwhl" onclick="selectCwLeague(this)">PWHL</button>
-          <button type="button" class="pill-btn" data-league="mls" onclick="selectCwLeague(this)">MLS</button>
+          {% endif %}
         </div>
         <input type="hidden" id="cw-league" value="nba">
         <span class="field-hint">Scales team count, schedule, and playoff spots</span>

@@ -93,6 +93,7 @@ class LotterySystem(Protocol):
         team_id: int,
         standings: list[tuple[int, int, int]],
         history: list[SeasonResult],
+        playoff_spots: int = PLAYOFF_SPOTS,
     ) -> float:
         """Return a 0-1 value: how much does losing improve lottery position for this team?"""
         ...
@@ -186,10 +187,10 @@ class CurrentNBA:
         remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first (picks 5+)
         return lottery_picks + remaining_sorted
 
-    def tank_incentive(self, team_id, standings, history):
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         if not history:
             return 0.5
-        rank = _rank_by_wins_asc(history[-1], team_id)
+        rank = _rank_by_wins_asc(history[-1], team_id, playoff_spots)
         # Higher incentive for teams near the bottom who can move up in the odds
         # Rank 1-3: huge incentive (14%), rank 4+: diminishing
         if rank <= 3:
@@ -218,7 +219,7 @@ class FlatBottom:
         remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first
         return lottery_picks + remaining_sorted
 
-    def tank_incentive(self, team_id, standings, history):
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         # Equal odds for all — very little incentive to tank
         return 0.15
 
@@ -254,12 +255,12 @@ class PlayInBoost:
         remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first
         return lottery_picks + remaining_sorted
 
-    def tank_incentive(self, team_id, standings, history):
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         if not history:
             return 0.4
-        lottery = _non_playoff_teams(history[-1])
+        lottery = _non_playoff_teams(history[-1], playoff_spots)
         n_lottery = len(lottery)
-        rank = _rank_by_wins_asc(history[-1], team_id)
+        rank = _rank_by_wins_asc(history[-1], team_id, playoff_spots)
         # Play-in teams (near best non-playoff) don't benefit from losing
         if rank >= n_lottery - 3:
             return 0.05  # play-in team: little incentive to tank
@@ -325,12 +326,12 @@ class UEFACoefficient:
         remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first
         return lottery_picks + remaining_sorted
 
-    def tank_incentive(self, team_id, standings, history):
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         if len(history) < 2:
             return 0.5
         # Losing in year 1 helps in years 2-4; diminishing returns
         # Less acute incentive than current NBA (multi-year coefficient smooths it)
-        coeff = _uefa_coefficient(team_id, history)
+        coeff = _uefa_coefficient(team_id, history, playoff_spots)
         # Higher coeff = they're already getting good odds, less incentive to tank more
         return min(0.7, coeff / 15.0)
 
@@ -445,10 +446,10 @@ class RCL:
         remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first
         return lottery_picks + remaining_sorted
 
-    def tank_incentive(self, team_id, standings, history):
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         if len(history) < 1:
             return 0.4
-        coeff = _rcl_coefficient(team_id, history)
+        coeff = _rcl_coefficient(team_id, history, playoff_spots)
         # Multi-year smoothing reduces acute tanking; hard caps reduce incentive for repeat tankers
         return min(0.6, coeff / 18.0)
 
@@ -504,10 +505,10 @@ class LotteryTournament:
 
         return [champion] + losers_sorted + rest_sorted
 
-    def tank_incentive(self, team_id, standings, history):
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         if not history:
             return 0.4
-        rank = _rank_by_wins_asc(history[-1], team_id)
+        rank = _rank_by_wins_asc(history[-1], team_id, playoff_spots)
         # To get into bottom-8 tournament, need to be in bottom 8 of lottery
         # But within tournament, winning requires some talent — tanking isn't as clean
         if rank <= 8:
@@ -530,7 +531,7 @@ class PureInversion:
         sorted_best_first = sorted(lottery, key=lambda t: t[1], reverse=True)
         return [t[0] for t in sorted_best_first]
 
-    def tank_incentive(self, team_id, standings, history):
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         # Tanking HURTS you — losing means picking later
         # Teams with this system should try hard
         return -0.5  # negative: incentive is to WIN
@@ -566,10 +567,10 @@ class GoldPlan:
         )
         return sorted_by_post_wins
 
-    def tank_incentive(self, team_id, standings, history):
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         if not history:
             return 0.3
-        rank = _rank_by_wins_asc(history[-1], team_id)
+        rank = _rank_by_wins_asc(history[-1], team_id, playoff_spots)
         # After elimination, winning helps you — complex incentive
         # Before elimination: try to make playoffs; after: try to win for better pick
         # Net effect: moderate anti-tanking incentive
@@ -650,7 +651,7 @@ def _compute_effort_multiplier(
     )
 
     # Tank incentive: how much does losing help their lottery position?
-    raw_incentive = system.tank_incentive(team.id, standings, history)
+    raw_incentive = system.tank_incentive(team.id, standings, history, playoff_spots)
 
     # If system has negative incentive (pure inversion), never tank
     if raw_incentive <= 0:
@@ -1253,12 +1254,12 @@ class ChipWindow:
         )
         return lottery_sorted
 
-    def tank_incentive(self, team_id, standings, history):
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         # Losing depletes chips at the same rate regardless of intent — structural anti-tank
         # Worst teams still hold their floor, but chips are the upside; tanking forfeits it
         if not history:
             return 0.2
-        rank = _rank_by_wins_asc(history[-1], team_id)
+        rank = _rank_by_wins_asc(history[-1], team_id, playoff_spots)
         if rank <= 3:
             return 0.2   # floor protects them but chips are destroyed by tanking
         elif rank <= 7:
@@ -1288,7 +1289,7 @@ class TheWheel:
         sorted_by_slot = sorted(lottery, key=lambda t: wheel_slot(t[0]))
         return [t[0] for t in sorted_by_slot]
 
-    def tank_incentive(self, team_id, standings, history):
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         # Completely deterministic — record has zero effect on draft position
         return 0.0
 
@@ -1316,10 +1317,10 @@ class LegacyNBA:
         remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst first (picks 4+)
         return lottery_picks + remaining_sorted
 
-    def tank_incentive(self, team_id, standings, history):
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         if not history:
             return 0.6
-        rank = _rank_by_wins_asc(history[-1], team_id)
+        rank = _rank_by_wins_asc(history[-1], team_id, playoff_spots)
         # 25% vs 19.9% vs 15.6% — big spread at top, huge incentive for #1 slot
         if rank == 1:
             return 0.95
@@ -1351,7 +1352,7 @@ class EqualOdds:
         remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst first
         return lottery_picks + remaining_sorted
 
-    def tank_incentive(self, team_id, standings, history):
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         # Equal odds for all 14 teams — no benefit from losing
         return 0.05
 
@@ -1380,10 +1381,10 @@ class TopFourOnly:
         rest_sorted = sorted([t[0] for t in rest], key=lambda tid: wins_map[tid])  # worst first
         return lottery_picks + rest_sorted
 
-    def tank_incentive(self, team_id, standings, history):
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         if not history:
             return 0.4
-        rank = _rank_by_wins_asc(history[-1], team_id)
+        rank = _rank_by_wins_asc(history[-1], team_id, playoff_spots)
         # Within pool: worst team has the best odds (40%), so there is incentive to be #1 worst.
         # Teams 5-6 on the bubble have strong incentive to tank into the pool.
         if rank == 1:

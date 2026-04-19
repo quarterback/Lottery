@@ -839,7 +839,11 @@ async def chip_window_page(request: Request):
     return templates.TemplateResponse(
         request,
         "chip_window.html",
-        {"default_seasons": 10, "default_seed": ""},
+        {
+            "default_seasons": 10,
+            "default_seed": "",
+            "leagues": {k: v.name for k, v in LEAGUES.items()},
+        },
     )
 
 
