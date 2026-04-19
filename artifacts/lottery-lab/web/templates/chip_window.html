@@ -101,7 +101,7 @@
       <label>Game Window</label>
       <input type="range" id="game-slider" min="1" max="22" value="22" step="1"
         oninput="onGameSlide(this.value)">
-      <span id="game-slider-label" class="season-badge" style="background:var(--green-bg);color:var(--green);border-color:var(--green-border)">G82</span>
+      <span id="game-slider-label" class="season-badge" style="background:var(--green-bg);color:var(--green);border-color:var(--green-border)">G—</span>
       <span id="game-delta-label" style="font-size:11px;color:var(--fg-dim)">Final standings</span>
     </div>
   </div>
@@ -132,8 +132,8 @@
       <!-- Standings table -->
       <div>
         <div class="section-title">Chip Window Standings</div>
-        <p style="font-size:11px;color:var(--fg-faint);margin-bottom:10px">
-          All 30 teams participate. Click column headers to sort. Drag the <b>Game Window</b> slider to see standings evolve G61→G82.
+        <p id="cw-standings-desc" style="font-size:11px;color:var(--fg-faint);margin-bottom:10px">
+          All teams participate. Click column headers to sort. Drag the <b>Game Window</b> slider to see standings evolve.
         </p>
         <div class="table-wrap">
           <table id="standings-table">
@@ -142,8 +142,8 @@
                 <th class="sortable-th" data-sort="rank" style="text-align:left" onclick="setSort('rank')"># <span class="sort-arrow" id="sort-arrow-rank">↑</span></th>
                 <th style="text-align:left">Team</th>
                 <th class="sortable-th" data-sort="status" style="text-align:left" onclick="setSort('status')">Status <span class="sort-arrow" id="sort-arrow-status"></span></th>
-                <th>60-G</th>
-                <th>G82</th>
+                <th id="cw-col-pre">Pre-Win</th>
+                <th id="cw-col-end">Final-W</th>
                 <th class="sortable-th" data-sort="chips" style="min-width:120px" onclick="setSort('chips')">Chips <span class="sort-arrow" id="sort-arrow-chips"></span> <span style="font-weight:400;color:var(--fg-faint);font-size:9px">(+/− last game)</span></th>
                 <th style="text-align:left">Tonight</th>
                 <th>Pick</th>
@@ -157,8 +157,8 @@
       <!-- Chip trajectory chart -->
       <div>
         <div class="section-title">Chip Window Trajectories</div>
-        <p style="font-size:11px;color:var(--fg-faint);margin-bottom:10px">
-          Chip totals over the 22-game window. Teams start at their record-rank chips (20–140).
+        <p id="cw-traj-desc" style="font-size:11px;color:var(--fg-faint);margin-bottom:10px">
+          Chip totals over the chip window. Teams start at their record-rank chips (20–140).
           Vertical marker = current game. <span class="doubled-badge">2×</span> = double declared that night.
         </p>
         <div class="chart-wrap" style="padding:12px">
@@ -267,7 +267,7 @@
         <!-- 6: Timing Distribution -->
         <div class="an-panel">
           <div class="an-panel-title">Double Declaration Timing</div>
-          <p class="an-panel-desc">Which game lottery teams chose to declare their double (orange = early G61–71, blue = late G72–82) with avg draft pick for each cohort.</p>
+          <p id="an-timing-desc" class="an-panel-desc">Which game lottery teams chose to declare their double (orange = early half, blue = late half) with avg draft pick for each cohort.</p>
           <svg id="an-timing-svg" viewBox="0 0 400 130" style="width:100%;display:block"></svg>
         </div>
 
@@ -426,6 +426,22 @@ function renderAll() {
   document.getElementById('standings-section').style.display = 'block';
   document.getElementById('lb-rule').style.display = 'block';
   document.getElementById('leaderboard-section').style.display = 'block';
+
+  // Update dynamic static labels now that we know the league config
+  const preLabel  = `G${cwStart}-W`;
+  const endLabel  = `G${gSeason}-W`;
+  const el = id => document.getElementById(id);
+  if (el('cw-col-pre'))       el('cw-col-pre').textContent = preLabel;
+  if (el('cw-col-end'))       el('cw-col-end').textContent = endLabel;
+  if (el('cw-standings-desc')) el('cw-standings-desc').innerHTML =
+    `All ${nTeams} teams participate. Click headers to sort. Drag the <b>Game Window</b> slider to see standings evolve G${cwStart+1}→G${gSeason}.`;
+  if (el('cw-traj-desc'))     el('cw-traj-desc').innerHTML =
+    `Chip totals over the ${cwLen}-game window (G${cwStart+1}–G${gSeason}). Teams start at their record-rank chips (20–140). ` +
+    `Vertical marker = current game. <span class="doubled-badge">2×</span> = double declared that night.`;
+  const midStart = cwStart + 1, midEnd = cwStart + Math.floor(cwLen / 2), lateEnd = gSeason;
+  if (el('an-timing-desc'))   el('an-timing-desc').textContent =
+    `Which game lottery teams chose to declare their double (orange = early G${midStart}–G${midEnd}, ` +
+    `blue = late G${midEnd+1}–G${lateEnd}) with avg draft pick for each cohort.`;
 
   renderSeason(1, cwLen);
   renderSeasonSummary(1);
@@ -687,7 +703,9 @@ function renderTrajectories(s, gameNum) {
   const maxC = Math.max(200, ...allChips);
   const minC = Math.min(0, ...allChips);
 
-  function cx(game) { return PL + (game / 22) * iW; }
+  const cwLen   = simData?.chip_window_length || 22;
+  const cwStart = simData?.chip_window_start  || 60;
+  function cx(game) { return PL + (game / cwLen) * iW; }
   function cy(chips) { return PT + (1 - (chips - minC) / (maxC - minC)) * iH; }
 
   const COLORS = [
@@ -710,11 +728,16 @@ function renderTrajectories(s, gameNum) {
     svgHtml += `<text x="${PL-4}" y="${(y+3).toFixed(1)}" fill="#555" font-family="monospace" font-size="9" text-anchor="end">${v}</text>`;
   });
 
-  // X axis labels
-  [0, 5, 10, 15, 22].forEach(g => {
-    const x = cx(g);
-    svgHtml += `<text x="${x.toFixed(1)}" y="${(H-8).toFixed(1)}" fill="#555" font-family="monospace" font-size="9" text-anchor="middle">G${60+g}</text>`;
-  });
+  // X axis labels — ~5 evenly-spaced ticks based on cwLen
+  { const step = Math.max(1, Math.floor(cwLen / 4));
+    const ticks = [];
+    for (let g = 0; g <= cwLen; g += step) ticks.push(g);
+    if (ticks[ticks.length - 1] !== cwLen) ticks.push(cwLen);
+    ticks.forEach(g => {
+      const x = cx(g);
+      svgHtml += `<text x="${x.toFixed(1)}" y="${(H-8).toFixed(1)}" fill="#555" font-family="monospace" font-size="9" text-anchor="middle">G${cwStart+g}</text>`;
+    });
+  }
 
   // Team lines (top 18 by final chips)
   const teamsSorted = [...chipTeams].sort((a, b) => b.chips_end - a.chips_end);
@@ -733,11 +756,11 @@ function renderTrajectories(s, gameNum) {
   });
 
   // Current game marker (vertical line)
-  if (gameNum > 0 && gameNum <= 22) {
+  if (gameNum > 0 && gameNum <= cwLen) {
     const mx = cx(gameNum);
     svgHtml += `<line x1="${mx.toFixed(1)}" y1="${PT}" x2="${mx.toFixed(1)}" y2="${PT+iH}"
       stroke="var(--accent)" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>`;
-    svgHtml += `<text x="${mx.toFixed(1)}" y="${(PT-3).toFixed(1)}" fill="var(--accent)" font-family="monospace" font-size="9" text-anchor="middle">G${60+gameNum}</text>`;
+    svgHtml += `<text x="${mx.toFixed(1)}" y="${(PT-3).toFixed(1)}" fill="var(--accent)" font-family="monospace" font-size="9" text-anchor="middle">G${cwStart+gameNum}</text>`;
   }
 
   svg.innerHTML = svgHtml;
@@ -808,8 +831,10 @@ function renderAnalytics() {
   const allSeasons = simData.seasons;
 
   // ── 1. Gini curve: per night across all seasons ────────────────
+  const cwLen   = simData.chip_window_length || 22;
+  const cwStart = simData.chip_window_start  || 60;
   const giniCurve = [];
-  for (let ni = 0; ni < 22; ni++) {
+  for (let ni = 0; ni < cwLen; ni++) {
     const vals = [];
     allSeasons.forEach(s => {
       s.teams.filter(t => t.status === 'Lottery').forEach(t => {
@@ -828,7 +853,7 @@ function renderAnalytics() {
       const prev = ni === 0 ? (t.chips_start ?? 60) : (t.chip_trajectory[ni - 1] ?? t.chips_start ?? 60);
       const curr = t.chip_trajectory[ni] ?? prev;
       const delta = curr - prev;
-      const avgNight = ((t.chips_end ?? curr) - (t.chips_start ?? 60)) / 22;
+      const avgNight = ((t.chips_end ?? curr) - (t.chips_start ?? 60)) / cwLen;
       // Win on double night?
       const match = (s.schedule[ni] || []).find(m => m.home_id === t.id || m.away_id === t.id);
       const won = match ? (match.home_id === t.id ? match.home_won : !match.home_won) : null;
@@ -900,13 +925,14 @@ function renderAnalytics() {
   });
 
   // ── 6. Double declaration timing + early/late split ──────────
-  const doubleByNight = Array(22).fill(0);
-  const earlyPicks = [], latePicks = []; // nights 0-10 = early, 11-21 = late
+  const doubleByNight = Array(cwLen).fill(0);
+  const cwMid = Math.floor(cwLen / 2) - 1; // last night index of "early" half
+  const earlyPicks = [], latePicks = [];
   allSeasons.forEach(s => {
     s.teams.filter(t => t.status === 'Lottery' && t.doubled && t.double_night >= 0).forEach(t => {
-      doubleByNight[t.double_night]++;
+      if (t.double_night < cwLen) doubleByNight[t.double_night]++;
       if (t.chip_draft_rank != null) {
-        if (t.double_night <= 10) earlyPicks.push(t.chip_draft_rank);
+        if (t.double_night <= cwMid) earlyPicks.push(t.chip_draft_rank);
         else latePicks.push(t.chip_draft_rank);
       }
     });
@@ -932,17 +958,19 @@ function anRenderDoubleEff(rows) {
   const el = document.getElementById('an-double-eff-body');
   if (!el) return;
   if (rows.length === 0) { el.innerHTML = '<div style="color:var(--fg-faint);font-size:10px">No double data yet</div>'; return; }
+  const cwStart = simData?.chip_window_start || 60;
+  const nLottery = (simData?.seasons?.[0]?.teams || []).filter(t => t.status === 'Lottery').length || 14;
   let html = `<table class="an-tbl">
     <thead><tr>
       <th style="text-align:left">Team</th>
       <th>Avg G</th><th>Win%</th><th>Dbl Gain</th><th>Avg Gain</th>
     </tr></thead><tbody>`;
-  rows.slice(0, 14).forEach(r => {
+  rows.slice(0, nLottery).forEach(r => {
     const gainCol = r.avgDelta > 2 ? 'var(--green)' : r.avgDelta < -2 ? 'var(--red)' : 'var(--fg-dim)';
     const winCol  = r.winRate >= 0.5 ? 'var(--green)' : 'var(--red)';
     html += `<tr>
       <td style="text-align:left;color:var(--fg)">${r.name}</td>
-      <td>G${(60 + r.avgNight).toFixed(0)}</td>
+      <td>G${(cwStart + r.avgNight).toFixed(0)}</td>
       <td style="color:${winCol}">${(r.winRate * 100).toFixed(0)}%</td>
       <td style="color:${gainCol};font-weight:600">${r.avgDelta > 0 ? '+' : ''}${r.avgDelta.toFixed(1)}</td>
       <td style="color:var(--fg-faint)">${r.avgBase > 0 ? '+' : ''}${r.avgBase.toFixed(1)}</td>
@@ -983,10 +1011,13 @@ function anHideTooltip() {
 function anRenderGini(curve) {
   const svg = document.getElementById('an-gini-svg');
   if (!svg || !curve.length) return;
+  const cwLen   = simData?.chip_window_length || 22;
+  const cwStart = simData?.chip_window_start  || 60;
+  const maxNi = Math.max(1, cwLen - 1);
   const W = 400, H = 150, PL = 34, PR = 10, PT = 12, PB = 26;
   const iW = W - PL - PR, iH = H - PT - PB;
   const maxG = Math.max(0.05, ...curve) * 1.15;
-  const cx = i  => PL + (i / 21) * iW;
+  const cx = i  => PL + (i / maxNi) * iW;
   const cy = g  => PT + (1 - g / maxG) * iH;
   let html = '';
   // Grid
@@ -995,21 +1026,26 @@ function anRenderGini(curve) {
     html += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W-PR}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="1"/>`;
     html += `<text x="${PL-4}" y="${(y+3).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="end">${v.toFixed(2)}</text>`;
   });
-  // X labels
-  [0, 5, 10, 15, 21].forEach(i => {
-    html += `<text x="${cx(i).toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="middle">G${61+i}</text>`;
-  });
+  // X labels — ~5 evenly-spaced ticks
+  { const step = Math.max(1, Math.floor(maxNi / 4));
+    const ticks = [];
+    for (let i = 0; i <= maxNi; i += step) ticks.push(i);
+    if (ticks[ticks.length - 1] !== maxNi) ticks.push(maxNi);
+    ticks.forEach(i => {
+      html += `<text x="${cx(i).toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="middle">G${cwStart+1+i}</text>`;
+    });
+  }
   // Area fill
   const areaD = `M${cx(0).toFixed(1)},${cy(0).toFixed(1)} ` +
     curve.map((g, i) => `L${cx(i).toFixed(1)},${cy(g).toFixed(1)}`).join(' ') +
-    ` L${cx(21).toFixed(1)},${cy(0).toFixed(1)} Z`;
+    ` L${cx(maxNi).toFixed(1)},${cy(0).toFixed(1)} Z`;
   html += `<path d="${areaD}" fill="var(--accent)" opacity="0.07"/>`;
   // Line
   const pts = curve.map((g, i) => `${cx(i).toFixed(1)},${cy(g).toFixed(1)}`).join(' ');
   html += `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/>`;
   // Dots — r enlarged for easier hover; data-tip carries tooltip text
   curve.forEach((g, i) => {
-    const tipText = `Game G${61+i}&#10;Gini: ${g.toFixed(4)}`;
+    const tipText = `Game G${cwStart+1+i}&#10;Gini: ${g.toFixed(4)}`;
     html += `<circle cx="${cx(i).toFixed(1)}" cy="${cy(g).toFixed(1)}" r="4" fill="var(--accent)" opacity="0.75" style="cursor:crosshair" data-tip="${tipText}"/>`;
   });
   svg.innerHTML = html;
@@ -1123,11 +1159,14 @@ function anRenderScatter(dots) {
 function anRenderTiming(byNight, meta) {
   const svg = document.getElementById('an-timing-svg');
   if (!svg) return;
+  const cwLen   = simData?.chip_window_length || 22;
+  const cwStart = simData?.chip_window_start  || 60;
+  const cwMidNi = Math.floor(cwLen / 2) - 1; // last night index of early half
   const W = 400, H = 130, PL = 28, PR = 10, PT = 8, PB = 24;
   const iW = W - PL - PR, iH = H - PT - PB;
   const maxCnt = Math.max(1, ...byNight);
-  const barW = iW / 22;
-  const midX = PL + 11 * barW; // split line between nights 0-10 and 11-21
+  const barW = iW / cwLen;
+  const midX = PL + (cwMidNi + 1) * barW; // split after early half
   let html = '';
   // Early / late region shading
   html += `<rect x="${PL}" y="${PT}" width="${(midX - PL).toFixed(1)}" height="${iH}" fill="var(--accent)" opacity="0.03"/>`;
@@ -1147,15 +1186,20 @@ function anRenderTiming(byNight, meta) {
     const bh = (cnt/maxCnt)*iH;
     const y  = PT + iH - bh;
     const hi = cnt === maxCnt;
-    const isEarly = ni <= 10;
+    const isEarly = ni <= cwMidNi;
     html += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" fill="${isEarly ? 'var(--accent)' : 'var(--blue)'}" opacity="${hi ? 0.9 : 0.65}" rx="1"/>`;
     if (cnt >= 2) html += `<text x="${(x+bw/2).toFixed(1)}" y="${(y-2).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="middle">${cnt}</text>`;
   });
-  // X labels
-  [0, 4, 9, 14, 19, 21].forEach(ni => {
-    const x = PL + ni*barW + barW/2;
-    html += `<text x="${x.toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="middle">G${61+ni}</text>`;
-  });
+  // X labels — ~6 evenly-spaced ticks
+  { const step = Math.max(1, Math.floor(cwLen / 5));
+    const ticks = [];
+    for (let ni = 0; ni < cwLen; ni += step) ticks.push(ni);
+    if (ticks[ticks.length - 1] !== cwLen - 1) ticks.push(cwLen - 1);
+    ticks.forEach(ni => {
+      const x = PL + ni*barW + barW/2;
+      html += `<text x="${x.toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="middle">G${cwStart+1+ni}</text>`;
+    });
+  }
   svg.innerHTML = html;
 
   // Early vs late summary below chart
@@ -1170,10 +1214,14 @@ function anRenderTiming(byNight, meta) {
     const lateCol = meta.earlyAvgPick != null && meta.lateAvgPick != null
       ? (meta.lateAvgPick < meta.earlyAvgPick ? 'var(--green)' : meta.lateAvgPick > meta.earlyAvgPick ? 'var(--red)' : 'var(--fg-dim)')
       : 'var(--fg-dim)';
+    const earlyStart = cwStart + 1;
+    const earlyEnd   = cwStart + cwMidNi + 1;
+    const lateStart  = earlyEnd + 1;
+    const lateEnd    = cwStart + cwLen;
     sumEl.innerHTML = `<div style="display:flex;gap:16px;margin-top:8px;font-size:10px;flex-wrap:wrap">
-      <span style="color:var(--fg-faint)">Early double (G61–71):</span>
+      <span style="color:var(--fg-faint)">Early double (G${earlyStart}–G${earlyEnd}):</span>
       <span>n=${meta.earlyCount} · avg pick <span style="color:${earlyCol};font-weight:600">${fmt(meta.earlyAvgPick)}</span></span>
-      <span style="color:var(--fg-faint)">Late double (G72–82):</span>
+      <span style="color:var(--fg-faint)">Late double (G${lateStart}–G${lateEnd}):</span>
       <span>n=${meta.lateCount} · avg pick <span style="color:${lateCol};font-weight:600">${fmt(meta.lateAvgPick)}</span></span>
     </div>`;
   }
