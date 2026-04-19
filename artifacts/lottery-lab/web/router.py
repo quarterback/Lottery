@@ -178,6 +178,32 @@ SYSTEM_EXPLAINERS: dict[str, dict] = {
         "odds": [40.0, 30.0, 20.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         "odds_note": "Only the 4 worst teams enter the lottery. Weights: 40/30/20/10% (worst to 4th-worst). Slots 5–14 get picks 5–14 by record.",
     },
+    "Current NHL": {
+        "desc": (
+            "The NHL Entry Draft Lottery determines only picks #1 and #2 by weighted draw. "
+            "The worst team has 18.5% odds for pick #1, tapering to 0.5% for the 16th slot. "
+            "Picks 3–16 are then assigned in strict reverse-standings order. "
+            "Introduced in its current form for the 2024 draft."
+        ),
+        "odds": [
+            18.5, 13.5, 11.5, 9.5, 8.5, 7.5, 6.5, 6.0,
+            5.0, 3.5, 3.0, 2.5, 2.0, 1.5, 1.0, 0.5,
+        ],
+        "odds_note": "Official NHL Entry Draft Lottery odds (2024+). Only picks #1 and #2 are drawn by lottery; picks 3–16 follow record order.",
+    },
+    "Current MLB": {
+        "desc": (
+            "MLB introduced a draft lottery in 2023 for the top 6 picks among the 18 non-postseason teams. "
+            "The two worst teams share the highest odds at 16.5% each for pick #1, "
+            "tapering sharply to 0.5% at slots 17–18. "
+            "Picks 7–18 are assigned in strict reverse-standings order."
+        ),
+        "odds": [
+            16.5, 16.5, 13.0, 10.0, 7.5, 5.5, 5.0, 4.5, 4.0,
+            3.5, 3.0, 2.5, 2.0, 1.5, 1.0, 1.0, 0.5, 0.5,
+        ],
+        "odds_note": "Official MLB Draft Lottery odds (2023+). Picks #1–#6 are drawn by lottery; picks 7–18 follow record order.",
+    },
 }
 
 

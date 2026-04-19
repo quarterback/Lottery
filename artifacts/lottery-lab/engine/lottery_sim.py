@@ -1401,6 +1401,94 @@ class TopFourOnly:
 
 
 # ---------------------------------------------------------------------------
+# System 14: Current NHL Entry Draft Lottery
+# ---------------------------------------------------------------------------
+
+# Official NHL Entry Draft Lottery odds (worst→best, 16 lottery slots, 2024+)
+# Source: NHL.com — lottery determines picks #1 and #2; rest go by record.
+NHL_LOTTERY_ODDS = [
+    18.5, 13.5, 11.5, 9.5, 8.5, 7.5, 6.5, 6.0,
+    5.0, 3.5, 3.0, 2.5, 2.0, 1.5, 1.0, 0.5,
+]
+CURRENT_NHL_LOTTERY_PICKS = 2
+
+
+class CurrentNHL:
+    name = "Current NHL"
+
+    def draft_order(self, history, constraints, rng):
+        season = history[-1]
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)  # worst first
+        adapted = _adapt_odds(NHL_LOTTERY_ODDS, len(lottery))
+        weights = {lottery[i][0]: adapted[i] for i in range(len(lottery))}
+        lottery_picks = weighted_lottery_draw(
+            weights, min(CURRENT_NHL_LOTTERY_PICKS, len(weights)), rng
+        )
+        remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
+        wins_map = {t[0]: t[1] for t in lottery}
+        remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst first
+        return lottery_picks + remaining_sorted
+
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
+        if not history:
+            return 0.4
+        rank = _rank_by_wins_asc(history[-1], team_id, playoff_spots)
+        # Only picks 1–2 are lotteried; worst team has 18.5%, 2nd has 13.5%
+        # High incentive for rank 1-2, moderate for 3-5, low beyond that
+        if rank <= 2:
+            return 0.85
+        elif rank <= 5:
+            return 0.45
+        elif rank <= 9:
+            return 0.2
+        return 0.05
+
+
+# ---------------------------------------------------------------------------
+# System 15: Current MLB Draft Lottery
+# ---------------------------------------------------------------------------
+
+# Official MLB Draft Lottery odds (worst→best, 18 lottery slots, 2023+)
+# Source: MLB.com — lottery determines picks #1–#6; rest go by record.
+MLB_LOTTERY_ODDS = [
+    16.5, 16.5, 13.0, 10.0, 7.5, 5.5, 5.0, 4.5, 4.0,
+    3.5, 3.0, 2.5, 2.0, 1.5, 1.0, 1.0, 0.5, 0.5,
+]
+CURRENT_MLB_LOTTERY_PICKS = 6
+
+
+class CurrentMLB:
+    name = "Current MLB"
+
+    def draft_order(self, history, constraints, rng):
+        season = history[-1]
+        lottery = _non_playoff_teams(season, constraints.playoff_spots)  # worst first
+        adapted = _adapt_odds(MLB_LOTTERY_ODDS, len(lottery))
+        weights = {lottery[i][0]: adapted[i] for i in range(len(lottery))}
+        lottery_picks = weighted_lottery_draw(
+            weights, min(CURRENT_MLB_LOTTERY_PICKS, len(weights)), rng
+        )
+        remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
+        wins_map = {t[0]: t[1] for t in lottery}
+        remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst first
+        return lottery_picks + remaining_sorted
+
+    def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
+        if not history:
+            return 0.35
+        rank = _rank_by_wins_asc(history[-1], team_id, playoff_spots)
+        # Top 2 share 16.5% each; picks 1–6 are lotteried with diminishing returns
+        # Incentive is spread more broadly than NBA because 6 picks are in play
+        if rank <= 2:
+            return 0.75
+        elif rank <= 6:
+            return 0.5
+        elif rank <= 10:
+            return 0.2
+        return 0.05
+
+
+# ---------------------------------------------------------------------------
 # All systems registry
 # ---------------------------------------------------------------------------
 
@@ -1418,6 +1506,8 @@ ALL_SYSTEMS: list[LotterySystem] = [
     LegacyNBA(),
     EqualOdds(),
     TopFourOnly(),
+    CurrentNHL(),
+    CurrentMLB(),
 ]
 
 SYSTEM_MAP: dict[str, LotterySystem] = {s.name: s for s in ALL_SYSTEMS}
