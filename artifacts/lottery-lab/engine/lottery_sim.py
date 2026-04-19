@@ -45,6 +45,8 @@ class DraftConstraints:
     num_teams: int = NUM_TEAMS
     games_per_season: int = GAMES_PER_SEASON
     weeks_per_season: int = WEEKS_PER_SEASON
+    play_in_slots: int = PLAY_IN_SLOTS
+    lottery_picks: int = LOTTERY_PICKS
 
 
 @dataclass
@@ -181,7 +183,7 @@ class CurrentNBA:
         lottery = _non_playoff_teams(season, constraints.playoff_spots)  # worst first
         adapted = _adapt_odds(NBA_ODDS, len(lottery))
         weights = {lottery[i][0]: adapted[i] for i in range(len(lottery))}
-        lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
+        lottery_picks = weighted_lottery_draw(weights, min(constraints.lottery_picks, len(weights)), rng)
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
         wins_map = {t[0]: t[1] for t in lottery}
         remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first (picks 5+)
@@ -213,7 +215,7 @@ class FlatBottom:
         season = history[-1]
         lottery = _non_playoff_teams(season, constraints.playoff_spots)
         weights = {t[0]: 1.0 for t in lottery}
-        lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
+        lottery_picks = weighted_lottery_draw(weights, min(constraints.lottery_picks, len(weights)), rng)
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
         wins_map = {t[0]: t[1] for t in lottery}
         remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first
@@ -235,7 +237,7 @@ class PlayInBoost:
         season = history[-1]
         lottery = _non_playoff_teams(season, constraints.playoff_spots)  # worst first
         n = len(lottery)
-        play_in_count = min(PLAY_IN_SLOTS, n)
+        play_in_count = min(constraints.play_in_slots, n)
         floor_count = n - play_in_count
         # Play-in teams (best non-playoff, indices floor_count..n-1) get the TOP odds.
         # Floor teams (worst non-playoff, indices 0..floor_count-1) get the LOWER odds.
@@ -249,7 +251,7 @@ class PlayInBoost:
             else:  # floor team: gets odds starting at play_in_count offset
                 within = floor_count - 1 - i  # 0 = best floor, floor_count-1 = worst floor
                 weights[tid] = NBA_ODDS[min(play_in_count + within, len(NBA_ODDS) - 1)]
-        lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
+        lottery_picks = weighted_lottery_draw(weights, min(constraints.lottery_picks, len(weights)), rng)
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
         wins_map = {t[0]: t[1] for t in lottery}
         remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first
@@ -320,7 +322,7 @@ class UEFACoefficient:
             coeff = _uefa_coefficient(tid, history, playoff_spots=constraints.playoff_spots)
             # Higher coeff (worse historical team) = better lottery odds
             weights[tid] = coeff
-        lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
+        lottery_picks = weighted_lottery_draw(weights, min(constraints.lottery_picks, len(weights)), rng)
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
         wins_map = {t[0]: t[1] for t in lottery}
         remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst record first
@@ -800,6 +802,8 @@ def simulate_run(
         num_teams=lg.num_teams,
         games_per_season=lg.games_per_season,
         weeks_per_season=lg.weeks_per_season,
+        play_in_slots=lg.play_in_slots,
+        lottery_picks=lg.lottery_picks,
     )
 
     # Slowly evolve team talents over years (player development / free agency)
@@ -1346,7 +1350,7 @@ class EqualOdds:
         # Picks 1-4 drawn by equal-weight lottery from all 14 teams.
         # Picks 5-14 go strictly by record (worst first).
         weights = {t[0]: 1.0 for t in lottery}
-        lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
+        lottery_picks = weighted_lottery_draw(weights, min(constraints.lottery_picks, len(weights)), rng)
         remaining = [t[0] for t in lottery if t[0] not in lottery_picks]
         wins_map = {t[0]: t[1] for t in lottery}
         remaining_sorted = sorted(remaining, key=lambda tid: wins_map[tid])  # worst first
@@ -1367,15 +1371,15 @@ class TopFourOnly:
     def draft_order(self, history, constraints, rng):
         season = history[-1]
         lottery = _non_playoff_teams(season, constraints.playoff_spots)  # worst first
-        # Only the 4 worst teams enter a weighted lottery for picks 1-4.
-        # Worst team gets the highest weight (rank 1=4pts, rank 2=3pts, rank 3=2pts, rank 4=1pt).
-        # Teams 5-14 receive picks 5-14 strictly by record.
-        top4 = lottery[:4]   # 4 worst teams (worst first)
-        rest = lottery[4:]   # remaining 10 teams
+        # Only the worst N teams enter a weighted lottery for picks 1-N (N = lottery_picks).
+        # Worst team gets the highest weight; remaining teams get picks by record.
+        lp = constraints.lottery_picks
+        top4 = lottery[:lp]   # N worst teams (worst first)
+        rest = lottery[lp:]   # remaining teams
 
         # Rank-based weights: worst team gets largest weight
-        weights = {top4[i][0]: float(4 - i) for i in range(len(top4))}
-        lottery_picks = weighted_lottery_draw(weights, min(4, len(weights)), rng)
+        weights = {top4[i][0]: float(lp - i) for i in range(len(top4))}
+        lottery_picks = weighted_lottery_draw(weights, min(constraints.lottery_picks, len(weights)), rng)
 
         wins_map = {t[0]: t[1] for t in lottery}
         rest_sorted = sorted([t[0] for t in rest], key=lambda tid: wins_map[tid])  # worst first

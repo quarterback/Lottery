@@ -401,8 +401,8 @@ function renderAll() {
   currentSeason = 1;
 
   const cwLen   = simData.chip_window_length || 22;
-  const cwStart = simData.chip_window_start  || 60;
-  const gSeason = simData.games_per_season   || (cwStart + cwLen);
+  const cwStart = simData.chip_window_start  || 61;
+  const gSeason = simData.games_per_season   || (cwStart - 1 + cwLen);
   const nTeams  = simData.num_teams          || 30;
   const lgName  = simData.league_name        || 'NBA';
 
@@ -428,17 +428,17 @@ function renderAll() {
   document.getElementById('leaderboard-section').style.display = 'block';
 
   // Update dynamic static labels now that we know the league config
-  const preLabel  = `G${cwStart}-W`;
+  const preLabel  = `G${cwStart-1}-W`;  // wins BEFORE chip window opens
   const endLabel  = `G${gSeason}-W`;
   const el = id => document.getElementById(id);
   if (el('cw-col-pre'))       el('cw-col-pre').textContent = preLabel;
   if (el('cw-col-end'))       el('cw-col-end').textContent = endLabel;
   if (el('cw-standings-desc')) el('cw-standings-desc').innerHTML =
-    `All ${nTeams} teams participate. Click headers to sort. Drag the <b>Game Window</b> slider to see standings evolve G${cwStart+1}→G${gSeason}.`;
+    `All ${nTeams} teams participate. Click headers to sort. Drag the <b>Game Window</b> slider to see standings evolve G${cwStart}→G${gSeason}.`;
   if (el('cw-traj-desc'))     el('cw-traj-desc').innerHTML =
-    `Chip totals over the ${cwLen}-game window (G${cwStart+1}–G${gSeason}). Teams start at their record-rank chips (20–140). ` +
+    `Chip totals over the ${cwLen}-game window (G${cwStart}–G${gSeason}). Teams start at their record-rank chips (20–140). ` +
     `Vertical marker = current game. <span class="doubled-badge">2×</span> = double declared that night.`;
-  const midStart = cwStart + 1, midEnd = cwStart + Math.floor(cwLen / 2), lateEnd = gSeason;
+  const midStart = cwStart, midEnd = cwStart + Math.floor(cwLen / 2) - 1, lateEnd = gSeason;
   if (el('an-timing-desc'))   el('an-timing-desc').textContent =
     `Which game lottery teams chose to declare their double (orange = early G${midStart}–G${midEnd}, ` +
     `blue = late G${midEnd+1}–G${lateEnd}) with avg draft pick for each cohort.`;
@@ -479,7 +479,7 @@ function renderSeasonSummary(seasonNum) {
           winner:   m.home_won ? m.home_name : m.away_name,
           loser:    m.home_won ? m.away_name : m.home_name,
           gain,
-          game:     ((simData && simData.chip_window_start) || 60) + 1 + ni,
+          game:     (simData?.chip_window_start || 61) + ni,
           isDouble: !!(m.home_double || m.away_double),
         };
       }
@@ -505,7 +505,7 @@ function renderSeasonSummary(seasonNum) {
     const curr = t.chip_trajectory?.[ni] ?? prev;
     const delta = curr - prev;
     if (topDouble === null || delta > topDouble.delta) {
-      topDouble = { name: t.name, delta, game: ((simData && simData.chip_window_start) || 60) + 1 + ni };
+      topDouble = { name: t.name, delta, game: (simData?.chip_window_start || 61) + ni };
     }
   });
   const doubleEl = document.getElementById('sscard-double');
@@ -530,10 +530,10 @@ function renderSeasonSummary(seasonNum) {
 
 function onGameSlide(val) {
   currentGame = parseInt(val);
-  const cwStart  = (simData && simData.chip_window_start)  || 60;
+  const cwStart  = (simData && simData.chip_window_start)  || 61;
   const cwLen    = (simData && simData.chip_window_length)  || 22;
   const gSeason  = (simData && simData.games_per_season)   || 82;
-  const gameLabel = cwStart + currentGame;
+  const gameLabel = cwStart - 1 + currentGame;  // cwStart is opening game number
   document.getElementById('game-slider-label').textContent = 'G' + gameLabel;
   document.getElementById('game-delta-label').textContent =
     currentGame === cwLen ? 'Final standings' : `After game ${gameLabel} of ${gSeason}`;
@@ -704,7 +704,7 @@ function renderTrajectories(s, gameNum) {
   const minC = Math.min(0, ...allChips);
 
   const cwLen   = simData?.chip_window_length || 22;
-  const cwStart = simData?.chip_window_start  || 60;
+  const cwStart = simData?.chip_window_start  || 61;
   function cx(game) { return PL + (game / cwLen) * iW; }
   function cy(chips) { return PT + (1 - (chips - minC) / (maxC - minC)) * iH; }
 
@@ -735,7 +735,7 @@ function renderTrajectories(s, gameNum) {
     if (ticks[ticks.length - 1] !== cwLen) ticks.push(cwLen);
     ticks.forEach(g => {
       const x = cx(g);
-      svgHtml += `<text x="${x.toFixed(1)}" y="${(H-8).toFixed(1)}" fill="#555" font-family="monospace" font-size="9" text-anchor="middle">G${cwStart+g}</text>`;
+      svgHtml += `<text x="${x.toFixed(1)}" y="${(H-8).toFixed(1)}" fill="#555" font-family="monospace" font-size="9" text-anchor="middle">G${cwStart-1+g}</text>`;
     });
   }
 
@@ -760,7 +760,7 @@ function renderTrajectories(s, gameNum) {
     const mx = cx(gameNum);
     svgHtml += `<line x1="${mx.toFixed(1)}" y1="${PT}" x2="${mx.toFixed(1)}" y2="${PT+iH}"
       stroke="var(--accent)" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>`;
-    svgHtml += `<text x="${mx.toFixed(1)}" y="${(PT-3).toFixed(1)}" fill="var(--accent)" font-family="monospace" font-size="9" text-anchor="middle">G${cwStart+gameNum}</text>`;
+    svgHtml += `<text x="${mx.toFixed(1)}" y="${(PT-3).toFixed(1)}" fill="var(--accent)" font-family="monospace" font-size="9" text-anchor="middle">G${cwStart-1+gameNum}</text>`;
   }
 
   svg.innerHTML = svgHtml;
@@ -832,7 +832,7 @@ function renderAnalytics() {
 
   // ── 1. Gini curve: per night across all seasons ────────────────
   const cwLen   = simData.chip_window_length || 22;
-  const cwStart = simData.chip_window_start  || 60;
+  const cwStart = simData.chip_window_start  || 61;
   const giniCurve = [];
   for (let ni = 0; ni < cwLen; ni++) {
     const vals = [];
@@ -883,7 +883,7 @@ function renderAnalytics() {
           : m.away_chips_after - m.away_chips_before;
         swings.push({
           season:   si + 1,
-          game:     ((simData && simData.chip_window_start) || 60) + 1 + ni,
+          game:     (simData?.chip_window_start || 61) + ni,
           winner:   m.home_won ? m.home_name : m.away_name,
           loser:    m.home_won ? m.away_name : m.home_name,
           gain,
@@ -958,7 +958,7 @@ function anRenderDoubleEff(rows) {
   const el = document.getElementById('an-double-eff-body');
   if (!el) return;
   if (rows.length === 0) { el.innerHTML = '<div style="color:var(--fg-faint);font-size:10px">No double data yet</div>'; return; }
-  const cwStart = simData?.chip_window_start || 60;
+  const cwStart = simData?.chip_window_start || 61;
   const nLottery = (simData?.seasons?.[0]?.teams || []).filter(t => t.status === 'Lottery').length || 14;
   let html = `<table class="an-tbl">
     <thead><tr>
@@ -970,7 +970,7 @@ function anRenderDoubleEff(rows) {
     const winCol  = r.winRate >= 0.5 ? 'var(--green)' : 'var(--red)';
     html += `<tr>
       <td style="text-align:left;color:var(--fg)">${r.name}</td>
-      <td>G${(cwStart + r.avgNight).toFixed(0)}</td>
+      <td>G${(cwStart - 1 + r.avgNight).toFixed(0)}</td>
       <td style="color:${winCol}">${(r.winRate * 100).toFixed(0)}%</td>
       <td style="color:${gainCol};font-weight:600">${r.avgDelta > 0 ? '+' : ''}${r.avgDelta.toFixed(1)}</td>
       <td style="color:var(--fg-faint)">${r.avgBase > 0 ? '+' : ''}${r.avgBase.toFixed(1)}</td>
@@ -1012,7 +1012,7 @@ function anRenderGini(curve) {
   const svg = document.getElementById('an-gini-svg');
   if (!svg || !curve.length) return;
   const cwLen   = simData?.chip_window_length || 22;
-  const cwStart = simData?.chip_window_start  || 60;
+  const cwStart = simData?.chip_window_start  || 61;
   const maxNi = Math.max(1, cwLen - 1);
   const W = 400, H = 150, PL = 34, PR = 10, PT = 12, PB = 26;
   const iW = W - PL - PR, iH = H - PT - PB;
@@ -1032,7 +1032,7 @@ function anRenderGini(curve) {
     for (let i = 0; i <= maxNi; i += step) ticks.push(i);
     if (ticks[ticks.length - 1] !== maxNi) ticks.push(maxNi);
     ticks.forEach(i => {
-      html += `<text x="${cx(i).toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="middle">G${cwStart+1+i}</text>`;
+      html += `<text x="${cx(i).toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="middle">G${cwStart+i}</text>`;
     });
   }
   // Area fill
@@ -1045,7 +1045,7 @@ function anRenderGini(curve) {
   html += `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/>`;
   // Dots — r enlarged for easier hover; data-tip carries tooltip text
   curve.forEach((g, i) => {
-    const tipText = `Game G${cwStart+1+i}&#10;Gini: ${g.toFixed(4)}`;
+    const tipText = `Game G${cwStart+i}&#10;Gini: ${g.toFixed(4)}`;
     html += `<circle cx="${cx(i).toFixed(1)}" cy="${cy(g).toFixed(1)}" r="4" fill="var(--accent)" opacity="0.75" style="cursor:crosshair" data-tip="${tipText}"/>`;
   });
   svg.innerHTML = html;
@@ -1160,7 +1160,7 @@ function anRenderTiming(byNight, meta) {
   const svg = document.getElementById('an-timing-svg');
   if (!svg) return;
   const cwLen   = simData?.chip_window_length || 22;
-  const cwStart = simData?.chip_window_start  || 60;
+  const cwStart = simData?.chip_window_start  || 61;
   const cwMidNi = Math.floor(cwLen / 2) - 1; // last night index of early half
   const W = 400, H = 130, PL = 28, PR = 10, PT = 8, PB = 24;
   const iW = W - PL - PR, iH = H - PT - PB;
@@ -1197,7 +1197,7 @@ function anRenderTiming(byNight, meta) {
     if (ticks[ticks.length - 1] !== cwLen - 1) ticks.push(cwLen - 1);
     ticks.forEach(ni => {
       const x = PL + ni*barW + barW/2;
-      html += `<text x="${x.toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="middle">G${cwStart+1+ni}</text>`;
+      html += `<text x="${x.toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="middle">G${cwStart+ni}</text>`;
     });
   }
   svg.innerHTML = html;
@@ -1214,8 +1214,8 @@ function anRenderTiming(byNight, meta) {
     const lateCol = meta.earlyAvgPick != null && meta.lateAvgPick != null
       ? (meta.lateAvgPick < meta.earlyAvgPick ? 'var(--green)' : meta.lateAvgPick > meta.earlyAvgPick ? 'var(--red)' : 'var(--fg-dim)')
       : 'var(--fg-dim)';
-    const earlyStart = cwStart + 1;
-    const earlyEnd   = cwStart + cwMidNi + 1;
+    const earlyStart = cwStart;
+    const earlyEnd   = cwStart + cwMidNi;
     const lateStart  = earlyEnd + 1;
     const lateEnd    = cwStart + cwLen;
     sumEl.innerHTML = `<div style="display:flex;gap:16px;margin-top:8px;font-size:10px;flex-wrap:wrap">

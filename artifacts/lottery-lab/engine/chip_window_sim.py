@@ -189,7 +189,7 @@ def simulate_chip_window_league(
     """
     lg = league or NBA_CONFIG
     n_teams          = lg.num_teams
-    games_before_wnd = lg.chip_window_start
+    games_before_wnd = lg.chip_window_start - 1  # chip_window_start is the opening game number
     games_in_wnd     = lg.chip_window_length
     playoff_count    = lg.playoff_spots
     safe_count       = lg.safe_playoff_count
@@ -712,7 +712,7 @@ def simulate_chip_window_league(
         league_id          = lg.id,
         league_name        = lg.name,
         num_teams          = n_teams,
-        chip_window_start  = games_before_wnd,
+        chip_window_start  = lg.chip_window_start,  # opening game number
         chip_window_length = games_in_wnd,
         games_per_season   = games_before_wnd + games_in_wnd,
     )

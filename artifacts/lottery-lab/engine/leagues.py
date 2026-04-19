@@ -48,7 +48,7 @@ NBA_CONFIG = LeagueConfig(
     weeks_per_season=26,
     play_in_slots=4,
     lottery_picks=4,
-    chip_window_start=60,
+    chip_window_start=61,
     chip_window_length=22,
 )
 
@@ -70,7 +70,7 @@ NHL_CONFIG = LeagueConfig(
     weeks_per_season=26,
     play_in_slots=0,
     lottery_picks=4,
-    chip_window_start=60,
+    chip_window_start=61,
     chip_window_length=22,
 )
 
@@ -91,7 +91,7 @@ MLB_CONFIG = LeagueConfig(
     weeks_per_season=26,
     play_in_slots=0,
     lottery_picks=4,
-    chip_window_start=140,
+    chip_window_start=141,
     chip_window_length=22,
 )
 
@@ -110,7 +110,7 @@ WNBA_CONFIG = LeagueConfig(
     weeks_per_season=13,
     play_in_slots=0,
     lottery_picks=3,
-    chip_window_start=30,
+    chip_window_start=31,
     chip_window_length=10,
 )
 
@@ -127,7 +127,7 @@ PWHL_CONFIG = LeagueConfig(
     weeks_per_season=8,
     play_in_slots=0,
     lottery_picks=2,
-    chip_window_start=18,
+    chip_window_start=19,
     chip_window_length=6,
 )
 
@@ -148,7 +148,7 @@ MLS_CONFIG = LeagueConfig(
     weeks_per_season=11,
     play_in_slots=0,
     lottery_picks=3,
-    chip_window_start=24,
+    chip_window_start=25,
     chip_window_length=10,
 )
 
