@@ -17,6 +17,8 @@ class LeagueConfig:
     lottery_picks: int
     chip_window_start: int
     chip_window_length: int
+    points_system: str = "wins"          # "wins" | "3-2-1-0" | "2-1-1"
+    regulation_win_share: float = 1.0    # share of decisive games ending in regulation
 
     @property
     def lottery_teams(self) -> int:
@@ -131,6 +133,8 @@ PWHL_CONFIG = LeagueConfig(
     lottery_picks=2,
     chip_window_start=25,
     chip_window_length=8,
+    points_system="3-2-1-0",
+    regulation_win_share=0.77,
 )
 
 MLS_CONFIG = LeagueConfig(
