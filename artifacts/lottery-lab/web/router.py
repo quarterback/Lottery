@@ -393,13 +393,15 @@ def build_effort_chart_meta(lg: LeagueConfig | None = None) -> dict:
 
 
 def build_standings_table(metrics: MetricsBundle, lg: LeagueConfig | None = None) -> list[dict]:
-    """Build standings table rows sorted by avg wins descending."""
+    """Build standings table rows sorted by ranking metric descending (points, else wins)."""
     cfg = lg or NBA_CONFIG
+    uses_points = cfg.points_system != "wins"
     rows = []
     for tid in range(cfg.num_teams):
         name = cfg.team_names[tid] if tid < len(cfg.team_names) else f"Team {tid}"
         avg_w = metrics.avg_wins_by_team.get(tid, 0.0)
         avg_l = round(cfg.games_per_season - avg_w, 1)
+        avg_pts = metrics.avg_points_by_team.get(tid, 0.0)
         slots = metrics.pick_distribution.get(tid, [0.0] * 5)
         pick1 = slots[0] if slots else 0.0
         top5_sum = sum(slots)
@@ -407,10 +409,11 @@ def build_standings_table(metrics: MetricsBundle, lg: LeagueConfig | None = None
             "name": name,
             "avg_wins": avg_w,
             "avg_losses": avg_l,
+            "avg_points": avg_pts,
             "pick1_pct": round(pick1, 2),
             "top5_pct": round(top5_sum, 2),
         })
-    rows.sort(key=lambda r: r["avg_wins"], reverse=True)
+    rows.sort(key=lambda r: (r["avg_points"] if uses_points else r["avg_wins"]), reverse=True)
     return rows
 
 
@@ -610,6 +613,7 @@ async def simulate(
             "league": league,
             "league_name": lg.name,
             "playoff_spots": lg.playoff_spots,
+            "points_system": lg.points_system,
             "leagues": {k: v.name for k, v in LEAGUES.items()},
         },
     )

@@ -17,6 +17,8 @@ class LeagueConfig:
     lottery_picks: int
     chip_window_start: int
     chip_window_length: int
+    points_system: str = "wins"          # "wins" | "3-2-1-0" | "2-1-1"
+    regulation_win_share: float = 1.0    # share of decisive games ending in regulation
 
     @property
     def lottery_teams(self) -> int:
@@ -102,9 +104,10 @@ WNBA_CONFIG = LeagueConfig(
         "Atlanta Dream", "Chicago Sky", "Connecticut Sun", "Dallas Wings",
         "Golden State Valkyries", "Indiana Fever", "Las Vegas Aces",
         "Los Angeles Sparks", "Minnesota Lynx", "New York Liberty",
-        "Phoenix Mercury", "Seattle Storm", "Washington Mystics",
+        "Phoenix Mercury", "Portland Fire", "Seattle Storm",
+        "Toronto Tempo", "Washington Mystics",
     ],
-    num_teams=13,
+    num_teams=15,
     playoff_spots=8,
     games_per_season=40,
     weeks_per_season=13,
@@ -119,16 +122,19 @@ PWHL_CONFIG = LeagueConfig(
     name="PWHL",
     team_names=[
         "Boston Fleet", "Minnesota Frost", "Montreal Victoire",
-        "New York Sirens", "Ottawa Charge", "Toronto Sceptres",
+        "New York Sirens", "Ottawa Charge", "Seattle Torrent",
+        "Toronto Sceptres", "Vancouver Goldeneyes",
     ],
-    num_teams=6,
+    num_teams=8,
     playoff_spots=4,
-    games_per_season=24,
-    weeks_per_season=8,
+    games_per_season=32,
+    weeks_per_season=11,
     play_in_slots=0,
     lottery_picks=2,
-    chip_window_start=19,
-    chip_window_length=6,
+    chip_window_start=25,
+    chip_window_length=8,
+    points_system="3-2-1-0",
+    regulation_win_share=0.77,
 )
 
 MLS_CONFIG = LeagueConfig(

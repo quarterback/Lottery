@@ -31,9 +31,10 @@ class Team:
 
 @dataclass
 class SeasonResult:
-    standings: list[tuple[int, int, int]]  # (team_id, wins, losses)
+    standings: list[tuple[int, int, int]]  # (team_id, wins, losses), sorted by ranking metric desc
     head_to_head: dict[tuple[int, int], tuple[int, int]]  # (a,b) -> (a_wins, b_wins)
     eliminated_week: dict[int, int]  # team_id -> week they were mathematically eliminated
+    points: dict[int, int] = field(default_factory=dict)  # team_id -> league points (= wins for non-points leagues)
 
 
 @dataclass
@@ -62,6 +63,7 @@ class MetricsBundle:
     effort_by_week: list[float]        # avg effort multiplier per week (bottom-6 teams across all seasons)
     avg_wins_by_rank: list[float]      # avg wins for rank-1..NUM_TEAMS (best to worst)
     avg_wins_by_team: dict[int, float] = field(default_factory=dict)  # team_id -> avg wins/season
+    avg_points_by_team: dict[int, float] = field(default_factory=dict)  # team_id -> avg league points/season
     pick1_by_team: dict[int, float] = field(default_factory=dict)     # team_id -> % of #1 picks
 
 
@@ -138,9 +140,19 @@ def weighted_lottery_draw(
     return order
 
 
+def _standings_metric(season: SeasonResult, team_id: int) -> float:
+    """Ranking value for a team: league points if tracked, else wins."""
+    if season.points:
+        return season.points.get(team_id, 0)
+    for tid, w, _ in season.standings:
+        if tid == team_id:
+            return w
+    return 0
+
+
 def _non_playoff_teams(season: SeasonResult, num_playoff: int = PLAYOFF_SPOTS) -> list[tuple[int, int, int]]:
     """Return lottery teams sorted worst-to-best (worst record first)."""
-    sorted_standings = sorted(season.standings, key=lambda x: x[1])  # ascending wins
+    sorted_standings = sorted(season.standings, key=lambda x: _standings_metric(season, x[0]))
     n_lottery = max(1, len(sorted_standings) - num_playoff)
     return sorted_standings[:n_lottery]
 
@@ -548,26 +560,25 @@ class GoldPlan:
 
     def draft_order(self, history, constraints, rng):
         season = history[-1]
-        # Draft order based on wins AFTER elimination from playoff contention
-        # Teams with most post-elimination wins pick first
+        # Draft order based on production AFTER elimination from playoff contention.
+        # For points-based leagues (PWHL) this is post-elim points; otherwise wins.
         lottery = _non_playoff_teams(season, constraints.playoff_spots)
 
         wps = constraints.weeks_per_season
+        wins_by_tid = {t_id: w for t_id, w, _ in lottery}
 
-        def post_elim_wins(tid):
+        def post_elim_score(tid):
             elim_week = season.eliminated_week.get(tid, wps)
-            # Wins per week estimation from total wins
-            total_wins = next(w for t_id, w, _ in lottery if t_id == tid)
-            wins_before_elim = total_wins * (elim_week / wps)
-            post_wins = max(0, total_wins - wins_before_elim)
-            return post_wins
+            total = season.points.get(tid, wins_by_tid.get(tid, 0))
+            scored_before_elim = total * (elim_week / wps)
+            return max(0.0, total - scored_before_elim)
 
-        sorted_by_post_wins = sorted(
+        sorted_by_post = sorted(
             [t[0] for t in lottery],
-            key=post_elim_wins,
-            reverse=True  # most post-elimination wins picks first
+            key=post_elim_score,
+            reverse=True  # most post-elimination production picks first
         )
-        return sorted_by_post_wins
+        return sorted_by_post
 
     def tank_incentive(self, team_id, standings, history, playoff_spots=PLAYOFF_SPOTS):
         if not history:
@@ -613,6 +624,28 @@ def _win_probability(talent_a: float, talent_b: float) -> float:
     """Logistic win probability for team A vs team B."""
     diff = talent_a - talent_b
     return 1.0 / (1.0 + math.exp(-diff / 8.0))
+
+
+def _award_points(
+    points: dict[int, int],
+    league: LeagueConfig,
+    *,
+    winner: int,
+    loser: int,
+    rng: random.Random,
+) -> None:
+    """Award league points for a decided game. No-op for `wins` systems."""
+    if league.points_system == "wins":
+        return
+    is_regulation = rng.random() < league.regulation_win_share
+    if league.points_system == "3-2-1-0":
+        points[winner] += 3 if is_regulation else 2
+        if not is_regulation:
+            points[loser] += 1
+    elif league.points_system == "2-1-1":
+        points[winner] += 2
+        if not is_regulation:
+            points[loser] += 1
 
 
 def _playoff_probability(
@@ -701,6 +734,7 @@ def simulate_season(
     lg = league or NBA_CONFIG
     wins = {t.id: 0 for t in teams}
     losses = {t.id: 0 for t in teams}
+    points = {t.id: 0 for t in teams}
     h2h: dict[tuple[int, int], tuple[int, int]] = {}
     eliminated_week: dict[int, int] = {}
     effort_log: list[list[float]] = []
@@ -757,6 +791,7 @@ def simulate_season(
                 if rng.random() < p_a:
                     wins[a_id] += 1
                     losses[b_id] += 1
+                    _award_points(points, lg, winner=a_id, loser=b_id, rng=rng)
                     key = (min(a_id, b_id), max(a_id, b_id))
                     a_w, b_w = h2h.get(key, (0, 0))
                     if key[0] == a_id:
@@ -766,6 +801,7 @@ def simulate_season(
                 else:
                     wins[b_id] += 1
                     losses[a_id] += 1
+                    _award_points(points, lg, winner=b_id, loser=a_id, rng=rng)
                     key = (min(a_id, b_id), max(a_id, b_id))
                     a_w, b_w = h2h.get(key, (0, 0))
                     if key[0] == a_id:
@@ -773,12 +809,20 @@ def simulate_season(
                     else:
                         h2h[key] = (a_w + 1, b_w)
 
+    if lg.points_system == "wins":
+        points = dict(wins)
+
     standings = sorted(
         [(t.id, wins[t.id], losses[t.id]) for t in teams],
-        key=lambda x: x[1],
+        key=lambda x: points[x[0]],
         reverse=True,
     )
-    return SeasonResult(standings=standings, head_to_head=h2h, eliminated_week=eliminated_week), effort_log
+    return SeasonResult(
+        standings=standings,
+        head_to_head=h2h,
+        eliminated_week=eliminated_week,
+        points=points,
+    ), effort_log
 
 
 # ---------------------------------------------------------------------------
@@ -990,6 +1034,12 @@ def compute_metrics(run: RunResult, teams: list[Team], league: LeagueConfig | No
         wins_list = [w for season in seasons for t_id, w, _ in season.standings if t_id == tid]
         avg_wins_per_team[tid] = round(sum(wins_list) / len(wins_list), 1) if wins_list else 0.0
 
+    # --- Avg league points per team across all seasons ---
+    avg_points_per_team: dict[int, float] = {}
+    for tid in team_ids:
+        pts_list = [season.points.get(tid, 0) for season in seasons if season.points]
+        avg_points_per_team[tid] = round(sum(pts_list) / len(pts_list), 1) if pts_list else 0.0
+
     # --- #1 pick distribution per team ---
     pick1_counts: dict[int, int] = {tid: 0 for tid in team_ids}
     for order in draft_orders:
@@ -1013,6 +1063,7 @@ def compute_metrics(run: RunResult, teams: list[Team], league: LeagueConfig | No
         effort_by_week=[round(e, 4) for e in effort_by_week],
         avg_wins_by_rank=avg_wins_by_rank,
         avg_wins_by_team=avg_wins_per_team,
+        avg_points_by_team=avg_points_per_team,
         pick1_by_team=pick1_by_team,
     )
 
@@ -1074,6 +1125,12 @@ def monte_carlo(
         vals = [m.avg_wins_by_team.get(i, 0.0) for m in all_metrics]
         avg_wins_by_team_mc[i] = round(sum(vals) / len(vals), 1) if vals else 0.0
 
+    # Average avg_points_by_team
+    avg_points_by_team_mc: dict[int, float] = {}
+    for i in range(n_teams):
+        vals = [m.avg_points_by_team.get(i, 0.0) for m in all_metrics]
+        avg_points_by_team_mc[i] = round(sum(vals) / len(vals), 1) if vals else 0.0
+
     # Average pick1_by_team
     avg_pick1_by_team: dict[int, float] = {}
     for i in range(n_teams):
@@ -1092,6 +1149,7 @@ def monte_carlo(
         effort_by_week=[round(e, 4) for e in avg_effort_by_week],
         avg_wins_by_rank=avg_wins_by_rank,
         avg_wins_by_team=avg_wins_by_team_mc,
+        avg_points_by_team=avg_points_by_team_mc,
         pick1_by_team=avg_pick1_by_team,
     )
 
