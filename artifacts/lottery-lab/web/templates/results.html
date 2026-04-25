@@ -130,12 +130,15 @@
       {% endif %}
       <div class="table-wrap">
         <table>
+          {% set show_points = points_system and points_system != "wins" %}
+          {% set col_count = 7 if show_points else 6 %}
           <thead>
             <tr>
               <th style="text-align:left">#</th>
               <th style="text-align:left">Team</th>
               <th>Avg W</th>
               <th>Avg L</th>
+              {% if show_points %}<th title="{{ points_system }} points system">Pts</th>{% endif %}
               <th>#1 Pick%</th>
               <th>Top-5%</th>
             </tr>
@@ -144,7 +147,7 @@
             {% for row in rows %}
             {% if loop.index == playoff_spots + 1 %}
             <tr>
-              <td colspan="6" style="text-align:center;color:var(--fg-faint);font-size:9px;padding:4px;border-top:2px dashed var(--border-2);">
+              <td colspan="{{ col_count }}" style="text-align:center;color:var(--fg-faint);font-size:9px;padding:4px;border-top:2px dashed var(--border-2);">
                 ── lottery eligible ──
               </td>
             </tr>
@@ -154,6 +157,7 @@
               <td style="text-align:left;color:var(--fg)">{{ row.name }}</td>
               <td>{{ row.avg_wins }}</td>
               <td style="color:var(--fg-faint)">{{ row.avg_losses }}</td>
+              {% if show_points %}<td>{{ row.avg_points }}</td>{% endif %}
               <td>
                 {% if row.pick1_pct > 0 %}
                 <span style="color:var(--accent)">{{ "%.1f"|format(row.pick1_pct) }}%</span>

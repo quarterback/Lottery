@@ -63,6 +63,7 @@ class MetricsBundle:
     effort_by_week: list[float]        # avg effort multiplier per week (bottom-6 teams across all seasons)
     avg_wins_by_rank: list[float]      # avg wins for rank-1..NUM_TEAMS (best to worst)
     avg_wins_by_team: dict[int, float] = field(default_factory=dict)  # team_id -> avg wins/season
+    avg_points_by_team: dict[int, float] = field(default_factory=dict)  # team_id -> avg league points/season
     pick1_by_team: dict[int, float] = field(default_factory=dict)     # team_id -> % of #1 picks
 
 
@@ -1033,6 +1034,12 @@ def compute_metrics(run: RunResult, teams: list[Team], league: LeagueConfig | No
         wins_list = [w for season in seasons for t_id, w, _ in season.standings if t_id == tid]
         avg_wins_per_team[tid] = round(sum(wins_list) / len(wins_list), 1) if wins_list else 0.0
 
+    # --- Avg league points per team across all seasons ---
+    avg_points_per_team: dict[int, float] = {}
+    for tid in team_ids:
+        pts_list = [season.points.get(tid, 0) for season in seasons if season.points]
+        avg_points_per_team[tid] = round(sum(pts_list) / len(pts_list), 1) if pts_list else 0.0
+
     # --- #1 pick distribution per team ---
     pick1_counts: dict[int, int] = {tid: 0 for tid in team_ids}
     for order in draft_orders:
@@ -1056,6 +1063,7 @@ def compute_metrics(run: RunResult, teams: list[Team], league: LeagueConfig | No
         effort_by_week=[round(e, 4) for e in effort_by_week],
         avg_wins_by_rank=avg_wins_by_rank,
         avg_wins_by_team=avg_wins_per_team,
+        avg_points_by_team=avg_points_per_team,
         pick1_by_team=pick1_by_team,
     )
 
@@ -1117,6 +1125,12 @@ def monte_carlo(
         vals = [m.avg_wins_by_team.get(i, 0.0) for m in all_metrics]
         avg_wins_by_team_mc[i] = round(sum(vals) / len(vals), 1) if vals else 0.0
 
+    # Average avg_points_by_team
+    avg_points_by_team_mc: dict[int, float] = {}
+    for i in range(n_teams):
+        vals = [m.avg_points_by_team.get(i, 0.0) for m in all_metrics]
+        avg_points_by_team_mc[i] = round(sum(vals) / len(vals), 1) if vals else 0.0
+
     # Average pick1_by_team
     avg_pick1_by_team: dict[int, float] = {}
     for i in range(n_teams):
@@ -1135,6 +1149,7 @@ def monte_carlo(
         effort_by_week=[round(e, 4) for e in avg_effort_by_week],
         avg_wins_by_rank=avg_wins_by_rank,
         avg_wins_by_team=avg_wins_by_team_mc,
+        avg_points_by_team=avg_points_by_team_mc,
         pick1_by_team=avg_pick1_by_team,
     )
 
