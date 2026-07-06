@@ -3,7 +3,7 @@ import { ALL_SYSTEMS } from '../engine'
 import { runHistoricalLottery, type HistoricalReport } from '../engine/historical'
 import { HISTORICAL_SEASONS, SEASON_KEYS } from '../data/historicalSeasons'
 
-const COLORS = ['#ff6b35', '#1a9e6e']
+const COLORS = ['var(--series-1)', 'var(--series-2)']
 // Systems that draw a weighted lottery (the historical proxy is meaningful for these).
 const LOTTERY_SYSTEMS = ['Current NBA', 'Flat Bottom', 'Play-In Boost', 'UEFA Coefficient', 'RCL', 'Pure Inversion', 'Pre-2019 Legacy NBA', 'Equal Odds', 'Top-4 Only Lottery', 'Current NHL', 'Current MLB']
 
@@ -36,7 +36,6 @@ export function Historical() {
       <div className="card">
         <div className="card__head"><span className="card__title">Historical season</span></div>
         <div className="card__body">
-          <p className="hint" style={{ margin: 0 }}>Replay a real NBA lottery ({SEASON_KEYS[0]} – {SEASON_KEYS[SEASON_KEYS.length - 1]}) thousands of times under any system and compare to what actually happened.</p>
           <div className="field">
             <label>Season</label>
             <select value={seasonKey} onChange={(e) => setSeasonKey(e.target.value)} style={{ padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border-strong)', background: 'var(--surface-2)', color: 'var(--text)', fontFamily: 'var(--font-mono)', fontSize: 13 }}>

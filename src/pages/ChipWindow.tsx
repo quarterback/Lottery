@@ -4,17 +4,17 @@ import { simulateChipWindowLeague, STATUS_LOTTERY, STATUS_PLAYIN, type CWResult,
 import { LineChart, Legend, type Series } from '../ui/charts'
 
 const STRATEGIES = ['standard', 'aggressive', 'conservative'] as const
-const PALETTE = ['#ff6b35', '#1a9e6e', '#1a659e', '#f472b6', '#a78bfa', '#00b7e0', '#f5c518', '#e11d48', '#10b981', '#8b5cf6', '#f97316', '#0ea5e9']
+const PALETTE = ['#fe4e00', '#570000', '#e0a800', '#1a659e', '#a83250', '#0d9488', '#8b5cf6', '#d1495b', '#2f855a', '#b45309', '#0ea5e9', '#c026d3']
 
 function chipColor(c: number): string {
-  if (c >= 200) return '#f5c518'
-  if (c >= 100) return 'var(--success)'
-  if (c >= 50) return '#ff6b35'
-  return 'var(--error)'
+  if (c >= 200) return '#e0a800' // gold
+  if (c >= 100) return '#fe4e00' // flame
+  if (c >= 50) return '#f39c6b' // soft flame
+  return 'var(--text-3)'
 }
 function pickClass(pick: number): string {
-  if (pick <= 3) return '#f5c518'
-  if (pick <= 8) return 'var(--brand)'
+  if (pick <= 3) return '#e0a800' // gold — top picks
+  if (pick <= 8) return 'var(--brand)' // flame
   return 'var(--text-3)'
 }
 
@@ -64,10 +64,6 @@ export function ChipWindow() {
       <div className="card">
         <div className="card__head"><span className="card__title">Chip window</span></div>
         <div className="card__body">
-          <p className="hint" style={{ margin: 0 }}>
-            Over the season's final {nights} games, every team wagers chips each night — winner takes the opponent's
-            stake. Among lottery teams, final chips <strong>are</strong> the draft order. Tanking is impossible.
-          </p>
           <div className="field">
             <label>Seasons — {seasonsN}</label>
             <input type="range" min={1} max={15} step={1} value={seasonsN} onChange={(e) => setSeasonsN(Number(e.target.value))} />

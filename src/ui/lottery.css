@@ -115,6 +115,7 @@
 .field .hint { font-size: 11px; color: var(--text-3); }
 .field input[type='text'],
 .field input[type='range'] { width: 100%; }
+input[type='range'] { accent-color: var(--brand); }
 .field input[type='text'] {
   padding: 8px 10px;
   border: 1px solid var(--border-strong);

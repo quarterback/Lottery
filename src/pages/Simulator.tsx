@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { ALL_SYSTEMS, LEAGUE_LIST, getLeague, monteCarlo, type LeagueConfig, type MetricsBundle } from '../engine'
 import { GroupedBars, Legend, LineChart, type Series } from '../ui/charts'
 
-const COLORS = ['#ff6b35', '#1a9e6e']
+const COLORS = ['var(--series-1)', 'var(--series-2)']
 
 interface MetricCard {
   label: string
@@ -125,12 +125,10 @@ export function Simulator() {
                 <button key={l.id} className="chip" data-on={l.id === leagueId} onClick={() => setLeagueId(l.id)}>{l.name}</button>
               ))}
             </div>
-            <span className="hint">Scales team count, schedule, and playoff structure automatically.</span>
           </div>
           <div className="field">
             <label>Monte Carlo runs — {runs}</label>
             <input type="range" min={5} max={200} step={5} value={runs} onChange={(e) => setRuns(Number(e.target.value))} />
-            <span className="hint">More runs = more accurate, slower.</span>
           </div>
           <div className="field">
             <label>Seasons per run — {seasons}</label>
@@ -139,7 +137,6 @@ export function Simulator() {
           <div className="field">
             <label>Seed</label>
             <input type="text" placeholder="blank = random" value={seed} onChange={(e) => setSeed(e.target.value)} />
-            <span className="hint">Same seed = same results.</span>
           </div>
           <button className="btn btn--primary" disabled={running || selected.length === 0} onClick={run}>
             {running ? 'Simulating…' : 'Run simulation →'}
@@ -176,7 +173,6 @@ export function Simulator() {
               <div className="card__body">
                 <LineChart series={effortSeries} yMin={0.3} yMax={1.0} yTicks={7} xLabels={effortSeries[0]?.values.map((_, i) => `W${i + 1}`)} />
                 <Legend items={legend} />
-                <span className="hint">1.0 = full effort · below 1.0 = tanking.</span>
               </div>
             </div>
 
@@ -185,7 +181,6 @@ export function Simulator() {
               <div className="card__body">
                 <GroupedBars series={winSeries} yMax={maxWins} xLabels={winSeries[0]?.values.map((_, i) => `${i + 1}`)} cutIndex={lg.playoffSpots} cutLabel="playoff cut" />
                 <Legend items={legend} />
-                <span className="hint">Rank 1 = best record · flatter curve = more balanced.</span>
               </div>
             </div>
 
