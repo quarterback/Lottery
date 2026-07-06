@@ -83,4 +83,22 @@ export class RNG {
       x[j] = tmp
     }
   }
+
+  /** Random integer in [a, b] inclusive (Python random.randint). */
+  randint(a: number, b: number): number {
+    return a + Math.floor(this.random() * (b - a + 1))
+  }
+
+  /** k distinct integers from [0, n) (Python random.sample(range(n), k)). */
+  sample(n: number, k: number): number[] {
+    const pool = Array.from({ length: n }, (_, i) => i)
+    const out: number[] = []
+    for (let i = 0; i < k && pool.length; i++) {
+      const j = Math.floor(this.random() * pool.length)
+      out.push(pool[j]!)
+      pool[j] = pool[pool.length - 1]!
+      pool.pop()
+    }
+    return out
+  }
 }
