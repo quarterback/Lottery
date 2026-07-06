@@ -1,15 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "echo build-complete",
-  "outputDirectory": "public",
-  "functions": {
-    "api/index.py": {
-      "memory": 1024,
-      "maxDuration": 15,
-      "includeFiles": "artifacts/lottery-lab/**"
-    }
-  },
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index" }
-  ]
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
