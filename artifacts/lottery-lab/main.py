@@ -11,7 +11,13 @@ app = FastAPI(title="Lottery Lab", docs_url=None, redoc_url=None)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 _static_dir = Path(__file__).resolve().parent / "web" / "static"
-app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+# On Vercel the static assets are served from the build's `public/` dir, and the
+# app tree is bundled via `includeFiles` — which may not place `web/static` where
+# this resolves. StaticFiles() raises at construction if the dir is missing, which
+# would crash the whole serverless function at cold start. Only mount when present
+# (local/Replit runs have it; Vercel serves /static from the edge regardless).
+if _static_dir.is_dir():
+    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
 app.include_router(router)
 
