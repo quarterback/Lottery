@@ -1,0 +1,428 @@
+Lottery//Lab
+Chip Window ↗
+Leaderboard ↗
+13 systems · Monte Carlo engine 
+Theme
+
+Light
+← Back to Simulator
+2000-01 NBA Lottery Analysis
+Lottery pick: Washington Wizards
+500 simulated lotteries · 82-game season · 0.1s
+2001 Draft · Kwame Brown (Washington, 19W) became the first HS player taken #1 overall. The Chicago Bulls (15W, worst record) were passed over as the Wizards jumped from 7th-worst to win the lottery — the second-biggest odds upset of the modern era.
+Records are approximate for some seasons. Lottery draw results (picks 1–4) reflect actual lottery outcomes; picks 5–14 reflect lottery-team pick order by record (traded and non-lottery picks not tracked). Both actuals and simulations use the same ordering convention.
+2000-01 Lottery Teams — Real Standings
+Lottery Seed	Team	W	L	Win%	Actual Pick
+1	Chicago Bulls	15	67	0.183	#4
+2	Golden State Warriors	17	65	0.207	#5
+3	Washington Wizards ★ #1 Pick	19	63	0.232	#1
+4	Memphis Grizzlies	23	59	0.280	#2
+5	Atlanta Hawks	25	57	0.305	#3
+6	New Jersey Nets	26	56	0.317	#6
+7	Cleveland Cavaliers	30	52	0.366	#7
+8	New York Knicks	30	52	0.366	#8
+9	LA Clippers	31	51	0.378	#9
+10	Detroit Pistons	32	50	0.390	#10
+11	Boston Celtics	36	46	0.439	#11
+12	Denver Nuggets	40	42	0.488	#12
+13	Seattle SuperSonics	44	38	0.537	#13
+14	Houston Rockets	45	37	0.549	#14
+Current NBA — Simulated Pick Probabilities vs Actual Results
+The three worst teams each receive 14% odds for pick #1. Odds taper to 0.5% at the 14th slot. Picks 1–4 are drawn by weighted lottery; picks 5–14 follow record order (worst first).
+■ Lottery picks (1–4)
+▲ Actual pick better than simulated most-likely
+▼ Actual pick worse than simulated most-likely
+Team	W-L	Seed	Sim Pick	Actual Pick	Delta	Pick 1%	Top-4%	Pick Distribution (1–4)
+Chicago Bulls	15-67	1	#5	#4	-1	13.6%	51.4%	
+#1
+14%
+#2
+14%
+#3
+12%
+#4
+12%
+Golden State Warriors	17-65	2	#5	#5	±0	14.0%	49.8%	
+#1
+14%
+#2
+14%
+#3
+11%
+#4
+10%
+Washington Wizards	19-63	3	#6	#1	▲ -5	14.2%	50.0%	
+#1
+14%
+#2
+12%
+#3
+13%
+#4
+11%
+Memphis Grizzlies	23-59	4	#6	#2	▲ -4	13.2%	49.0%	
+#1
+13%
+#2
+12%
+#3
+12%
+#4
+11%
+Atlanta Hawks	25-57	5	#7	#3	▲ -4	9.6%	42.8%	
+#1
+10%
+#2
+12%
+#3
+9%
+#4
+12%
+New Jersey Nets	26-56	6	#7	#6	-1	10.2%	40.4%	
+#1
+10%
+#2
+8%
+#3
+11%
+#4
+11%
+Cleveland Cavaliers	30-52	7	#8	#7	-1	7.8%	32.4%	
+#1
+8%
+#2
+8%
+#3
+8%
+#4
+8%
+New York Knicks	30-52	8	#8	#8	±0	6.2%	28.6%	
+#1
+6%
+#2
+6%
+#3
+7%
+#4
+9%
+LA Clippers	31-51	9	#9	#9	±0	3.8%	17.8%	
+#1
+4%
+#2
+3%
+#3
+6%
+#4
+5%
+Detroit Pistons	32-50	10	#10	#10	±0	3.0%	13.4%	
+#1
+3%
+#2
+4%
+#3
+3%
+#4
+4%
+Boston Celtics	36-46	11	#11	#11	±0	2.0%	9.8%	
+#1
+2%
+#2
+3%
+#3
+2%
+#4
+3%
+Denver Nuggets	40-42	12	#12	#12	±0	0.8%	6.6%	
+#1
+1%
+#2
+1%
+#3
+3%
+#4
+2%
+Seattle SuperSonics	44-38	13	#13	#13	±0	0.8%	4.4%	
+#1
+1%
+#2
+1%
+#3
+1%
+#4
+2%
+Houston Rockets	45-37	14	#14	#14	±0	0.8%	3.6%	
+#1
+1%
+#2
+1%
+#3
+1%
+#4
+1%
+Biggest Lottery Jumpers (Actual better than sim)
+-5 Washington Wizards — actual #1 vs sim #6
+-4 Memphis Grizzlies — actual #2 vs sim #6
+-4 Atlanta Hawks — actual #3 vs sim #7
+Chip Window — Simulated Pick Probabilities vs Actual Results
+Proposed by Ron Bronson (2026). Activates at game 60 for all 30 teams. Each team starts with 100 chips and wagers 10 or 25 chips per game. Winner gains the opponent's wager; loser loses their own wager — chips can go negative. Each lottery team may use their double once on any home game: their wager doubles for that game, and the opponent can respond by bidding aggressively. No chip threshold required — any lottery team can declare their double whenever they choose. Draft order among lottery teams is determined by final chip totals (most chips = Pick 1), floored at record-based NBA odds. Tanking is structurally impossible: losing costs chips at the same rate regardless of intent. Every late-season game carries chip stakes — a public leaderboard turns garbage time into must-watch TV.
+■ Lottery picks (1–4)
+▲ Actual pick better than simulated most-likely
+▼ Actual pick worse than simulated most-likely
+Team	W-L	Seed	Sim Pick	Actual Pick	Delta	Pick 1%	Top-4%	Pick Distribution (1–4)
+Chicago Bulls	15-67	1	#5	#4	-1	7.6%	33.6%	
+#1
+8%
+#2
+7%
+#3
+12%
+#4
+7%
+Golden State Warriors	17-65	2	#6	#5	-1	7.2%	35.2%	
+#1
+7%
+#2
+7%
+#3
+10%
+#4
+12%
+Washington Wizards	19-63	3	#6	#1	▲ -5	6.8%	33.0%	
+#1
+7%
+#2
+10%
+#3
+7%
+#4
+9%
+Memphis Grizzlies	23-59	4	#7	#2	▲ -5	5.6%	28.4%	
+#1
+6%
+#2
+8%
+#3
+6%
+#4
+8%
+Atlanta Hawks	25-57	5	#8	#3	▲ -5	6.4%	29.6%	
+#1
+6%
+#2
+6%
+#3
+8%
+#4
+9%
+New Jersey Nets	26-56	6	#8	#6	▲ -2	4.8%	24.2%	
+#1
+5%
+#2
+6%
+#3
+6%
+#4
+7%
+Cleveland Cavaliers	30-52	7	#9	#7	▲ -2	5.0%	27.4%	
+#1
+5%
+#2
+7%
+#3
+9%
+#4
+7%
+New York Knicks	30-52	8	#10	#8	▲ -2	3.8%	17.4%	
+#1
+4%
+#2
+4%
+#3
+5%
+#4
+4%
+LA Clippers	31-51	9	#11	#9	▲ -2	5.0%	17.6%	
+#1
+5%
+#2
+4%
+#3
+4%
+#4
+5%
+Detroit Pistons	32-50	10	#11	#10	-1	5.2%	14.4%	
+#1
+5%
+#2
+2%
+#3
+4%
+#4
+4%
+Boston Celtics	36-46	11	#12	#11	-1	4.0%	19.6%	
+#1
+4%
+#2
+5%
+#3
+5%
+#4
+6%
+Denver Nuggets	40-42	12	#13	#12	-1	9.8%	32.8%	
+#1
+10%
+#2
+9%
+#3
+8%
+#4
+6%
+Seattle SuperSonics	44-38	13	#14	#13	-1	12.4%	41.0%	
+#1
+12%
+#2
+12%
+#3
+8%
+#4
+9%
+Houston Rockets	45-37	14	#14	#14	±0	16.4%	45.8%	
+#1
+16%
+#2
+13%
+#3
+9%
+#4
+8%
+Biggest Lottery Jumpers (Actual better than sim)
+-5 Washington Wizards — actual #1 vs sim #6
+-5 Memphis Grizzlies — actual #2 vs sim #7
+-5 Atlanta Hawks — actual #3 vs sim #8
+Chip Window Leaderboard — 2000-01 Simulation
+600 randomized chip-window scenarios per team · Wins add chips, losses deduct · Double triggers when final chips > 100
+#	Team	Win% in
+Window	Median
+Chips	Chip Range (p25–p75)	Peak	Double
+Chance	Median Trajectory
+★	Houston Rockets
+45–37	54.9%	300	
+01100
+40–400 chips
+900	55.8%	
+G60
+G82
+2	Seattle SuperSonics
+44–38	53.7%	210	
+01100
+35–400 chips
+1100	51.5%	
+G60
+G82
+3	Denver Nuggets
+40–42	48.8%	52	
+01100
+20–300 chips
+900	36.5%	
+G60
+G82
+4	Boston Celtics
+36–46	43.9%	25	
+01100
+10–100 chips
+600	18.2%	
+G60
+G82
+5	LA Clippers
+31–51	37.8%	15	
+01100
+0–35 chips
+700	9.2%	
+G60
+G82
+6	Detroit Pistons
+32–50	39.0%	15	
+01100
+0–40 chips
+500	9.3%	
+G60
+G82
+7	New Jersey Nets
+26–56	31.7%	10	
+01100
+0–15 chips
+400	3.3%	
+G60
+G82
+8	Cleveland Cavaliers
+30–52	36.6%	10	
+01100
+0–30 chips
+700	6.2%	
+G60
+G82
+9	New York Knicks
+30–52	36.6%	10	
+01100
+0–30 chips
+500	6.2%	
+G60
+G82
+10	Chicago Bulls
+15–67	18.3%	0	
+01100
+0–10 chips
+35	0.0%	
+G60
+G82
+11	Golden State Warriors
+17–65	20.7%	0	
+01100
+0–10 chips
+50	0.0%	
+G60
+G82
+12	Washington Wizards
+19–63	23.2%	0	
+01100
+0–10 chips
+400	0.7%	
+G60
+G82
+13	Memphis Grizzlies
+23–59	28.0%	0	
+01100
+0–10 chips
+400	0.5%	
+G60
+G82
+14	Atlanta Hawks
+25–57	30.5%	0	
+01100
+0–10 chips
+500	1.7%	
+G60
+G82
+Chip range (p25–p75 across 600 scenarios)
+Median chips
+Dashed line in sparkline = 100-chip baseline · Teams above baseline may trigger the double
+Win% uses the team's full-season record as a proxy for their game 60–82 performance, since game-by-game results are not stored. Each scenario randomizes game outcomes within that win probability, producing the ranges shown above.
+Run Another Historical Season
+Season
+
+2000-01
+Systems (check up to 2)
+Current NBA
+Flat Bottom
+Play-In Boost
+UEFA Coefficient
+RCL
+Lottery Tournament
+Pure Inversion
+Gold Plan (PWHL)
+Chip Window
+The Wheel
+Pre-2019 Legacy NBA
+Equal Odds
+Top-4 Only Lottery
+Analyze →

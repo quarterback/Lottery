@@ -11,4 +11,18 @@ paths = [ "/" ]
 localPort = 21381
 
 [services.development]
-run = "cd artifacts/lottery-lab && uvicorn main:app --host 0.0.0.0 --port 21381 --reload"
+run = "cd /home/runner/workspace/artifacts/lottery-lab && uvicorn main:app --host 0.0.0.0 --port 21381 --reload"
+
+[services.production]
+
+[services.production.build]
+args = ["pip", "install", "--quiet", "-r", "artifacts/lottery-lab/requirements.txt"]
+
+[services.production.run]
+args = ["sh", "-c", "cd artifacts/lottery-lab && uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
+
+[services.production.run.env]
+PORT = "8080"
+
+[services.production.health.startup]
+path = "/"

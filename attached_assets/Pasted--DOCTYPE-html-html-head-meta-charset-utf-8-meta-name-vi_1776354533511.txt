@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:16px;background:#fff;color:#111}
+.meta{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;flex-wrap:wrap;gap:6px}
+.meta-title{font-size:14px;font-weight:600;color:#111}
+.meta-sub{font-size:11px;color:#aaa}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;min-width:480px}
+th{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:#888;padding:6px 8px;border-bottom:1px solid #e5e5e5;text-align:left;white-space:nowrap}
+td{padding:7px 8px;border-bottom:1px solid #f2f2f2;vertical-align:middle}
+tr.active:hover td{background:#fafafa}
+tr.dim td{opacity:0.32}
+tr.dim:hover td{opacity:0.55;background:#fafafa;cursor:default}
+.team{font-weight:600;font-size:12px;color:#111}
+.rec{font-size:11px;color:#888}
+.wrec-pos{font-size:11px;font-weight:600;color:#1D9E75}
+.wrec-neg{font-size:11px;color:#E24B4A}
+.chips{font-weight:600;font-size:12px;color:#111}
+.floor{font-size:9px;color:#bbb;margin-left:3px}
+.behind{font-size:12px;color:#888}
+.wager{font-size:12px;font-weight:600;color:#111}
+.wager-off{font-size:11px;color:#ccc}
+.pick-dot{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:10px;font-weight:600}
+.p1{background:#FAEEDA;color:#633806}
+.p23{background:#EAF3DE;color:#27500A}
+.p48{background:#E6F1FB;color:#0C447C}
+.p914{background:#fef0f0;color:#791F1F}
+.dtag{font-size:9px;font-weight:600;padding:1px 4px;border-radius:3px;background:#FAEEDA;color:#633806;margin-left:3px}
+.divider-row td{
+  padding:5px 8px;
+  font-size:10px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.05em;
+  color:#888;
+  background:#f8f8f8;
+  border-top:2px solid #111;
+  border-bottom:1px solid #e5e5e5;
+}
+.divider-sub{font-weight:400;text-transform:none;letter-spacing:0;color:#bbb;margin-left:6px;font-size:10px}
+.notes{font-size:10px;color:#bbb;margin-top:8px;line-height:1.7}
+</style>
+</head>
+<body>
+
+<div class="meta">
+  <div>
+    <div class="meta-title">Chip window standings</div>
+    <div class="meta-sub">Game 71 of 82 &nbsp;·&nbsp; 11 remaining &nbsp;·&nbsp; Wagers due noon ET</div>
+  </div>
+  <div class="meta-sub">Updated 11:58 AM</div>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th style="width:130px">Team</th>
+      <th style="width:58px">Overall</th>
+      <th style="width:54px">Window</th>
+      <th style="width:52px">Chips</th>
+      <th style="width:52px">Behind</th>
+      <th style="width:110px">Tonight</th>
+      <th style="width:44px">Pick</th>
+    </tr>
+  </thead>
+  <tbody id="body"></tbody>
+</table>
+</div>
+
+<div class="notes">
+  Window = chip window record since game 60. Behind = chips behind leader (— for leader). Playoff line reflects current standings and moves daily. Teams below line dimmed — chips shown for pick swap tracking only.
+</div>
+
+<script>
+const TEAMS = [
+  {name:'Bulls',         ow:39,ol:43, ww:7,wl:4,  chips:312, tonight:'175 vs DET', playoff:false, double:false},
+  {name:'Grizzlies',     ow:34,ol:48, ww:8,wl:3,  chips:265, tonight:'200 vs LAL', playoff:false, double:true},
+  {name:'Pistons',       ow:42,ol:40, ww:5,wl:6,  chips:225, tonight:'100 @ CHI',  playoff:false, double:false},
+  {name:'Heat',          ow:43,ol:39, ww:6,wl:5,  chips:212, tonight:'90 vs IND',  playoff:false, double:false},
+  {name:'Hawks',         ow:42,ol:40, ww:6,wl:5,  chips:188, tonight:'off',         playoff:false, double:false},
+  {name:'Kings',         ow:40,ol:42, ww:7,wl:4,  chips:162, tonight:'80 vs NOP',  playoff:false, double:false},
+  {name:'Celtics',       ow:61,ol:21, ww:8,wl:3,  chips:155, tonight:'40 vs CHA',  playoff:true,  double:false},
+  {name:'Cavaliers',     ow:64,ol:18, ww:7,wl:4,  chips:144, tonight:'off',         playoff:true,  double:false},
+  {name:'Spurs',         ow:34,ol:48, ww:5,wl:6,  chips:134, tonight:'60 @ MEM',   playoff:false, double:false},
+  {name:'Lakers',        ow:50,ol:32, ww:6,wl:5,  chips:124, tonight:'80 @ MEM',   playoff:true,  double:false},
+  {name:'Raptors',       ow:30,ol:52, ww:6,wl:5,  chips:109, tonight:'55 vs WAS',  playoff:false, double:false},
+  {name:'Timberwolves',  ow:56,ol:26, ww:5,wl:6,  chips:98,  tonight:'50 @ DEN',   playoff:true,  double:false},
+  {name:'Thunder',       ow:68,ol:14, ww:9,wl:2,  chips:88,  tonight:'88 @ MEM',   playoff:true,  double:false},
+  {name:'Mavericks',     ow:28,ol:54, ww:4,wl:7,  chips:85,  tonight:'off',         playoff:false, double:false},
+  {name:'Pacers',        ow:55,ol:27, ww:6,wl:5,  chips:74,  tonight:'90 vs MIA',  playoff:true,  double:false},
+  {name:'Pelicans',      ow:25,ol:57, ww:3,wl:8,  chips:62,  tonight:'62 @ SAC',   playoff:false, double:false},
+  {name:'Rockets',       ow:52,ol:30, ww:5,wl:6,  chips:58,  tonight:'off',         playoff:true,  double:false},
+  {name:'Hornets',       ow:26,ol:56, ww:5,wl:6,  chips:46,  tonight:'40 @ BOS',   playoff:false, double:false},
+  {name:'Knicks',        ow:51,ol:31, ww:4,wl:7,  chips:44,  tonight:'off',         playoff:true,  double:false},
+  {name:'Bucks',         ow:48,ol:34, ww:4,wl:7,  chips:38,  tonight:'12 @ BKN',   playoff:true,  double:false},
+  {name:'Jazz',          ow:25,ol:57, ww:4,wl:7,  chips:30,  tonight:'20 vs PHX',  playoff:false, double:false},
+  {name:'Magic',         ow:49,ol:33, ww:3,wl:8,  chips:28,  tonight:'off',         playoff:true,  double:false},
+  {name:'Nuggets',       ow:50,ol:32, ww:3,wl:8,  chips:24,  tonight:'50 vs MIN',  playoff:true,  double:false},
+  {name:'Nets',          ow:22,ol:60, ww:3,wl:8,  chips:22,  tonight:'12 vs MIL',  playoff:false, double:false},
+  {name:'76ers',         ow:24,ol:58, ww:2,wl:9,  chips:18,  tonight:'off',         playoff:false, double:false},
+  {name:'Suns',          ow:36,ol:46, ww:2,wl:9,  chips:16,  tonight:'20 vs UTA',  playoff:false, double:false},
+  {name:'Trail Blazers', ow:24,ol:58, ww:3,wl:8,  chips:14,  tonight:'off',         playoff:false, double:false},
+  {name:'Clippers',      ow:33,ol:49, ww:2,wl:9,  chips:12,  tonight:'off',         playoff:false, double:false},
+  {name:'Warriors',      ow:48,ol:34, ww:4,wl:7,  chips:10,  tonight:'off',         playoff:true,  double:false},
+  {name:'Wizards',       ow:18,ol:64, ww:1,wl:10, chips:10,  tonight:'10 @ TOR',   playoff:false, double:false},
+];
+
+const sorted = [...TEAMS].sort((a,b) => b.chips - a.chips);
+const leader = sorted[0].chips;
+const tbody = document.getElementById('body');
+let lotteryRank = 0;
+let dividerInserted = false;
+
+function pc(n){return n===1?'p1':n<=3?'p23':n<=8?'p48':'p914';}
+
+sorted.forEach(t => {
+  if(t.playoff && !dividerInserted){
+    const div = document.createElement('tr');
+    div.className = 'divider-row';
+    div.innerHTML = `<td colspan="7">Playoff line — as of today<span class="divider-sub">currently in playoff position · chips shown for swap tracking</span></td>`;
+    tbody.appendChild(div);
+    dividerInserted = true;
+  }
+
+  if(!t.playoff) lotteryRank++;
+  const lr = !t.playoff ? lotteryRank : null;
+
+  const behind = t.chips === leader
+    ? `<span style="color:#bbb">—</span>`
+    : `<span class="behind">${leader - t.chips}</span>`;
+
+  const wager = t.tonight === 'off'
+    ? `<span class="wager-off">off</span>`
+    : `<span class="wager">${t.tonight}</span>${t.double ? '<span class="dtag">2x</span>' : ''}`;
+
+  const proj = lr !== null
+    ? `<span class="pick-dot ${pc(lr)}">${lr}</span>`
+    : `<span style="font-size:10px;color:#ccc">—</span>`;
+
+  const floor = t.chips <= 10 ? `<span class="floor">floor</span>` : '';
+
+  const wrec = t.ww >= t.wl
+    ? `<span class="wrec-pos">${t.ww}-${t.wl}</span>`
+    : `<span class="wrec-neg">${t.ww}-${t.wl}</span>`;
+
+  const tr = document.createElement('tr');
+  tr.className = t.playoff ? 'dim' : 'active';
+  tr.innerHTML = `
+    <td><span class="team">${t.name}</span></td>
+    <td class="rec">${t.ow}-${t.ol}</td>
+    <td>${wrec}</td>
+    <td><span class="chips">${t.chips}</span>${floor}</td>
+    <td>${behind}</td>
+    <td>${wager}</td>
+    <td>${proj}</td>
+  `;
+  tbody.appendChild(tr);
+});
+</script>
+
+</body>
+</html>

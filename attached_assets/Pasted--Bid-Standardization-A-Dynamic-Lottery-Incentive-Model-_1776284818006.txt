@@ -1,0 +1,122 @@
+# Bid Standardization
+### A Dynamic Lottery Incentive Model to Eliminate Tanking in Professional Sports
+
+---
+
+## Abstract
+
+This paper proposes and simulates a novel draft lottery mechanism, *Bid Standardization*, designed to eliminate tanking among non-playoff teams in the NBA. Under the current system, teams with no playoff prospects have a strong incentive to lose games to improve their draft position — a strategic behavior known as tanking — that harms competitive balance, fan engagement, and league integrity.
+
+The Bid Standardization model replaces static lottery odds with a dynamic wagering system activated at **game 60** of the regular season, applying to all teams outside the top six seeds in each conference. This trigger point is deliberate: game 60 is precisely when tanking and load management behavior historically becomes visible. The chip clock intercepts this drift before it becomes organizational policy.
+
+**Core mechanics:** Each eligible team begins with 100 chips (lottery weight units). In every remaining regular-season game, a team must wager a minimum of 10 chips, with options of 10 or 25. A win returns the wagered chips with no penalty; a loss permanently deducts the wagered chips from the team's total. At season's end, any team with at least 100 chips may execute a one-time double — forfeiting 100 chips to double their remaining balance. Final lottery odds are proportional to each team's chip total, subject to a record-implied floor.
+
+**Tanking is structurally impossible.** The minimum wager of 10 chips per game means deliberate losing still depletes a team's chip total. There is no passive path to lottery odds.
+
+**The odds floor:** Every team's chip-derived odds cannot fall below the lottery percentage their win-loss record would earn under the current system. Chips operate as upside above that floor, not as the sole source of odds. Teams near their floor still have every reason to wager aggressively: wins rebuild chips and push odds above baseline, so the incentive to compete never disappears.
+
+**Play-in teams included:** Teams seeded 7 through 10 participate in the chip pool. Their incentive is layered — compete for playoff positioning while building chip totals simultaneously. A play-in team that misses the playoffs retains its chip-derived lottery odds, plus a small consolation bonus of 5 to 10 chips. The double mechanic is restricted to confirmed lottery teams only.
+
+A Monte Carlo simulation (10,000 seasons, 22 games per team) tested the model under realistic win probabilities and strategic behavior. Results show:
+
+- **Tanking is impossible** — minimum bet rule ensures losing depletes chips regardless of intent; the floor prevents double punishment for genuinely bad teams
+- **Winning is rewarded** — aggressive and successful teams achieve mean final chips of 89–168, with up to 34% lottery odds
+- **Drama is manufactured** — teams near their floor wager aggressively to climb above baseline; in 22% of simulations such teams recovered to surpass conservative teams in final odds
+- **Fan comprehension is high** — teams announce pregame wagers, turning late-season games into transparent, high-stakes events with a public chip leaderboard running alongside the standings
+- **No centralized enforcement needed** — the tanking disincentive is mathematical, not regulatory
+
+**Keywords:** tanking, draft lottery, incentive design, tournament theory, Monte Carlo simulation, sports economics, play-in tournament, chip window, pick swaps, strength of schedule
+
+---
+
+## Feature Comparison: Current NBA Lottery vs. Bid Standardization
+
+```
+Feature                  Current NBA Lottery              Bid Standardization
+-----------------------  -------------------------------  -----------------------------------------------
+Tanking incentive        Lose to improve odds             Lose -> lose chips -> fall toward floor
+When it activates        All season (record-based)        Game 60 trigger for all non-top-6 teams
+Odds floor               Static, record-based             Record-implied floor; chips = upside above it
+Late-season games        Often unwatchable                Every game has chip stakes + wager announcement
+Play-in teams            Separate from lottery            In chip pool; miss playoffs = odds + 5-10 bonus
+10-day signings          Tryouts and roster fill          Same mechanism, new motivation: signed to win
+G-League call-ups        Count against roster limit       Exempt from limit within chip window
+Bad teams stay bad?      Yes -- high picks by losing      Floor protects baseline; chips reward winning
+Double mechanic          N/A                              Home games only; >=100 chips; announced pregame
+Playoff team stakes      Seeding only                     Pick swap and protection implications in play
+Enforcement needed       Yes (fines, investigations)      No -- mathematical disincentive
+Fan product              Static odds, minimal story       Chip leaderboard, wager announcements, drama
+```
+
+---
+
+## Simulation Results: 22-Game Chip Window, 10,000 Seasons
+
+```
+Strategy                          Avg Chips   Avg Odds   % Hit Floor   Peak Chips
+--------------------------------  ----------  ---------  ------------  ----------
+Min bet only (closest to tank)    28          at floor   41%           100
+Conservative (bet 10/game)        54          11%        12%           142
+Aggressive (bet 25 often)         89          19%        3%            198
+Save for 100-chip double          168         34%        1%            312
+Near-floor, fights back (bet 25)  41          8%         9%            87
+Play-in miss + consolation bonus  44          9%         8%            94
+```
+
+---
+
+## Key Design Decisions
+
+### Game 60 Trigger
+
+The chip window activates at game 60 — not upon elimination. With the play-in tournament keeping 20 of 30 teams in postseason contention until late March, formal elimination almost never occurs before game 65, making elimination-based triggers impractical. More importantly, game 60 is precisely when tanking and load management behavior historically becomes organizationally visible. The chip clock intercepts this moment directly.
+
+### Minimum Wager and the Odds Floor
+
+All teams must wager at least 10 chips per game. This makes tanking structurally identical to poor play: both deplete chips at the same rate. A team cannot passively accumulate lottery odds by sitting players.
+
+The floor ensures this doesn't punish bad teams twice. A team that loses every chip game still holds the lottery percentage their record earns — chips represent potential upside above that baseline. A chip-depleted team near their floor has full incentive to keep wagering aggressively: winning games rebuilds chips and lifts their odds above the floor. The competitive incentive never fully extinguishes.
+
+### The Double: Home Games Only
+
+The one-time double mechanic — forfeiting 100 chips to double the remaining balance — may only be executed at a home game, announced pregame in the same manner as any other chip wager. This constraint is deliberate on multiple levels.
+
+Home game execution gives the team a genuine crowd and atmosphere advantage for the most consequential chip play of their season. It creates a ticket sales and broadcast story — fans know this game carries outsized lottery implications and will turn out or tune in accordingly. And it gives the opponent a concrete incentive to deny the double: winning that road game prevents the lottery bump, which matters not just for competitive reasons but for the pick economics described below.
+
+### Pick Swaps, Protections, and Playoff Team Stakes
+
+Under the current system, a playoff team playing a late-season game against a lottery team has limited stakes beyond seeding. Under Bid Standardization, that changes materially.
+
+NBA draft picks are frequently traded with attached conditions — swap rights, top-end protections, convey triggers tied to playoff outcomes. A team like OKC currently owns picks from multiple franchises with lottery implications baked in. A playoff team that holds a swap right on a lottery team's pick has direct financial incentive to help that team land lower in the chip standings: a worse chip outcome means a higher pick position to swap into. Conversely, a playoff team that owes a pick wants to see lottery chaos that buries their obligation lower in the order.
+
+This means chip window games between playoff and non-playoff teams are no longer exhibitions. Both benches have calculable draft capital on the line. Front offices will model these matchups. Beat reporters will write about them. The gamesmanship becomes public and legible in a way the current system never produces.
+
+### Strength of Schedule Within the Chip Window
+
+The 22-game chip window is not played on a neutral schedule. Some lottery teams will draw a disproportionate number of road games against contenders; others will catch depleted opponents at home. Strength of schedule within the window becomes a meaningful variable — teams with harder chip-window schedules face greater chip erosion risk through no fault of strategy, which the odds floor partially addresses.
+
+More interestingly, schedule context creates matchup-level stories that didn't previously exist:
+
+- Two non-playoff teams meeting in a chip game are directly competing for lottery positioning — both have wagers announced, both have something to deny the other
+- A playoff team with pick swap exposure facing a lottery team mid-chip-window has front office stakes attached to a game that would otherwise be ignored
+- A lottery team executing its home double against a top seed creates a genuine David and Goliath frame with draft capital as the prize
+
+This is the kind of late-season context that currently exists only in playoff races. The chip window manufactures an equivalent stakes structure for the other half of the league.
+
+### G-League Call-Ups Within the Chip Window
+
+Teams operating within the chip window may call up players from their G-League affiliate on standard 10-day contracts without those players counting against the 15-man roster limit — analogous to September call-up rules in MLB. This applies only to players already in the organization's G-League affiliate system; external 10-day signings follow standard roster rules.
+
+The practical effect: chip-window teams can add depth and hustle players to compete without forcing difficult roster decisions or waiving existing players. A team at 18 chips can bring up a G-League contributor specifically to help win games, without the front office having to choose between him and a veteran on a guaranteed deal. The roster flexibility is real but bounded — it rewards organizational depth and affiliate investment rather than creating a wide-open signing period.
+
+Teams already have the ability to sign 10-day players — the model doesn't change the mechanism. What changes is the motivation. Right now a late-season 10-day signing is a tryout or a roster fill. Under Bid Standardization, the signing has defined chip consequences attached to the player's performance. His games become must-watch. The drama is real even though the paperwork is identical.
+
+### Play-In Teams in the Chip Pool
+
+Including seeds 7 through 10 addresses the model's core goal: making late-season games watchable across the entire non-contending tier of the league, not just for the bottom feeders. Play-in teams have layered incentives — seeding competition and chip accumulation simultaneously. Analytics departments will model the tradeoff between playoff probability and draft pick exposure, generating legitimate strategic stories for broadcast.
+
+The double mechanic is restricted to confirmed lottery teams only, preventing a play-in team from converting a strong late-season run into outsized draft influence.
+
+### Play-In Consolation Bonus
+
+A play-in team that competes hard but misses the playoffs receives a 5 to 10 chip bonus added to their chip-derived lottery odds. Small enough not to distort the lottery meaningfully; large enough to reward effort and give the team a narrative — they fought for something even in falling short.

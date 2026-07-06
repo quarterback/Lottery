@@ -1,0 +1,1282 @@
+{% extends "base.html" %}
+{% block title %}Lottery Lab — Chip Window Simulator{% endblock %}
+
+{% block content %}
+
+<div class="mt-24">
+
+  <div class="results-header" style="margin-bottom:8px">
+    <span class="results-title">Chip Window Simulator</span>
+    <span class="results-meta" id="cw-meta-label">Bid Standardization · chip window · all teams</span>
+  </div>
+  <p style="font-size:var(--fs-sm);color:var(--fg-dim);line-height:1.7;margin-bottom:24px;max-width:760px">
+    Activates at a configurable game threshold for all teams. Starting chips are assigned by record rank
+    across 7 tiers (140 → 20) — giving the weakest teams the most firepower.
+    Chips are clamped at <b>10 minimum</b>. Every team gets one <b>double</b> — declared by choosing which
+    home game to apply it. That night both teams wager normally, but the <b>winner earns 2× chips</b>
+    (double the opponent's wager). The lottery teams' final chip totals
+    determine draft order directly: <b>most chips = Pick 1</b>.
+    No lottery draw. Ties are broken by worse record. <b>Tanking is structurally impossible.</b>
+  </p>
+
+  <!-- ── Control panel ──────────────────────────────────────── -->
+  <div style="background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px">
+    <div class="section-title" style="margin-bottom:16px">Simulation Parameters</div>
+    <form id="cw-form" style="display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap">
+      <div class="field" style="min-width:180px">
+        <label for="cw-seasons">Seasons — <span id="cw-seasons-val">10</span></label>
+        <input type="range" id="cw-seasons" name="seasons" value="10" min="5" max="15" step="1"
+          oninput="document.getElementById('cw-seasons-val').textContent = this.value">
+        <span class="field-hint">5–15 seasons simulated</span>
+      </div>
+      <div class="field" style="min-width:160px">
+        <label for="cw-seed">Random seed (optional)</label>
+        <input type="text" id="cw-seed" name="seed" placeholder="e.g. 42"
+          style="background:var(--bg-2);border:1px solid var(--border-2);color:var(--fg);font-family:var(--font);font-size:var(--fs);padding:8px 10px;border-radius:var(--radius);width:100%">
+        <span class="field-hint">Same seed = same results</span>
+      </div>
+      <div class="field" style="min-width:220px">
+        <label>Lottery Team Strategy</label>
+        <div style="display:flex;gap:6px;margin-top:4px" id="strategy-btns">
+          <button type="button" class="btn strategy-btn active" data-val="standard"  onclick="selectStrategy('standard')">Standard</button>
+          <button type="button" class="btn strategy-btn"        data-val="aggressive" onclick="selectStrategy('aggressive')">Aggressive</button>
+          <button type="button" class="btn strategy-btn"        data-val="conservative" onclick="selectStrategy('conservative')">Conservative</button>
+        </div>
+        <span class="field-hint" id="strategy-hint">Adaptive: wager scales 10–25 with chip position</span>
+        <input type="hidden" id="cw-strategy" value="standard">
+      </div>
+      <div class="field" style="min-width:260px">
+        <label>League</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px" id="cw-league-pills">
+          {% if leagues %}
+            {% for lid, lname in leagues.items() %}
+            <button type="button" class="pill-btn {% if loop.first %}pill-active{% endif %}"
+              data-league="{{ lid }}" onclick="selectCwLeague(this)">{{ lname }}</button>
+            {% endfor %}
+          {% else %}
+          <button type="button" class="pill-btn pill-active" data-league="nba" onclick="selectCwLeague(this)">NBA</button>
+          {% endif %}
+        </div>
+        <input type="hidden" id="cw-league" value="nba">
+        <span class="field-hint">Scales team count, schedule, and playoff spots</span>
+      </div>
+      <div>
+        <button type="button" class="btn btn-primary" id="cw-run-btn" onclick="runSim()">
+          Run Simulation →
+        </button>
+        <div id="cw-spinner" style="display:none;align-items:center;gap:8px;margin-top:8px">
+          <div class="spinner"></div>
+          <span style="font-size:11px;color:var(--fg-dim)">Simulating…</span>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- ── Results summary ────────────────────────────────────── -->
+  <div id="sim-summary" style="display:none;margin-bottom:24px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span id="summary-text" style="font-size:11px;color:var(--fg-dim)"></span>
+      <div style="display:flex;gap:6px;margin-left:auto">
+        <button type="button" class="btn" id="export-csv-btn" onclick="exportCsv()"
+          style="font-size:11px;padding:4px 10px">CSV ↓</button>
+        <button type="button" class="btn" onclick="exportJson()"
+          style="font-size:11px;padding:4px 10px">JSON ↓</button>
+        <button type="button" class="btn" onclick="printPage()"
+          style="font-size:11px;padding:4px 10px">Print / PDF ⎙</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Season + Game navigation ──────────────────────────── -->
+  <div id="season-nav-wrap" style="display:none;margin-bottom:24px">
+    <div class="cw-season-nav">
+      <label>Season</label>
+      <input type="range" id="season-slider" min="1" max="10" value="1" step="1"
+        oninput="onSeasonSlide(this.value)">
+      <span id="season-slider-label" class="season-badge">Season 1</span>
+      <span id="season-champ" style="font-size:11px;color:var(--fg-dim)"></span>
+
+      <span style="color:var(--border-2);margin:0 4px">|</span>
+
+      <label>Game Window</label>
+      <input type="range" id="game-slider" min="1" max="22" value="22" step="1"
+        oninput="onGameSlide(this.value)">
+      <span id="game-slider-label" class="season-badge" style="background:var(--green-bg);color:var(--green);border-color:var(--green-border)">G—</span>
+      <span id="game-delta-label" style="font-size:11px;color:var(--fg-dim)">Final standings</span>
+    </div>
+  </div>
+
+  <!-- ── Per-season analytics summary card ─────────────────── -->
+  <div id="season-summary-card" style="display:none;margin-bottom:24px;background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px">
+    <div style="font-size:10px;font-weight:700;color:var(--fg-dim);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.6px">Season <span id="sscard-season-num">1</span> Highlights</div>
+    <div style="display:flex;gap:32px;flex-wrap:wrap">
+      <div style="min-width:170px">
+        <div style="font-size:9px;color:var(--fg-faint);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Biggest Swing</div>
+        <div id="sscard-swing" style="font-size:12px;color:var(--fg);line-height:1.5">—</div>
+      </div>
+      <div style="min-width:170px">
+        <div style="font-size:9px;color:var(--fg-faint);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Best Double Night</div>
+        <div id="sscard-double" style="font-size:12px;color:var(--fg);line-height:1.5">—</div>
+      </div>
+      <div style="min-width:110px">
+        <div style="font-size:9px;color:var(--fg-faint);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Final Gini</div>
+        <div id="sscard-gini" style="font-size:12px;color:var(--fg);line-height:1.5">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Main content grid ──────────────────────────────────── -->
+  <div id="standings-section">
+    <div class="cw-grid">
+
+      <!-- Standings table -->
+      <div>
+        <div class="section-title">Chip Window Standings</div>
+        <p id="cw-standings-desc" style="font-size:11px;color:var(--fg-faint);margin-bottom:10px">
+          All teams participate. Click column headers to sort. Drag the <b>Game Window</b> slider to see standings evolve.
+        </p>
+        <div class="table-wrap">
+          <table id="standings-table">
+            <thead>
+              <tr id="standings-header-row">
+                <th class="sortable-th" data-sort="rank" style="text-align:left" onclick="setSort('rank')"># <span class="sort-arrow" id="sort-arrow-rank">↑</span></th>
+                <th style="text-align:left">Team</th>
+                <th class="sortable-th" data-sort="status" style="text-align:left" onclick="setSort('status')">Status <span class="sort-arrow" id="sort-arrow-status"></span></th>
+                <th id="cw-col-pre">Pre-Win</th>
+                <th id="cw-col-end">Final-W</th>
+                <th class="sortable-th" data-sort="chips" style="min-width:120px" onclick="setSort('chips')">Chips <span class="sort-arrow" id="sort-arrow-chips"></span> <span style="font-weight:400;color:var(--fg-faint);font-size:9px">(+/− last game)</span></th>
+                <th style="text-align:left">Tonight</th>
+                <th>Pick</th>
+              </tr>
+            </thead>
+            <tbody id="standings-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Chip trajectory chart -->
+      <div>
+        <div class="section-title">Chip Window Trajectories</div>
+        <p id="cw-traj-desc" style="font-size:11px;color:var(--fg-faint);margin-bottom:10px">
+          Chip totals over the chip window. Teams start at their record-rank chips (20–140).
+          Vertical marker = current game. <span class="doubled-badge">2×</span> = double declared that night.
+        </p>
+        <div class="chart-wrap" style="padding:12px">
+          <svg id="traj-svg" viewBox="0 0 560 280" style="width:100%;display:block"></svg>
+          <div id="traj-legend" class="chart-legend" style="margin-top:8px;flex-wrap:wrap;gap:6px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-rule" id="lb-rule" style="display:none">
+
+  <!-- ── Cumulative leaderboard ────────────────────────────── -->
+  <div id="leaderboard-section">
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">
+
+      <div style="flex:1;min-width:260px">
+        <div class="section-title">Cumulative Leaderboard</div>
+        <p style="font-size:11px;color:var(--fg-faint);margin-bottom:10px">
+          Sorted by championship wins across all simulated seasons.
+        </p>
+        <div class="table-wrap">
+          <table id="lb-table">
+            <thead>
+              <tr>
+                <th style="text-align:left">#</th>
+                <th style="text-align:left">Team</th>
+                <th>Titles</th>
+                <th>Playoffs</th>
+                <th>Avg Chips</th>
+              </tr>
+            </thead>
+            <tbody id="lb-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="flex:0 0 220px">
+        <div class="section-title">Legend</div>
+        <div style="background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius);padding:16px;font-size:11px;color:var(--fg-dim);line-height:1.9">
+          <div style="margin-bottom:8px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-faint)">Status</div>
+          <div style="margin-bottom:6px"><span class="cw-pill cw-safe">Safe Playoff</span> — top 12, bid conservatively (not competing for picks)</div>
+          <div style="margin-bottom:6px"><span class="cw-pill cw-playin">Play-In</span> — seeds 13–20, always aggressive bids</div>
+          <div style="margin-bottom:14px"><span class="cw-pill cw-lottery">Lottery</span> — bottom 14, user strategy, chip standings determine draft pick</div>
+          <div style="margin-bottom:8px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-faint)">Wagers</div>
+          <div style="margin-bottom:4px">Start: worst 3 → <b>140</b>, next 3 → <b>120</b>, next 3 → <b>100</b>, next 3 → <b>80</b>, then 60 / 40 / 20 in groups of 6</div>
+          <div style="margin-bottom:4px">Range: <b>10 chips min</b> (floor), up to full stack</div>
+          <div style="margin-bottom:4px">Win → gain opponent's wager</div>
+          <div style="margin-bottom:4px">Loss → lose own wager (floored at 10)</div>
+          <div style="margin-bottom:4px"><span style="color:#f5c518;font-size:11px">⚡</span> Upset bonus: lower-record winner earns +(<i>opp wins − your wins</i>) bonus chips</div>
+          <div style="margin-bottom:14px"><span class="doubled-badge">2×</span> One double per team — home team picks which game. Both wager normally; winner earns 2× opponent's wager that night</div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--fg-faint);margin-bottom:4px">Draft order</div>
+          <div>Most chips = Pick 1 · Fully deterministic — no lottery draw · Ties broken by worse record</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-rule" id="analytics-rule" style="display:none">
+
+  <!-- ── Analytics section ────────────────────────────────────── -->
+  <div id="analytics-section" style="display:none;margin-top:8px">
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0 12px;border-bottom:1px solid var(--border)">
+      <div style="font-size:var(--fs-sm);color:var(--fg-dim);text-transform:uppercase;letter-spacing:.12em;flex:1">Chip Window Analytics</div>
+      <span style="font-size:10px;color:var(--fg-faint)">Computed across all simulated seasons</span>
+      <button type="button" onclick="toggleAnalytics()" id="analytics-toggle" class="btn" style="font-size:10px;padding:3px 12px">Show ▾</button>
+    </div>
+    <div id="analytics-body" style="display:none;margin-top:16px">
+      <div class="an-grid">
+
+        <!-- 1: Double Effectiveness -->
+        <div class="an-panel">
+          <div class="an-panel-title">Double Effectiveness</div>
+          <p class="an-panel-desc">Avg chip gain on each team's double night vs their per-night baseline, across all simulated seasons. Teams sorted by double gain.</p>
+          <div id="an-double-eff-body"></div>
+        </div>
+
+        <!-- 2: Gini Curve -->
+        <div class="an-panel">
+          <div class="an-panel-title">Chip Inequality Over Window</div>
+          <p class="an-panel-desc">Gini coefficient of lottery teams' chip totals each night. Rising line = rich get richer. Falling = regression to mean.</p>
+          <svg id="an-gini-svg" viewBox="0 0 400 150" style="width:100%;display:block"></svg>
+        </div>
+
+        <!-- 3: Biggest Swings -->
+        <div class="an-panel">
+          <div class="an-panel-title">Biggest Single-Night Swings</div>
+          <p class="an-panel-desc">Largest chip transfers in one game across all simulated seasons. <span class="doubled-badge" style="font-size:8px">2×</span> = double night multiplier.</p>
+          <div id="an-swings-body"></div>
+        </div>
+
+        <!-- 4: Personality ROI -->
+        <div class="an-panel">
+          <div class="an-panel-title">Bidding Personality ROI</div>
+          <p class="an-panel-desc">Bold, Cautious, Volatile, and Standard bidding personalities — avg final chips and avg draft pick across all lottery teams.</p>
+          <div id="an-pers-body"></div>
+        </div>
+
+        <!-- 5: Scatter -->
+        <div class="an-panel" style="display:flex;flex-direction:column;align-items:center">
+          <div class="an-panel-title" style="align-self:flex-start">Starting Rank vs Final Pick</div>
+          <p class="an-panel-desc" style="align-self:flex-start">One dot per lottery team per season. Green = outcome matched starting rank. Red = diverged. Diagonal = perfect system.</p>
+          <svg id="an-scatter-svg" viewBox="0 0 220 220" style="width:100%;max-width:240px;display:block"></svg>
+        </div>
+
+        <!-- 6: Timing Distribution -->
+        <div class="an-panel">
+          <div class="an-panel-title">Double Declaration Timing</div>
+          <p id="an-timing-desc" class="an-panel-desc">Which game lottery teams chose to declare their double (orange = early half, blue = late half) with avg draft pick for each cohort.</p>
+          <svg id="an-timing-svg" viewBox="0 0 400 130" style="width:100%;display:block"></svg>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// Starting chips are per-team (quintile: 20/40/60/80/100 by record rank)
+let simData = null;
+let currentSeason = 1;
+let currentGame = 22;   // 1-22 position within chip window (22 = final)
+let matchupCache = {};  // matchupCache[seasonNum][nightIdx][teamId] = matchup obj
+let sortField = 'rank'; // 'rank' | 'chips' | 'status'
+let sortDir   = 1;      // 1 = asc, -1 = desc
+
+function setSort(field) {
+  if (sortField === field) {
+    sortDir *= -1;
+  } else {
+    sortField = field;
+    sortDir = 1; // all fields start ascending; for chips formula (b-a), that means most-first
+  }
+  // Update arrow indicators
+  ['rank','chips','status'].forEach(f => {
+    const el = document.getElementById('sort-arrow-' + f);
+    if (!el) return;
+    if (f === sortField) el.textContent = sortDir === 1 ? '↑' : '↓';
+    else el.textContent = '';
+  });
+  renderSeason(currentSeason, currentGame);
+}
+
+// Build a short abbreviation that keeps multi-word city names intact.
+// Single-word: first 3 chars ("BOS", "MIA"). Multi-word: initials, with
+// special handling so "LA X" stays "LAC"/"LAL" and not "LC"/"LL".
+function teamAbbr(name) {
+  const words = name.split(' ');
+  if (words.length === 1) return name.substring(0, 3).toUpperCase();
+  if (words[0] === 'LA') return ('LA' + words[1][0]).toUpperCase();
+  return words.map(w => w[0]).join('').toUpperCase();
+}
+
+const STRATEGY_HINTS = {
+  standard:     'Proportional: bid 15–40% of stack (scales with chips, min 10)',
+  aggressive:   'High roller: bid 30–60% of stack per game (min 10)',
+  conservative: 'Protect stack: bid 10–20 chips regardless of total',
+};
+
+function selectStrategy(val) {
+  document.getElementById('cw-strategy').value = val;
+  document.getElementById('strategy-hint').textContent = STRATEGY_HINTS[val] || '';
+  document.querySelectorAll('.strategy-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === val);
+  });
+}
+
+function selectCwLeague(btn) {
+  document.querySelectorAll('#cw-league-pills .pill-btn').forEach(b => b.classList.remove('pill-active'));
+  btn.classList.add('pill-active');
+  document.getElementById('cw-league').value = btn.dataset.league;
+}
+
+// ── Fetch + run ──────────────────────────────────────────────────────────────
+
+async function runSim() {
+  const btn = document.getElementById('cw-run-btn');
+  const spinner = document.getElementById('cw-spinner');
+  btn.disabled = true;
+  spinner.style.display = 'flex';
+
+  const seasons = document.getElementById('cw-seasons').value;
+  const seed = document.getElementById('cw-seed').value;
+  const strategy = document.getElementById('cw-strategy').value;
+  const league = document.getElementById('cw-league').value;
+
+  const body = new URLSearchParams();
+  body.append('seasons', seasons);
+  body.append('strategy', strategy);
+  body.append('league', league);
+  if (seed.trim()) body.append('seed', seed.trim());
+
+  try {
+    const resp = await fetch('/chip-window/run', { method: 'POST', body });
+    if (!resp.ok) throw new Error('Server error');
+    simData = await resp.json();
+    buildMatchupCaches();
+    renderAll();
+  } catch (e) {
+    alert('Simulation failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+// ── Matchup lookup ───────────────────────────────────────────────────────────
+
+function buildMatchupCaches() {
+  matchupCache = {};
+  simData.seasons.forEach(s => {
+    const byNight = {};
+    s.schedule.forEach((night, ni) => {
+      const byTeam = {};
+      night.forEach(m => {
+        byTeam[m.home_id] = { ...m, is_home: true };
+        byTeam[m.away_id] = { ...m, is_home: false };
+      });
+      byNight[ni] = byTeam;
+    });
+    matchupCache[s.season_num] = byNight;
+  });
+}
+
+function getMatchup(seasonNum, gameNum, teamId) {
+  // gameNum is 1-22; schedule is 0-indexed
+  return matchupCache[seasonNum]?.[gameNum - 1]?.[teamId];
+}
+
+// ── Render all ───────────────────────────────────────────────────────────────
+
+function renderAll() {
+  if (!simData) return;
+  const sc = simData.seasons_count;
+
+  const seasonSlider = document.getElementById('season-slider');
+  seasonSlider.max = sc;
+  seasonSlider.value = 1;
+  currentSeason = 1;
+
+  const cwLen   = simData.chip_window_length || 22;
+  const cwStart = simData.chip_window_start  || 61;
+  const gSeason = simData.games_per_season   || (cwStart - 1 + cwLen);
+  const nTeams  = simData.num_teams          || 30;
+  const lgName  = simData.league_name        || 'NBA';
+
+  const gameSlider = document.getElementById('game-slider');
+  gameSlider.max = cwLen;
+  gameSlider.value = cwLen;
+  currentGame = cwLen;
+  document.getElementById('game-slider-label').textContent = 'G' + gSeason;
+  document.getElementById('game-delta-label').textContent = 'Final standings';
+
+  // Update page meta label with league-specific info
+  const metaEl = document.getElementById('cw-meta-label');
+  if (metaEl) metaEl.textContent = 'Bid Standardization · ' + lgName + ' · ' + cwLen + '-game chip window · all ' + nTeams + ' teams';
+
+  document.getElementById('sim-summary').style.display = 'block';
+  document.getElementById('summary-text').textContent =
+    sc + ' seasons · seed ' + simData.seed + ' · ' + (simData.strategy || 'standard') +
+    ' strategy (lottery) · ' + lgName + ' · ' + nTeams + ' teams · ' + cwLen + '-game window · wagers 10–25 chips';
+
+  document.getElementById('season-nav-wrap').style.display = 'block';
+  document.getElementById('standings-section').style.display = 'block';
+  document.getElementById('lb-rule').style.display = 'block';
+  document.getElementById('leaderboard-section').style.display = 'block';
+
+  // Update dynamic static labels now that we know the league config
+  const preLabel  = `G${cwStart-1}-W`;  // wins BEFORE chip window opens
+  const endLabel  = `G${gSeason}-W`;
+  const el = id => document.getElementById(id);
+  if (el('cw-col-pre'))       el('cw-col-pre').textContent = preLabel;
+  if (el('cw-col-end'))       el('cw-col-end').textContent = endLabel;
+  if (el('cw-standings-desc')) el('cw-standings-desc').innerHTML =
+    `All ${nTeams} teams participate. Click headers to sort. Drag the <b>Game Window</b> slider to see standings evolve G${cwStart}→G${gSeason}.`;
+  if (el('cw-traj-desc'))     el('cw-traj-desc').innerHTML =
+    `Chip totals over the ${cwLen}-game window (G${cwStart}–G${gSeason}). Teams start at their record-rank chips (20–140). ` +
+    `Vertical marker = current game. <span class="doubled-badge">2×</span> = double declared that night.`;
+  const midStart = cwStart, midEnd = cwStart + Math.floor(cwLen / 2) - 1, lateEnd = gSeason;
+  if (el('an-timing-desc'))   el('an-timing-desc').textContent =
+    `Which game lottery teams chose to declare their double (orange = early G${midStart}–G${midEnd}, ` +
+    `blue = late G${midEnd+1}–G${lateEnd}) with avg draft pick for each cohort.`;
+
+  renderSeason(1, cwLen);
+  renderSeasonSummary(1);
+  renderLeaderboard();
+  renderAnalytics();
+}
+
+function onSeasonSlide(val) {
+  currentSeason = parseInt(val);
+  document.getElementById('season-slider-label').textContent = 'Season ' + val;
+  renderSeason(currentSeason, currentGame);
+  renderSeasonSummary(currentSeason);
+}
+
+// ── Per-season analytics summary card ────────────────────────────────────────
+
+function renderSeasonSummary(seasonNum) {
+  if (!simData) return;
+  const card = document.getElementById('season-summary-card');
+  if (!card) return;
+  const s = simData.seasons.find(x => x.season_num === seasonNum);
+  if (!s) return;
+
+  document.getElementById('sscard-season-num').textContent = seasonNum;
+
+  // 1. Biggest single-night chip swing this season
+  let topSwing = null;
+  s.schedule.forEach((night, ni) => {
+    night.forEach(m => {
+      const gain = m.home_won
+        ? (m.home_chips_after - m.home_chips_before)
+        : (m.away_chips_after - m.away_chips_before);
+      if (topSwing === null || gain > topSwing.gain) {
+        topSwing = {
+          winner:   m.home_won ? m.home_name : m.away_name,
+          loser:    m.home_won ? m.away_name : m.home_name,
+          gain,
+          game:     (simData?.chip_window_start || 61) + ni,
+          isDouble: !!(m.home_double || m.away_double),
+        };
+      }
+    });
+  });
+  const swingEl = document.getElementById('sscard-swing');
+  if (topSwing) {
+    const dbl = topSwing.isDouble
+      ? ' <span class="doubled-badge" style="font-size:8px;padding:0 3px;vertical-align:middle">2×</span>' : '';
+    swingEl.innerHTML =
+      `<span style="color:var(--green);font-weight:700">+${topSwing.gain.toFixed(1)}</span>` +
+      ` ${topSwing.winner} def. ${topSwing.loser}${dbl}` +
+      ` <span style="color:var(--fg-faint);font-size:10px">G${topSwing.game}</span>`;
+  } else {
+    swingEl.textContent = '—';
+  }
+
+  // 2. Lottery team with the highest chip gain on their double night
+  let topDouble = null;
+  s.teams.filter(t => t.status === 'Lottery' && t.doubled && t.double_night >= 0).forEach(t => {
+    const ni   = t.double_night;
+    const prev = ni === 0 ? (t.chips_start ?? 60) : (t.chip_trajectory?.[ni - 1] ?? t.chips_start ?? 60);
+    const curr = t.chip_trajectory?.[ni] ?? prev;
+    const delta = curr - prev;
+    if (topDouble === null || delta > topDouble.delta) {
+      topDouble = { name: t.name, delta, game: (simData?.chip_window_start || 61) + ni };
+    }
+  });
+  const doubleEl = document.getElementById('sscard-double');
+  if (topDouble) {
+    const col = topDouble.delta > 0 ? 'var(--green)' : topDouble.delta < 0 ? 'var(--red)' : 'var(--fg-dim)';
+    doubleEl.innerHTML =
+      `<span style="color:${col};font-weight:700">${topDouble.delta > 0 ? '+' : ''}${topDouble.delta.toFixed(1)}</span>` +
+      ` ${topDouble.name}` +
+      ` <span style="color:var(--fg-faint);font-size:10px">G${topDouble.game}</span>`;
+  } else {
+    doubleEl.textContent = 'No doubles yet';
+  }
+
+  // 3. Final Gini coefficient (chip inequality across lottery teams at season end)
+  const finalChips = s.teams.filter(t => t.status === 'Lottery').map(t => t.chips_end ?? 0);
+  const gini = giniCoeff(finalChips);
+  document.getElementById('sscard-gini').innerHTML =
+    `<span style="font-weight:700;color:var(--accent)">${gini.toFixed(3)}</span>`;
+
+  card.style.display = 'block';
+}
+
+function onGameSlide(val) {
+  currentGame = parseInt(val);
+  const cwStart  = (simData && simData.chip_window_start)  || 61;
+  const cwLen    = (simData && simData.chip_window_length)  || 22;
+  const gSeason  = (simData && simData.games_per_season)   || 82;
+  const gameLabel = cwStart - 1 + currentGame;  // cwStart is opening game number
+  document.getElementById('game-slider-label').textContent = 'G' + gameLabel;
+  document.getElementById('game-delta-label').textContent =
+    currentGame === cwLen ? 'Final standings' : `After game ${gameLabel} of ${gSeason}`;
+  renderSeason(currentSeason, currentGame);
+}
+
+// ── Season rendering ─────────────────────────────────────────────────────────
+
+function renderSeason(seasonNum, gameNum) {
+  if (!simData) return;
+  const s = simData.seasons.find(x => x.season_num === seasonNum);
+  if (!s) return;
+
+  document.getElementById('season-slider-label').textContent = 'Season ' + seasonNum;
+  document.getElementById('season-champ').textContent = '★ Champion: ' + s.champion_name;
+
+  // ── Compute chip state at gameNum ────────────────────────────────────────
+  // chip_trajectory[i] = chips after game i+1 (0-indexed)
+  const chipsAt = (t) => {
+    if (!t.chip_trajectory || t.chip_trajectory.length === 0) return t.chips_end;
+    const idx = gameNum - 1;
+    if (idx < 0) return t.chips_start ?? 60;
+    return t.chip_trajectory[Math.min(idx, t.chip_trajectory.length - 1)];
+  };
+
+  // Chips at previous game (for per-game delta — the "tonight" swing)
+  const chipsAtPrev = (t) => {
+    if (gameNum <= 1) return t.chips_start ?? 60;
+    if (!t.chip_trajectory || t.chip_trajectory.length === 0) return t.chips_start ?? 60;
+    return t.chip_trajectory[Math.min(gameNum - 2, t.chip_trajectory.length - 1)];
+  };
+
+  // Build team snapshots with chips at current game
+  const teams = s.teams.map(t => {
+    const chipsNow = chipsAt(t);
+    const chipsPrev = chipsAtPrev(t);
+    const doubled_sofar = t.doubled && (t.double_night < gameNum);
+    return { ...t, chips_now: chipsNow, chips_prev: chipsPrev, doubled_sofar };
+  });
+
+  // Re-compute chip draft rank among lottery teams at this game point
+  const lottery = teams.filter(t => t.status === 'Lottery');
+  const lotteryByChips = [...lottery].sort((a, b) => {
+    if (b.chips_now !== a.chips_now) return b.chips_now - a.chips_now;
+    if (a.wins_60 !== b.wins_60) return a.wins_60 - b.wins_60;
+    if (a.losses_60 !== b.losses_60) return b.losses_60 - a.losses_60;
+    return a.id - b.id;
+  });
+  lotteryByChips.forEach((t, i) => { t.chip_rank_now = i + 1; });
+
+  // Render standings sorted by active sort field
+  const STATUS_ORDER = { 'Lottery': 0, 'Play-In': 1, 'Safe Playoff': 2 };
+  const sorted = [...teams].sort((a, b) => {
+    if (sortField === 'chips') {
+      if (b.chips_now !== a.chips_now) return sortDir * (b.chips_now - a.chips_now);
+      return a.final_rank - b.final_rank;
+    }
+    if (sortField === 'status') {
+      const sd = (STATUS_ORDER[a.status] ?? 3) - (STATUS_ORDER[b.status] ?? 3);
+      if (sd !== 0) return sortDir * sd;
+      return a.final_rank - b.final_rank;
+    }
+    // 'rank' (default)
+    return sortDir * (a.final_rank - b.final_rank);
+  });
+  const tbody = document.getElementById('standings-tbody');
+  tbody.innerHTML = '';
+
+  sorted.forEach(td => {
+    const tr = document.createElement('tr');
+    const isChamp = td.id === s.champion_id;
+    const statusClass = td.status === 'Safe Playoff' ? 'cw-safe'
+      : td.status === 'Play-In' ? 'cw-playin' : 'cw-lottery';
+
+    // ── Chips cell ────────────────────────────────────────────────────────
+    let chipsCell = '—';
+    if (td.in_chip_pool) {
+      const maxChips = Math.max(200, ...teams.map(x => x.chips_now));
+      const barW = Math.round(Math.max(0, td.chips_now) / maxChips * 80);
+      const barColor = td.chips_now >= 200 ? '#f5c518'
+        : td.chips_now >= 100 ? '#4ade80'
+        : td.chips_now >= 50 ? '#ff8c00' : '#f87171';
+      // Per-game delta (tonight's swing), not delta from start
+      const delta = td.chips_now - td.chips_prev;
+      const deltaStr = delta === 0
+        ? `<span style="color:var(--fg-faint);font-size:9px">—</span>`
+        : delta > 0
+          ? `<span style="color:var(--green);font-size:9px;font-weight:600">+${delta.toFixed(1)}</span>`
+          : `<span style="color:var(--red);font-size:9px;font-weight:600">${delta.toFixed(1)}</span>`;
+      const dbl = td.doubled_sofar ? '<span class="doubled-badge" style="margin-left:4px">2×</span>' : '';
+      chipsCell = `
+        <div class="cw-chips-bar-wrap">
+          <div class="cw-chips-bar" style="width:${barW}px;background:${barColor}"></div>
+          <span style="font-size:10px;color:var(--fg)">${td.chips_now.toFixed(1)}</span>
+          ${deltaStr} ${dbl}
+        </div>`;
+    }
+
+    // ── Tonight cell ──────────────────────────────────────────────────────
+    let tonightCell = '<span style="color:var(--fg-faint)">—</span>';
+    const m = getMatchup(seasonNum, gameNum, td.id);
+    if (m) {
+      const oppName = m.is_home ? m.away_name : m.home_name;
+      const ownWager = m.is_home ? m.home_wager : m.away_wager;
+      const ownDbl = m.is_home ? m.home_double : m.away_double;
+      const homeWon = m.home_won;
+      const teamWon = m.is_home ? homeWon : !homeWon;
+      const resultColor = teamWon ? 'var(--green)' : 'var(--red)';
+      const resultLetter = teamWon ? 'W' : 'L';
+      const dblBadge = ownDbl ? ' <span class="doubled-badge">2×</span>' : '';
+      const oppAbbr = teamAbbr(oppName);
+      const upsetBadge = (teamWon && m.upset_bonus > 0)
+        ? ` <span title="Upset bonus: +${m.upset_bonus} chips (win-gap reward)" style="color:#f5c518;font-size:9px;font-weight:700">⚡+${m.upset_bonus}</span>`
+        : '';
+      tonightCell = `<span class="tonight-cell"><span style="color:${resultColor};font-weight:700">${resultLetter}</span> <span style="color:var(--fg-dim)">${ownWager}</span> vs ${oppAbbr}${dblBadge}${upsetBadge}</span>`;
+    }
+
+    // ── Odds cell — always '—' for non-lottery (chip pick shown for lottery) ─
+    const oddsCell = '—';
+
+    // ── Pick circle for lottery teams ─────────────────────────────────────
+    let pickCell = '—';
+    if (td.chip_rank_now !== undefined) {
+      const r = td.chip_rank_now;
+      const cls = r <= 3 ? 'pick-top3' : r <= 8 ? 'pick-mid' : r <= 11 ? 'pick-lower' : 'pick-bot';
+      pickCell = `<span class="pick-circle ${cls}">${r}</span>`;
+      // Wrap odds + pick together in odds cell
+      // (we'll put the pick in the odds column for lottery teams)
+    }
+
+    const nameCell = `${td.name}${isChamp ? '<span class="champion-star">★</span>' : ''}`;
+
+    tr.innerHTML = `
+      <td style="color:var(--fg-faint)">${td.final_rank}</td>
+      <td style="text-align:left;color:var(--fg)">${nameCell}</td>
+      <td style="text-align:left"><span class="cw-pill ${statusClass}">${td.status}</span></td>
+      <td>${td.wins_60}-${td.losses_60}</td>
+      <td>${td.final_wins}-${td.final_losses}</td>
+      <td>${chipsCell}</td>
+      <td style="text-align:left">${tonightCell}</td>
+      <td>${td.status === 'Lottery' ? pickCell : oddsCell}</td>
+    `;
+    if (!td.playoff) tr.style.color = 'var(--fg-dim)';
+    tbody.appendChild(tr);
+  });
+
+  renderTrajectories(s, gameNum);
+}
+
+// ── Trajectory chart ──────────────────────────────────────────────────────────
+
+function renderTrajectories(s, gameNum) {
+  const svg = document.getElementById('traj-svg');
+  const legend = document.getElementById('traj-legend');
+
+  const W = 560, H = 280;
+  const PL = 36, PR = 16, PT = 16, PB = 28;
+  const iW = W - PL - PR, iH = H - PT - PB;
+
+  // Show lottery + play-in teams only (safe playoff have boring trajectories)
+  const chipTeams = s.teams.filter(t =>
+    t.status !== 'Safe Playoff' && t.chip_trajectory && t.chip_trajectory.length > 0
+  );
+  if (chipTeams.length === 0) { svg.innerHTML = ''; legend.innerHTML = ''; return; }
+
+  const allChips = chipTeams.flatMap(t => t.chip_trajectory);
+  const maxC = Math.max(200, ...allChips);
+  const minC = Math.min(0, ...allChips);
+
+  const cwLen   = simData?.chip_window_length || 22;
+  const cwStart = simData?.chip_window_start  || 61;
+  function cx(game) { return PL + (game / cwLen) * iW; }
+  function cy(chips) { return PT + (1 - (chips - minC) / (maxC - minC)) * iH; }
+
+  const COLORS = [
+    '#ff8c00','#4ade80','#60a5fa','#f472b6','#a78bfa',
+    '#34d399','#fb923c','#38bdf8','#e879f9','#facc15',
+    '#6ee7b7','#93c5fd','#fda4af','#c4b5fd','#86efac',
+    '#fde68a','#bfdbfe','#fbcfe8','#ddd6fe','#d9f99d',
+  ];
+
+  let svgHtml = '';
+
+  // Grid lines
+  const gridSet = new Set([0, 50, 100, 150, 200]);
+  if (minC < 0) gridSet.add(-50);
+  [...gridSet].filter(v => v >= minC && v <= maxC).forEach(v => {
+    const y = cy(v);
+    const isDashed = v === 100 ? 'stroke-dasharray="4,3"' : '';
+    svgHtml += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W-PR}" y2="${y.toFixed(1)}"
+      stroke="${v === 100 ? '#444' : '#1e1e1e'}" stroke-width="${v === 100 ? 1.5 : 1}" ${isDashed}/>`;
+    svgHtml += `<text x="${PL-4}" y="${(y+3).toFixed(1)}" fill="#555" font-family="monospace" font-size="9" text-anchor="end">${v}</text>`;
+  });
+
+  // X axis labels — ~5 evenly-spaced ticks based on cwLen
+  { const step = Math.max(1, Math.floor(cwLen / 4));
+    const ticks = [];
+    for (let g = 0; g <= cwLen; g += step) ticks.push(g);
+    if (ticks[ticks.length - 1] !== cwLen) ticks.push(cwLen);
+    ticks.forEach(g => {
+      const x = cx(g);
+      svgHtml += `<text x="${x.toFixed(1)}" y="${(H-8).toFixed(1)}" fill="#555" font-family="monospace" font-size="9" text-anchor="middle">G${cwStart-1+g}</text>`;
+    });
+  }
+
+  // Team lines (top 18 by final chips)
+  const teamsSorted = [...chipTeams].sort((a, b) => b.chips_end - a.chips_end);
+  const display = teamsSorted.slice(0, 18);
+
+  display.forEach((td, idx) => {
+    const col = COLORS[idx % COLORS.length];
+    const traj = [td.chips_start ?? 60, ...td.chip_trajectory];
+    const pts = traj.map((c, g) => `${cx(g).toFixed(1)},${cy(c).toFixed(1)}`).join(' ');
+    svgHtml += `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.2" opacity="0.75" stroke-linejoin="round"/>`;
+    // Endpoint dot at current game
+    const endIdx = Math.min(gameNum, td.chip_trajectory.length);
+    const endChips = endIdx === 0 ? (td.chips_start ?? 60) : td.chip_trajectory[endIdx - 1];
+    const ex = cx(endIdx), ey = cy(endChips);
+    svgHtml += `<circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="3" fill="${col}"/>`;
+  });
+
+  // Current game marker (vertical line)
+  if (gameNum > 0 && gameNum <= cwLen) {
+    const mx = cx(gameNum);
+    svgHtml += `<line x1="${mx.toFixed(1)}" y1="${PT}" x2="${mx.toFixed(1)}" y2="${PT+iH}"
+      stroke="var(--accent)" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>`;
+    svgHtml += `<text x="${mx.toFixed(1)}" y="${(PT-3).toFixed(1)}" fill="var(--accent)" font-family="monospace" font-size="9" text-anchor="middle">G${cwStart-1+gameNum}</text>`;
+  }
+
+  svg.innerHTML = svgHtml;
+
+  legend.innerHTML = display.map((td, idx) => {
+    const col = COLORS[idx % COLORS.length];
+    const chips = gameNum > 0 ? td.chip_trajectory[Math.min(gameNum-1, td.chip_trajectory.length-1)] : (td.chips_start ?? 60);
+    return `<div class="legend-item">
+      <div class="legend-dot" style="background:${col}"></div>
+      <span style="font-size:10px">${td.name} (${chips?.toFixed(1) ?? '—'})</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Cumulative leaderboard ────────────────────────────────────────────────────
+
+function renderLeaderboard() {
+  if (!simData) return;
+  const tbody = document.getElementById('lb-tbody');
+  tbody.innerHTML = '';
+
+  simData.leaderboard.forEach((row, idx) => {
+    const rank = idx + 1;
+    const rankColor = rank === 1 ? '#f5c518' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="text-align:right;font-weight:700;color:${rankColor || 'var(--fg-faint)'}">${rank}</td>
+      <td style="text-align:left;color:var(--fg)">${row.name}</td>
+      <td style="color:${row.titles > 0 ? '#f5c518' : 'var(--fg-faint)'}">
+        ${row.titles > 0 ? '★'.repeat(Math.min(row.titles, 10)) + ' ' : ''}${row.titles}
+      </td>
+      <td>${row.playoffs}</td>
+      <td style="color:${row.avg_chips >= 100 ? 'var(--green)' : row.avg_chips >= 50 ? 'var(--accent)' : 'var(--fg-faint)'}">
+        ${row.avg_chips > 0 ? row.avg_chips : '—'}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+function giniCoeff(values) {
+  const n = values.length;
+  if (n === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mean = sorted.reduce((a, b) => a + b, 0) / n;
+  if (mean <= 0) return 0;
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += (2 * (i + 1) - n - 1) * sorted[i];
+  return Math.max(0, sum / (n * n * mean));
+}
+
+function toggleAnalytics() {
+  const body = document.getElementById('analytics-body');
+  const btn  = document.getElementById('analytics-toggle');
+  if (!body || !btn) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? 'Show ▾' : 'Hide ▴';
+}
+
+function renderAnalytics() {
+  if (!simData) return;
+  document.getElementById('analytics-rule').style.display  = 'block';
+  document.getElementById('analytics-section').style.display = 'block';
+
+  const allSeasons = simData.seasons;
+
+  // ── 1. Gini curve: per night across all seasons ────────────────
+  const cwLen   = simData.chip_window_length || 22;
+  const cwStart = simData.chip_window_start  || 61;
+  const giniCurve = [];
+  for (let ni = 0; ni < cwLen; ni++) {
+    const vals = [];
+    allSeasons.forEach(s => {
+      s.teams.filter(t => t.status === 'Lottery').forEach(t => {
+        const c = t.chip_trajectory?.[ni];
+        if (c != null) vals.push(c);
+      });
+    });
+    giniCurve.push(giniCoeff(vals));
+  }
+
+  // ── 2. Double effectiveness per team ──────────────────────────
+  const dblMap = {};
+  allSeasons.forEach(s => {
+    s.teams.filter(t => t.status === 'Lottery' && t.doubled && t.double_night >= 0).forEach(t => {
+      const ni   = t.double_night;
+      const prev = ni === 0 ? (t.chips_start ?? 60) : (t.chip_trajectory[ni - 1] ?? t.chips_start ?? 60);
+      const curr = t.chip_trajectory[ni] ?? prev;
+      const delta = curr - prev;
+      const avgNight = ((t.chips_end ?? curr) - (t.chips_start ?? 60)) / cwLen;
+      // Win on double night?
+      const match = (s.schedule[ni] || []).find(m => m.home_id === t.id || m.away_id === t.id);
+      const won = match ? (match.home_id === t.id ? match.home_won : !match.home_won) : null;
+      if (!dblMap[t.id]) dblMap[t.id] = { name: t.name, deltas: [], avgNights: [], nights: [], wins: 0, total: 0 };
+      dblMap[t.id].deltas.push(delta);
+      dblMap[t.id].avgNights.push(avgNight);
+      dblMap[t.id].nights.push(ni + 1);
+      dblMap[t.id].total++;
+      if (won) dblMap[t.id].wins++;
+    });
+  });
+  const doubleRows = Object.values(dblMap).map(d => ({
+    name:     d.name,
+    avgNight: d.nights.reduce((a, b) => a + b, 0) / d.nights.length,
+    winRate:  d.wins / d.total,
+    avgDelta: d.deltas.reduce((a, b) => a + b, 0) / d.deltas.length,
+    avgBase:  d.avgNights.reduce((a, b) => a + b, 0) / d.avgNights.length,
+  })).sort((a, b) => b.avgDelta - a.avgDelta);
+
+  // ── 3. Biggest single-night swings ────────────────────────────
+  const swings = [];
+  allSeasons.forEach((s, si) => {
+    s.schedule.forEach((night, ni) => {
+      night.forEach(m => {
+        const gain = m.home_won
+          ? m.home_chips_after - m.home_chips_before
+          : m.away_chips_after - m.away_chips_before;
+        swings.push({
+          season:   si + 1,
+          game:     (simData?.chip_window_start || 61) + ni,
+          winner:   m.home_won ? m.home_name : m.away_name,
+          loser:    m.home_won ? m.away_name : m.home_name,
+          gain,
+          isDouble: !!(m.home_double || m.away_double),
+        });
+      });
+    });
+  });
+  swings.sort((a, b) => b.gain - a.gain);
+
+  // ── 4. Personality ROI ────────────────────────────────────────
+  const persMap = {};
+  allSeasons.forEach(s => {
+    s.teams.filter(t => t.status === 'Lottery').forEach(t => {
+      const p = t.bidding_personality || 'standard';
+      if (!persMap[p]) persMap[p] = { chips: [], picks: [] };
+      persMap[p].chips.push(t.chips_end ?? 0);
+      if (t.chip_draft_rank != null) persMap[p].picks.push(t.chip_draft_rank);
+    });
+  });
+  const persRows = Object.entries(persMap).map(([p, d]) => ({
+    personality: p,
+    avgChips:    d.chips.reduce((a, b) => a + b, 0) / d.chips.length,
+    avgPick:     d.picks.length ? d.picks.reduce((a, b) => a + b, 0) / d.picks.length : null,
+    count:       d.chips.length,
+  })).sort((a, b) => (a.avgPick ?? 99) - (b.avgPick ?? 99));
+
+  // ── 5. Starting rank vs final pick scatter ────────────────────
+  const scatterDots = [];
+  allSeasons.forEach((s, si) => {
+    const lottery = s.teams.filter(t => t.status === 'Lottery');
+    const ranked = [...lottery].sort((a, b) => {
+      if (b.chips_start !== a.chips_start) return b.chips_start - a.chips_start;
+      return a.wins_60 - b.wins_60;
+    });
+    ranked.forEach((t, i) => {
+      if (t.chip_draft_rank != null) scatterDots.push({ x: i + 1, y: t.chip_draft_rank, team: t.name, season: si + 1 });
+    });
+  });
+
+  // ── 6. Double declaration timing + early/late split ──────────
+  const doubleByNight = Array(cwLen).fill(0);
+  const cwMid = Math.floor(cwLen / 2) - 1; // last night index of "early" half
+  const earlyPicks = [], latePicks = [];
+  allSeasons.forEach(s => {
+    s.teams.filter(t => t.status === 'Lottery' && t.doubled && t.double_night >= 0).forEach(t => {
+      if (t.double_night < cwLen) doubleByNight[t.double_night]++;
+      if (t.chip_draft_rank != null) {
+        if (t.double_night <= cwMid) earlyPicks.push(t.chip_draft_rank);
+        else latePicks.push(t.chip_draft_rank);
+      }
+    });
+  });
+  const avgPick = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+  const timingMeta = {
+    earlyAvgPick: avgPick(earlyPicks),
+    lateAvgPick:  avgPick(latePicks),
+    earlyCount:   earlyPicks.length,
+    lateCount:    latePicks.length,
+  };
+
+  // ── Render each panel ─────────────────────────────────────────
+  anRenderDoubleEff(doubleRows);
+  anRenderGini(giniCurve);
+  anRenderSwings(swings.slice(0, 5));
+  anRenderPersonality(persRows);
+  anRenderScatter(scatterDots);
+  anRenderTiming(doubleByNight, timingMeta);
+}
+
+function anRenderDoubleEff(rows) {
+  const el = document.getElementById('an-double-eff-body');
+  if (!el) return;
+  if (rows.length === 0) { el.innerHTML = '<div style="color:var(--fg-faint);font-size:10px">No double data yet</div>'; return; }
+  const cwStart = simData?.chip_window_start || 61;
+  const nLottery = (simData?.seasons?.[0]?.teams || []).filter(t => t.status === 'Lottery').length || 14;
+  let html = `<table class="an-tbl">
+    <thead><tr>
+      <th style="text-align:left">Team</th>
+      <th>Avg G</th><th>Win%</th><th>Dbl Gain</th><th>Avg Gain</th>
+    </tr></thead><tbody>`;
+  rows.slice(0, nLottery).forEach(r => {
+    const gainCol = r.avgDelta > 2 ? 'var(--green)' : r.avgDelta < -2 ? 'var(--red)' : 'var(--fg-dim)';
+    const winCol  = r.winRate >= 0.5 ? 'var(--green)' : 'var(--red)';
+    html += `<tr>
+      <td style="text-align:left;color:var(--fg)">${r.name}</td>
+      <td>G${(cwStart - 1 + r.avgNight).toFixed(0)}</td>
+      <td style="color:${winCol}">${(r.winRate * 100).toFixed(0)}%</td>
+      <td style="color:${gainCol};font-weight:600">${r.avgDelta > 0 ? '+' : ''}${r.avgDelta.toFixed(1)}</td>
+      <td style="color:var(--fg-faint)">${r.avgBase > 0 ? '+' : ''}${r.avgBase.toFixed(1)}</td>
+    </tr>`;
+  });
+  el.innerHTML = html + '</tbody></table>';
+}
+
+// ── Shared analytics tooltip ───────────────────────────────────────────────
+function anGetTooltip() {
+  let tip = document.getElementById('an-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'an-tooltip';
+    tip.className = 'an-tooltip';
+    document.body.appendChild(tip);
+  }
+  return tip;
+}
+function anShowTooltip(e, text) {
+  const tip = anGetTooltip();
+  tip.textContent = text;
+  tip.style.opacity = '1';
+  anMoveTooltip(e);
+}
+function anMoveTooltip(e) {
+  const tip = anGetTooltip();
+  const x = e.clientX + 14, y = e.clientY - 10;
+  const maxX = window.innerWidth  - tip.offsetWidth  - 8;
+  const maxY = window.innerHeight - tip.offsetHeight - 8;
+  tip.style.left = Math.max(8, Math.min(x, maxX)) + 'px';
+  tip.style.top  = Math.max(8, Math.min(y, maxY)) + 'px';
+}
+function anHideTooltip() {
+  anGetTooltip().style.opacity = '0';
+}
+
+function anRenderGini(curve) {
+  const svg = document.getElementById('an-gini-svg');
+  if (!svg || !curve.length) return;
+  const cwLen   = simData?.chip_window_length || 22;
+  const cwStart = simData?.chip_window_start  || 61;
+  const maxNi = Math.max(1, cwLen - 1);
+  const W = 400, H = 150, PL = 34, PR = 10, PT = 12, PB = 26;
+  const iW = W - PL - PR, iH = H - PT - PB;
+  const maxG = Math.max(0.05, ...curve) * 1.15;
+  const cx = i  => PL + (i / maxNi) * iW;
+  const cy = g  => PT + (1 - g / maxG) * iH;
+  let html = '';
+  // Grid
+  [0, 0.1, 0.2, 0.3, 0.4].filter(v => v <= maxG * 1.1).forEach(v => {
+    const y = cy(v);
+    html += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W-PR}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="1"/>`;
+    html += `<text x="${PL-4}" y="${(y+3).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="end">${v.toFixed(2)}</text>`;
+  });
+  // X labels — ~5 evenly-spaced ticks
+  { const step = Math.max(1, Math.floor(maxNi / 4));
+    const ticks = [];
+    for (let i = 0; i <= maxNi; i += step) ticks.push(i);
+    if (ticks[ticks.length - 1] !== maxNi) ticks.push(maxNi);
+    ticks.forEach(i => {
+      html += `<text x="${cx(i).toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="middle">G${cwStart+i}</text>`;
+    });
+  }
+  // Area fill
+  const areaD = `M${cx(0).toFixed(1)},${cy(0).toFixed(1)} ` +
+    curve.map((g, i) => `L${cx(i).toFixed(1)},${cy(g).toFixed(1)}`).join(' ') +
+    ` L${cx(maxNi).toFixed(1)},${cy(0).toFixed(1)} Z`;
+  html += `<path d="${areaD}" fill="var(--accent)" opacity="0.07"/>`;
+  // Line
+  const pts = curve.map((g, i) => `${cx(i).toFixed(1)},${cy(g).toFixed(1)}`).join(' ');
+  html += `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/>`;
+  // Dots — r enlarged for easier hover; data-tip carries tooltip text
+  curve.forEach((g, i) => {
+    const tipText = `Game G${cwStart+i}&#10;Gini: ${g.toFixed(4)}`;
+    html += `<circle cx="${cx(i).toFixed(1)}" cy="${cy(g).toFixed(1)}" r="4" fill="var(--accent)" opacity="0.75" style="cursor:crosshair" data-tip="${tipText}"/>`;
+  });
+  svg.innerHTML = html;
+  // Event delegation on SVG
+  svg.onmousemove = e => {
+    const c = e.target.closest('[data-tip]');
+    if (c) anShowTooltip(e, c.dataset.tip); else anHideTooltip();
+  };
+  svg.onmouseleave = () => anHideTooltip();
+}
+
+function anRenderSwings(swings) {
+  const el = document.getElementById('an-swings-body');
+  if (!el) return;
+  if (!swings.length) { el.innerHTML = '<div style="color:var(--fg-faint);font-size:10px">No data</div>'; return; }
+  const maxG = swings[0]?.gain ?? 1;
+  let html = '';
+  swings.forEach((s, i) => {
+    const barW = Math.round(Math.max(0, s.gain) / maxG * 100);
+    const dbl = s.isDouble ? '<span class="doubled-badge" style="font-size:8px;padding:0 3px;margin-left:3px">2×</span>' : '';
+    html += `<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+        <span style="font-size:10px;color:var(--fg)">${i+1}. ${s.winner} beat ${s.loser}${dbl}</span>
+        <span style="font-size:10px;color:var(--green);font-weight:700">+${s.gain.toFixed(1)}</span>
+      </div>
+      <div style="font-size:9px;color:var(--fg-faint);margin-bottom:3px">Season ${s.season} · G${s.game}</div>
+      <div style="height:4px;background:var(--border);border-radius:2px">
+        <div style="height:100%;width:${barW}%;background:var(--green);border-radius:2px"></div>
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+function anRenderPersonality(rows) {
+  const el = document.getElementById('an-pers-body');
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = '<div style="color:var(--fg-faint);font-size:10px">No data</div>'; return; }
+  const COLORS = { bold: '#fb923c', cautious: '#34d399', volatile: '#c084fc', standard: '#94a3b8' };
+  const LABELS = { bold: 'Bold', cautious: 'Cautious', volatile: 'Volatile', standard: 'Standard' };
+  let html = `<table class="an-tbl"><thead><tr>
+    <th style="text-align:left">Style</th><th>Avg Chips</th><th>Avg Pick</th><th>n</th>
+  </tr></thead><tbody>`;
+  rows.forEach(r => {
+    const col = COLORS[r.personality] || '#888';
+    const lbl = LABELS[r.personality] || r.personality;
+    const pickCol = r.avgPick != null
+      ? (r.avgPick <= 4 ? 'var(--green)' : r.avgPick <= 9 ? 'var(--accent)' : 'var(--red)')
+      : 'var(--fg-faint)';
+    html += `<tr>
+      <td style="text-align:left"><span style="display:inline-block;width:8px;height:8px;background:${col};border-radius:50%;margin-right:5px"></span><span style="color:var(--fg)">${lbl}</span></td>
+      <td>${r.avgChips.toFixed(1)}</td>
+      <td style="color:${pickCol};font-weight:600">${r.avgPick != null ? r.avgPick.toFixed(1) : '—'}</td>
+      <td style="color:var(--fg-faint)">${r.count}</td>
+    </tr>`;
+  });
+  el.innerHTML = html + '</tbody></table>';
+}
+
+function anRenderScatter(dots) {
+  const svg = document.getElementById('an-scatter-svg');
+  if (!svg || !dots.length) return;
+  const W = 220, H = 220, PAD = 26;
+  const iW = W - 2*PAD, iH = H - 2*PAD;
+  const sx = v => PAD + ((v - 1) / 13) * iW;
+  const sy = v => PAD + ((v - 1) / 13) * iH;
+  let html = '';
+  // Diagonal reference
+  html += `<line x1="${sx(1).toFixed(1)}" y1="${sy(1).toFixed(1)}" x2="${sx(14).toFixed(1)}" y2="${sy(14).toFixed(1)}" stroke="var(--border-2)" stroke-width="1" stroke-dasharray="4,3" opacity="0.7"/>`;
+  // Grid + axis labels
+  [1, 4, 7, 10, 14].forEach(v => {
+    const x = sx(v), y = sy(v);
+    html += `<line x1="${x.toFixed(1)}" y1="${PAD}" x2="${x.toFixed(1)}" y2="${PAD+iH}" stroke="var(--border)" stroke-width="0.5" opacity="0.5"/>`;
+    html += `<line x1="${PAD}" y1="${y.toFixed(1)}" x2="${PAD+iW}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="0.5" opacity="0.5"/>`;
+    html += `<text x="${x.toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="middle">${v}</text>`;
+    html += `<text x="${(PAD-3).toFixed(1)}" y="${(y+2).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="end">${v}</text>`;
+  });
+  // Axis labels
+  html += `<text x="${(PAD+iW/2).toFixed(1)}" y="${H-1}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="middle">Starting Rank →</text>`;
+  html += `<text x="7" y="${(PAD+iH/2).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="middle" transform="rotate(-90 7 ${(PAD+iH/2).toFixed(1)})">← Final Pick</text>`;
+  // Aggregate dots — build a map from "x,y" to list of {team, season}
+  const groupMap = {};
+  dots.forEach(d => {
+    const k = `${d.x},${d.y}`;
+    if (!groupMap[k]) groupMap[k] = [];
+    groupMap[k].push({ team: d.team, season: d.season });
+  });
+  Object.entries(groupMap).forEach(([k, entries]) => {
+    const [x, y] = k.split(',').map(Number);
+    const cnt  = entries.length;
+    const diff = Math.abs(x - y);
+    const col  = diff === 0 ? 'var(--green)' : diff <= 2 ? 'var(--accent)' : 'var(--red)';
+    const r    = Math.min(6, 2 + Math.sqrt(cnt) * 0.9);
+    const op   = Math.min(0.9, 0.35 + cnt * 0.04);
+    // Build tooltip: show up to 5 entries, then a "+N more" line
+    const MAX_SHOWN = 5;
+    const lines = entries.slice(0, MAX_SHOWN).map(e => `${e.team} — Season ${e.season}: started #${x}, finished Pick ${y}`);
+    if (cnt > MAX_SHOWN) lines.push(`+${cnt - MAX_SHOWN} more`);
+    const tipText = lines.join('&#10;');
+    html += `<circle cx="${sx(x).toFixed(1)}" cy="${sy(y).toFixed(1)}" r="${r.toFixed(1)}" fill="${col}" opacity="${op.toFixed(2)}" style="cursor:crosshair" data-tip="${tipText.replace(/"/g, '&quot;')}"/>`;
+  });
+  svg.innerHTML = html;
+  // Event delegation on SVG
+  svg.onmousemove = e => {
+    const c = e.target.closest('[data-tip]');
+    if (c) anShowTooltip(e, c.dataset.tip); else anHideTooltip();
+  };
+  svg.onmouseleave = () => anHideTooltip();
+}
+
+function anRenderTiming(byNight, meta) {
+  const svg = document.getElementById('an-timing-svg');
+  if (!svg) return;
+  const cwLen   = simData?.chip_window_length || 22;
+  const cwStart = simData?.chip_window_start  || 61;
+  const cwMidNi = Math.floor(cwLen / 2) - 1; // last night index of early half
+  const W = 400, H = 130, PL = 28, PR = 10, PT = 8, PB = 24;
+  const iW = W - PL - PR, iH = H - PT - PB;
+  const maxCnt = Math.max(1, ...byNight);
+  const barW = iW / cwLen;
+  const midX = PL + (cwMidNi + 1) * barW; // split after early half
+  let html = '';
+  // Early / late region shading
+  html += `<rect x="${PL}" y="${PT}" width="${(midX - PL).toFixed(1)}" height="${iH}" fill="var(--accent)" opacity="0.03"/>`;
+  html += `<rect x="${midX.toFixed(1)}" y="${PT}" width="${(W - PR - midX).toFixed(1)}" height="${iH}" fill="var(--blue)" opacity="0.03"/>`;
+  html += `<line x1="${midX.toFixed(1)}" y1="${PT}" x2="${midX.toFixed(1)}" y2="${PT+iH}" stroke="var(--border-2)" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>`;
+  // Y grid
+  [0, Math.ceil(maxCnt/2), maxCnt].forEach(v => {
+    const y = PT + (1 - v/maxCnt)*iH;
+    html += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W-PR}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="1"/>`;
+    html += `<text x="${PL-3}" y="${(y+3).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="end">${v}</text>`;
+  });
+  // Bars
+  byNight.forEach((cnt, ni) => {
+    if (!cnt) return;
+    const x  = PL + ni * barW + barW*0.1;
+    const bw = barW * 0.8;
+    const bh = (cnt/maxCnt)*iH;
+    const y  = PT + iH - bh;
+    const hi = cnt === maxCnt;
+    const isEarly = ni <= cwMidNi;
+    html += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" fill="${isEarly ? 'var(--accent)' : 'var(--blue)'}" opacity="${hi ? 0.9 : 0.65}" rx="1"/>`;
+    if (cnt >= 2) html += `<text x="${(x+bw/2).toFixed(1)}" y="${(y-2).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="7" text-anchor="middle">${cnt}</text>`;
+  });
+  // X labels — ~6 evenly-spaced ticks
+  { const step = Math.max(1, Math.floor(cwLen / 5));
+    const ticks = [];
+    for (let ni = 0; ni < cwLen; ni += step) ticks.push(ni);
+    if (ticks[ticks.length - 1] !== cwLen - 1) ticks.push(cwLen - 1);
+    ticks.forEach(ni => {
+      const x = PL + ni*barW + barW/2;
+      html += `<text x="${x.toFixed(1)}" y="${(H-7).toFixed(1)}" fill="var(--fg-faint)" font-family="monospace" font-size="8" text-anchor="middle">G${cwStart+ni}</text>`;
+    });
+  }
+  svg.innerHTML = html;
+
+  // Early vs late summary below chart
+  const wrap = svg.parentElement;
+  let sumEl = wrap.querySelector('.an-timing-summary');
+  if (!sumEl) { sumEl = document.createElement('div'); sumEl.className = 'an-timing-summary'; wrap.appendChild(sumEl); }
+  if (meta) {
+    const fmt = v => v != null ? v.toFixed(1) : '—';
+    const earlyCol = meta.earlyAvgPick != null && meta.lateAvgPick != null
+      ? (meta.earlyAvgPick < meta.lateAvgPick ? 'var(--green)' : meta.earlyAvgPick > meta.lateAvgPick ? 'var(--red)' : 'var(--fg-dim)')
+      : 'var(--fg-dim)';
+    const lateCol = meta.earlyAvgPick != null && meta.lateAvgPick != null
+      ? (meta.lateAvgPick < meta.earlyAvgPick ? 'var(--green)' : meta.lateAvgPick > meta.earlyAvgPick ? 'var(--red)' : 'var(--fg-dim)')
+      : 'var(--fg-dim)';
+    const earlyStart = cwStart;
+    const earlyEnd   = cwStart + cwMidNi;
+    const lateStart  = earlyEnd + 1;
+    const lateEnd    = cwStart + cwLen;
+    sumEl.innerHTML = `<div style="display:flex;gap:16px;margin-top:8px;font-size:10px;flex-wrap:wrap">
+      <span style="color:var(--fg-faint)">Early double (G${earlyStart}–G${earlyEnd}):</span>
+      <span>n=${meta.earlyCount} · avg pick <span style="color:${earlyCol};font-weight:600">${fmt(meta.earlyAvgPick)}</span></span>
+      <span style="color:var(--fg-faint)">Late double (G${lateStart}–G${lateEnd}):</span>
+      <span>n=${meta.lateCount} · avg pick <span style="color:${lateCol};font-weight:600">${fmt(meta.lateAvgPick)}</span></span>
+    </div>`;
+  }
+}
+
+// ── Print / PDF ───────────────────────────────────────────────────────────────
+
+function printPage() {
+  // Expand analytics section so it prints
+  const body = document.getElementById('analytics-body');
+  const btn  = document.getElementById('analytics-toggle');
+  if (body && body.style.display === 'none') {
+    body.style.display = 'block';
+    if (btn) btn.textContent = 'Hide ▴';
+  }
+  window.print();
+}
+
+// ── JSON export ───────────────────────────────────────────────────────────────
+
+function exportJson() {
+  if (!simData) return;
+  const json = JSON.stringify(simData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `chip_window_seed${simData.seed}_${simData.strategy}.json`;
+  a.click();
+}
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+
+function exportCsv() {
+  if (!simData) return;
+  const rows = [['Season','Rank','Team','Status','Strategy','W@60','L@60','Final W','Final L',
+    'Chips Start','Chips End','Doubled','CW Wins','CW Losses','Chip Pick','Chip Draft Rank']];
+  simData.seasons.forEach((s, si) => {
+    const sorted = [...s.teams].sort((a, b) => a.final_rank - b.final_rank);
+    sorted.forEach(t => {
+      rows.push([
+        si + 1, t.final_rank, t.name, t.status, t.strategy || 'none',
+        t.wins_60, t.losses_60, t.final_wins, t.final_losses,
+        t.chips_start, t.chips_end, t.doubled ? 'Yes' : 'No',
+        t.chip_wins, t.chip_losses,
+        t.chip_pick ?? '—',
+        t.chip_draft_rank ?? '—',
+      ]);
+    });
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `chip_window_seed${simData.seed}_${simData.strategy}.csv`;
+  a.click();
+}
+</script>
+{% endblock %}

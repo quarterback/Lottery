@@ -1,0 +1,227 @@
+Skip to content
+
+
+Lottery Lab
+
+
+Invite
+
+Republish
+
+
+
+
+
+
+
+Library
+
+File tree
+Search
+
+New
+Apps
+Lottery Lab
+Lottery Lab
+Website
+
+Documents
+Chip Window PRD
+Text
+
+
+Agent
+4
+#11 - Chip Window Engine + Leaderboard Overhaul
+What & Why
+The Bid Standardization paper has been revised with three fundamental mechanic corrections that change the core chip math, plus a three-tab UI overhaul shown in the attached mockups. The current engine and leaderboard must be rebuilt to match.
+
+Engine changes (paper-accurate)
+1 — Pot mechanic (breaks symmetry) The current engine gives the winner their own wager (+bet) and takes the loser's own wager (−bet). The paper says: "The pot is both teams' wagers combined. The winner receives the full pot. The loser loses only their own stake." Net effect: winner gains the opponent's wager, loser loses own wager. This changes chip dynamics entirely — a conservative team (10-chip bid) that beats an aggressive opponent (25-chip bid) gains 25, not 10.
+
+Implementing this requires scheduling chip-window games. For each of the 22 chip-window nights, randomly pair all 30 teams into 15 matchups. Each team's chip gain/loss on a given night depends on what its opponent bid.
+
+2 — Double mechanic (wager×2, not chips×2) The paper says "the double multiplies their wager for that game." The current implementation incorrectly doubles the entire chip total. The correct mechanic: on one home game (requires ≥ 100 chips), a team's wager doubles (25 → 50). The opponent knows in advance and responds with their max bid (25). Pot for that game = 75 (50 + 25). If the doubling team wins, they gain +25 (opponent's bet). If they lose, they lose −50 (own doubled wager). This is a risk asymmetry, not a chip multiplication.
+
+3 — All 30 teams in the chip pool The paper explicitly states: "All 30 teams participate in the chip pool." Safe playoff teams participate because pick-swap rights and owed picks give them direct financial stakes in chip-window games against lottery teams. In the simulation, safe playoff teams bid conservatively (10) by default, or aggressively (25) if they are modeled as having swap exposure. A team labeled "pick swap holder" bids 25 against their exposed lottery team partner to deny them chip gains.
+
+4 — Negative chips allowed "The minimum wager is 10 — there is no zero bid. A team cannot sit out." Teams at or below 0 chips still bid the 10-chip minimum. Chips can go negative. For odds-weight computation, use max(0, chips) — teams below zero receive the record-floor odds but no chip upside.
+
+5 — Draft order = chip ranking Full model: most chips = Pick 1, record irrelevant. The leaderboard must show a FINAL PICK column (1–14) determined by chip standings, not lottery probability. In the "Draft Projection" tab, Pick 1 always goes to the chip leader. The existing odds-floor computation remains for the lottery overlay view (7% floor for all 14 teams).
+
+Done looks like
+Engine (chip_window_sim.py)
+
+simulate_chip_window_league builds a 22-night game schedule by randomly pairing all 30 teams into 15 matchups per night. Each matchup stores (home_id, away_id, home_wager, away_wager, pot, winner_id, home_won).
+Winner gains opponent_wager chips (net). Loser loses own_wager chips (chips can go negative).
+Double mechanic: one home game per season where a lottery team (≥ 100 chips) can double their wager. In that game, the opponent automatically responds with 25. The doubling team gains +25 if it wins, loses −50 if it loses.
+All 30 teams have chip trajectories and chip totals in the result JSON. Safe playoff teams are labeled "Safe Playoff" and show their chip total but have no lottery odds.
+in_chip_pool is True for all 30 teams.
+Each team's result carries: chip_draft_rank (1–14 among lottery teams, by chips desc), chip_pick (same as rank), opponent_wagers (list of 22 opponent wager amounts for trajectory tooltip detail).
+Negative-chip teams receive record-floor lottery odds only.
+Leaderboard page (/leaderboard + chip_leaderboard.html)
+
+Three tabs shown above the main content area:
+
+Tab 1 — Chip Standings
+
+Section header: "LOTTERY TEAMS — CHIP ORDER DETERMINES DRAFT PICK"
+Columns: POS | TEAM | W-L | CHIPS (colored bar: green top-3, blue mid, red bottom-3, orange near-floor) | delta trend arrow | TONIGHT (wager + opponent abbreviation, "2x" badge if doubling tonight) | FINAL PICK (numbered circle, color-coded 1=green → 14=grey)
+A second section below shows playoff teams + play-in teams with their chip totals but no FINAL PICK column (they are competing for pick swap consequences, not lottery picks).
+Legend footnote: "Chip leaderboard is floor (100). Floor = record-based lottery baseline. 2x = double game declared."
+Tab 2 — Tonight's Games
+
+Section header: "LOTTERY TEAM MATCHUPS — WAGERS ANNOUNCED"
+One matchup card per chip-window game being shown (at the current slider game number). Cards show:
+Left side: team name, chip total (with "[floor]" if ≤ floor), wager
+Right side: opponent name, wager, "(playoff — pick swap holder)" if applicable
+Wager status dot (green = locked, yellow = pending)
+"Pot: X chips" bold
+Game narrative (auto-generated: e.g., "Double game — Memphis moves to #1 if they win"; "Wizards at floor — nothing to lose"; "#2 vs #4 — winner leads by 80+ chips")
+Time (placeholder) · Venue (placeholder)
+A "PLAYOFF TEAM — CHIP STAKES" section beneath, listing any playoff-team participants in tonight's games with their pick-swap narrative.
+Tab 3 — Draft Projection
+
+Header: "Projected draft order based on current chip standings. X games remaining — positions still moveable."
+Columns: PICK (circle) | TEAM | RECORD | CHIPS | TO MOVE UP (chip gap to pass the team ranked one spot above) | AT RISK FROM (team immediately below + how many chips they need to pass)
+Pick 1 row shows "—" for TO MOVE UP (already first).
+Pick 14 row shows "—" for AT RISK FROM (no team below).
+Footer note: "Record does not determine draft position."
+Game slider (already exists) advances through all 22 chip-window games. All three tabs update to reflect the standings / matchups / projection at the selected game number.
+
+CSV export produces: Team, Record, Status, Chips, Pick, Wager Strategy, Doubled, Tonight's Opponent, Tonight's Pot.
+
+Explainer text in the chip standings hero box is updated to accurately describe the pot mechanic and the wager-based double.
+
+Out of scope
+Real NBA schedule data or real venues/tip-off times (placeholder values OK).
+Connecting to a live API for wager announcements.
+Pick-swap relationship tracking across teams (model as a random 1-in-4 chance that any playoff-team opponent is a "pick swap holder" for simulation purposes).
+Changes to the main lottery simulator (/, /simulate, lottery_sim.py).
+Changing STARTING_CHIPS, MIN_BET, BIG_BET, or DOUBLE_THRESHOLD.
+Tasks #6, #7, #8 (historical mode, strategy comparison, URL sharing).
+Tasks
+Schedule-based chip window — Replace independent per-team simulation with a 22-night pairing loop. Each night randomly pair all 30 teams into 15 matchups; for each matchup, compute each team's wager (based on their strategy), apply pot mechanic (winner gains opp_wager, loser loses own_wager, chips go negative), and record the matchup in a per-night schedule stored in the season result.
+
+Double mechanic rewrite — Remove chips *= 2.0. Implement: lottery team with ≥ 100 chips picks ONE home game per season to declare a double (last eligible home game in the chip window where chips > threshold). For that game, own_wager doubles (25 → 50 or 10 → 20); opponent auto-responds with max (25). Apply standard pot mechanic with the doubled wager. Track doubled flag and double_game_idx.
+
+All-30 chip pool + negative chips — Remove the in_chip_pool = False guard for safe-playoff teams. Give them a conservative strategy by default (MIN_BET); randomly assign ~25% as "pick swap holders" who bid aggressively (MAX_BET) against their lottery-team opponent. Allow chips to go negative. Update _effective_odds to use max(0.0, chips) for weight (negative → floor odds only).
+
+Result JSON shape update — Add to each team's dict: chip_draft_rank (1–14 among lottery teams), chip_pick (same), tonight_opponent (name), tonight_wager (own), tonight_opp_wager, tonight_pot, tonight_double (bool), is_pick_swap_holder (bool for playoff teams), chip_gap_up (chips needed to pass team above), chip_gap_down (chips chasing team needs). Expose a schedule list (22 nights × 15 matchups) on the season JSON for the "Tonight's Games" tab.
+
+Three-tab leaderboard UI — Replace the current two-column layout with three tabs (Chip Standings / Tonight's Games / Draft Projection) driven entirely by client-side JS from the /api/chip-window JSON. Implement the FINAL PICK circles, colored chip bars, TONIGHT column, matchup cards with pot/narrative, and projection table with gap columns, exactly as shown in the three mockup images. Update the explainer text for the pot mechanic and the wager-based double.
+
+Relevant files
+artifacts/lottery-lab/engine/chip_window_sim.py
+artifacts/lottery-lab/web/templates/chip_leaderboard.html
+artifacts/lottery-lab/web/router.py
+artifacts/lottery-lab/web/templates/chip_window.html
+artifacts/lottery-lab/web/templates/base.html
+Update betting system to allow variable wagers based on team chips
+
+
+
+Show previous messages
+
+1 message & 1 action
+your estimate of team standards are a little absurd nbody goes 60-0, you'd need to research nba standaings quickly and see how teams actually perform to make better estimates
+
+2 hours ago
+
+17 messages & 41 actions
+
+Checkpoint made
+1 hour ago
+
+Worked for 11 minutes
+
+Pasted--Bid-Standardization-A-Chip-Based-Draft-Order-System-to_1776287056400.txt
+the chip window model has been once again improved
+
+60 minutes ago
+
+1 message & 4 actions
+
+Worked for 1 minute
+
+Attached Image
+
+Attached Image
+
+Attached Image
+58 minutes ago
+
+6 messages & 20 actions
+
+Proposed 1 task
+
+Worked for 5 minutes
+
+Started task
+Chip Window engine + leaderboard overhaul
+The Bid Standardization paper has been revised with three fundamental mechanic corrections that change the core chip math, plus a three-tab UI overhaul shown in the attached mockups. The current engine and leaderboard must be rebuilt to match.
+
+Engine changes (paper-accurate)
+1 — Pot mechanic (breaks symmetry) The current engine gives the winner their own wager (+bet) and takes the loser's own wager (−bet). The paper says: "The pot is both teams' wagers combined. The winner receives the full pot. The loser loses only their own stake." Net effect: winner gains the opponent's wager, loser loses own wager. This changes chip dynamics entirely — a conservative team (10-chip bid) that beats an aggressive opponent (25-chip bid) gains 25, not 10.
+
+Implementing this requires scheduling chip-window games. For each of the 22 chip-window nights, randomly pair all 30 teams into 15 matchups. Each team's chip gain/loss on a given night depends on what its opponent bid.
+
+2 — Double mechanic (wager×2, not chips×2) The paper says "the double multiplies their wager for that game." The current implementation incorrectly doubles the entire chip total. The correct mechanic: on one home game (requires ≥ 100 chips), a team's wager doubles (25 → 50). The opponent knows in advance and responds with their max bid (25). Pot for that game = 75 (50 + 25). If the doubling team wins, they gain +25 (opponent's bet). If they lose, they lose −50 (own doubled wager). This is a risk asymmetry, not a chip multiplication.
+
+3 — All 30 teams in the chip pool The paper explicitly states: "All 30 teams participate in the chip pool." Safe playoff teams participate because pick-swap rights and owed picks give them direct financial stakes in chip-window games against lottery teams. In the simulation, safe playoff teams bid conservatively (10) by default, or aggressively (25) if they are modeled as having swap exposure. A team labeled "pick swap holder" bids 25 against their exposed lottery team partner to deny them chip gains.
+
+4 — Negative chips allowed "The minimum wager is 10 — there is no zero bid. A team cannot sit out." Teams at or below 0 chips still bid the 10-chip minimum. Chips can go negative. For odds-weight computation, use max(0, chips) — teams below zero receive the record-floor odds but no chip upside.
+
+5 — Draft order = chip ranking Full model: most chips = Pick 1, record irrelevant. The leaderboard must show a FINAL PICK column (1–14) determined by chip standings, not lottery probability. In the "Draft Projection" tab, Pick 1 always goes to the chip leader. The existing odds-floor computation remains for the lottery overlay view (7% floor for all 14 teams).
+
+
+View plan
+
+Checkpoint made
+51 minutes ago
+
+Planning simulation engine logic (372 seconds)
+th double mechanics should not require 100 chips, you cn use your double night whenever you want
+
+51 minutes ago
+
+11 messages & 33 actions
+
+Checkpoint made
+40 minutes ago
+
+Worked for 11 minutes
+the leaderboard doesn't a ctually change the standings from game 60 to 82 it stays at 82 the whole time the window simulator's bettign strategy isn't really resembling real life at all, it's very simplistic relative to how teams would actual bet with ranges BETWEEN 10 AND 25 CHIPS with the total chips bid for that game and right now, the spec doesn't appear to resemble what you offeed on the leaderboard unless it was;t updated or wired .
+
+also the version inside the selectors shuld be updated
+
+17 minutes ago
+
+5 messages & 10 actions
+teams shouldn't be capped at 25 chips per game, the 10 chip floor is fine, but I think they should bid what they want to create more variety so long as they have that amount
+
+8 minutes ago
+
+5 messages & 13 actions
+
+Checkpoint made
+6 minutes ago
+
+Worked for 10 minutes
+why hasn't plan 11 been exectuted yet?
+
+Just now
+
+Working
+
+Scroll to latest
+
+Tasks
+
+Make, test, iterate…
+
+
+Plan
+
+Economy
+

@@ -1,0 +1,1060 @@
+{% extends "base.html" %}
+{% block title %}Lottery Lab — Chip Window Leaderboard{% endblock %}
+
+{% block content %}
+
+<div class="mt-24">
+
+  <!-- Hero -->
+  <div class="lb-hero">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div>
+        <div class="lb-hero-title"><span class="live-dot"></span>Chip Window Standings</div>
+        <div class="lb-hero-meta">2025-26 NBA Season · Chip Window: Games 61 – 82</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--fg-faint)">Monte Carlo Scenario</div>
+        <div id="hero-seed" style="font-size:11px;color:var(--accent);font-weight:600"></div>
+        <button class="btn" onclick="rerunSim()" style="margin-top:6px;font-size:11px;padding:4px 10px">New Scenario</button>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--fg-dim);line-height:1.65;margin-top:12px;margin-bottom:0;max-width:720px">
+      Every team wagers chips on each game from 61 through 82. Win and you take the opponent's stake; lose and you forfeit your own.
+      Each team has one <b>double</b>: the home team declares which game — both wager normally, but the <b>winner earns 2× chips</b> that night.
+      Lottery teams' final chip totals <b>are the draft order</b> — Pick 1 goes to the most chips, Pick 14 to the fewest. No lottery draw.
+      Playoff and play-in teams are in the chip pool too (their wins affect pots) but they don't compete for picks.
+      The leaderboard shows all 30 teams during the window; on game 82 it locks to the 14 confirmed lottery teams only.
+    </p>
+  </div>
+
+  <!-- Game slider -->
+  <div class="lb-slider-wrap">
+    <span class="lb-slider-label">Game</span>
+    <input type="range" id="game-slider" min="1" max="22" value="22" step="1"
+      oninput="onSlide(this.value)" disabled>
+    <span id="game-badge" class="game-badge">Loading…</span>
+    <span id="game-sub" class="game-sub"></span>
+    <span style="flex:1"></span>
+    <button class="btn" id="export-btn" onclick="exportCsv()"
+      style="font-size:11px;padding:4px 10px" disabled>Export CSV ↓</button>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading-state" class="loading-overlay">
+    <div class="spinner"></div><span>Running 2025-26 chip window scenario…</span>
+  </div>
+
+  <!-- Main content -->
+  <div id="main-content" style="display:none">
+
+    <!-- Tab navigation -->
+    <div class="tab-nav">
+      <button class="tab-btn active" id="tab-btn-standings" onclick="switchTab('standings')">
+        Chip Standings
+      </button>
+      <button class="tab-btn" id="tab-btn-tonight" onclick="switchTab('tonight')">
+        Tonight's Games
+      </button>
+      <button class="tab-btn" id="tab-btn-projection" onclick="switchTab('projection')">
+        Draft Projection
+      </button>
+    </div>
+
+    <!-- ── TAB 1: CHIP STANDINGS ── -->
+    <div id="tab-standings" class="tab-panel lb-panel">
+
+      <!-- State-aware header (changes between window and final) -->
+      <div class="section-header" id="st-state-header">CHIP STANDINGS</div>
+
+      <!-- Table rendered here by renderStandings() -->
+      <div id="st-all-rows"></div>
+
+      <!-- Contextual note about playoff teams (shown during window only) -->
+      <div id="st-playoff-context" style="display:none;margin:10px 0 4px;padding:9px 14px;border-radius:6px;background:var(--bg-2);border:1px solid var(--border);font-size:11px;color:var(--fg-faint)">
+        Playoff teams (dimmed above) are playing tonight — beating them earns their wager and counts toward your chip total.
+        Their position in this list is provisional; they don't compete for draft picks.
+      </div>
+
+      <div class="lb-footnote">
+        Window = chip window record since game 60. Behind = chips behind leader (— for leader).
+        Playoff line reflects current standings and moves daily.
+        Teams below line dimmed — chips shown for pick swap tracking only.
+      </div>
+    </div>
+
+    <!-- ── TAB 2: TONIGHT'S GAMES ── -->
+    <div id="tab-tonight" class="tab-panel lb-panel" style="display:none">
+      <div class="section-header">LOTTERY TEAM MATCHUPS — WAGERS ANNOUNCED</div>
+      <div id="tonight-lottery" class="games-grid"></div>
+
+      <div class="section-header" style="border-top:1px solid var(--border)">
+        OTHER GAMES TONIGHT — CHIPS STILL MOVE
+      </div>
+      <div id="tonight-playoff"></div>
+
+      <div class="lb-footnote" id="tonight-footnote"></div>
+    </div>
+
+    <!-- ── TAB 3: DRAFT PROJECTION ── -->
+    <div id="tab-projection" class="tab-panel lb-panel" style="display:none">
+      <div class="proj-header" id="proj-header"></div>
+      <div class="proj-row proj-header-row">
+        <div style="text-align:center">PICK</div>
+        <div>TEAM</div>
+        <div style="text-align:right">RECORD</div>
+        <div>CHIPS</div>
+        <div class="col-gap-up" style="padding-left:8px">TO MOVE UP</div>
+        <div class="col-gap-dn" style="padding-left:8px">AT RISK FROM</div>
+      </div>
+      <div id="proj-rows"></div>
+      <div class="lb-footnote">Record does not determine draft position — chip total is the only ranking metric.</div>
+    </div>
+
+    <!-- Trajectory chart (always visible below tabs) -->
+    <div class="traj-section">
+      <div class="traj-title">Chip Trajectories — All Pool Teams</div>
+      <svg id="traj-svg" height="200" viewBox="0 0 900 200" preserveAspectRatio="none"></svg>
+      <div id="traj-pers-legend" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:6px;margin-bottom:2px"></div>
+      <div id="traj-legend" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px"></div>
+    </div>
+
+  </div><!-- /main-content -->
+
+  <!-- Team detail panel -->
+  <div class="team-detail-overlay" id="team-detail-overlay" onclick="closeTeamDetail(event)">
+    <div class="team-detail-panel" onclick="event.stopPropagation()">
+      <div class="tdp-header">
+        <div>
+          <div class="tdp-team-name" id="tdp-name"></div>
+          <div class="tdp-record" id="tdp-record"></div>
+        </div>
+        <button class="tdp-close" onclick="closeTeamDetail()">&times;</button>
+      </div>
+      <div class="tdp-personality" id="tdp-personality">
+        <div>
+          <div id="tdp-pers-pill"></div>
+        </div>
+        <div class="tdp-pers-desc" id="tdp-pers-desc"></div>
+      </div>
+      <div class="tdp-stats" id="tdp-stats"></div>
+      <div class="tdp-sparkline-wrap">
+        <div class="tdp-sparkline-title">Chip Trajectory — All 22 Nights</div>
+        <svg id="tdp-sparkline" height="70" viewBox="0 0 480 70" preserveAspectRatio="none" style="width:100%;display:block;border-radius:4px;background:var(--bg-2)"></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom meta -->
+  <div class="bottom-bar" id="bottom-bar" style="display:none">
+    <div class="bottom-meta">Lottery Lab · Bid Standardization simulator</div>
+    <div class="bottom-meta" id="bottom-seed"></div>
+  </div>
+
+</div><!-- /mt-24 -->
+
+<script>
+let lbData    = null;
+let curGame   = 22;     // 1–22 within chip window
+let activeTab = 'standings';
+
+const GAMES   = 22;
+const DOUBLE_THRESH = 100;  // reference line on trajectory chart only — not a double eligibility requirement
+
+/* ── Bidding personality metadata ── */
+function personalityMeta(p) {
+  switch (p) {
+    case 'bold':
+      return {
+        label: 'Bold', pillCls: 'pill-bold', color: '#fb923c',
+        desc: 'Bold teams bid 25–50% more than their base strategy. Bigger swings in both directions — high ceiling, high floor risk.'
+      };
+    case 'cautious':
+      return {
+        label: 'Cautious', pillCls: 'pill-cautious', color: '#34d399',
+        desc: 'Cautious teams bid 20–40% less than base. Steadier trajectory with fewer dramatic gains — but avoids catastrophic chip loss.'
+      };
+    case 'volatile':
+      return {
+        label: 'Volatile', pillCls: 'pill-volatile', color: '#c084fc',
+        desc: 'Volatile teams randomly flip between bold and cautious each game. Unpredictable trajectory — the wildcard of the chip window.'
+      };
+    default:
+      return {
+        label: 'Standard', pillCls: 'pill-standard', color: '#94a3b8',
+        desc: 'Standard teams bid proportionally to their chip stack (15–40%). No personality modifier — balanced, momentum-driven play.'
+      };
+  }
+}
+
+/* ── Trajectory line style per personality ── */
+function trajPersonalityStyle(p) {
+  switch (p) {
+    case 'bold':     return { width: '2.5', dash: null,  opacity: '0.88' };
+    case 'cautious': return { width: '1.0', dash: null,  opacity: '0.55' };
+    case 'volatile': return { width: '1.8', dash: '6,3', opacity: '0.80' };
+    default:         return { width: '1.5', dash: null,  opacity: '0.70' };
+  }
+}
+
+/* ── Team name → 3-letter abbreviation ── */
+function teamAbbr(name) {
+  const map = {
+    'Golden State': 'GSW', 'LA Clippers': 'LAC', 'LA Lakers': 'LAL',
+    'New Orleans': 'NOP', 'New York': 'NYK', 'Oklahoma City': 'OKC',
+    'San Antonio': 'SAS', 'Brooklyn': 'BKN', 'Philadelphia': 'PHI',
+    'Portland': 'POR', 'Sacramento': 'SAC', 'Washington': 'WAS',
+    'Minnesota': 'MIN', 'Memphis': 'MEM', 'Milwaukee': 'MIL',
+    'Indiana': 'IND', 'Houston': 'HOU', 'Detroit': 'DET',
+    'Denver': 'DEN', 'Dallas': 'DAL', 'Cleveland': 'CLE',
+    'Chicago': 'CHI', 'Charlotte': 'CHA', 'Boston': 'BOS',
+    'Atlanta': 'ATL', 'Toronto': 'TOR', 'Utah': 'UTA',
+    'Orlando': 'ORL', 'Phoenix': 'PHX', 'Miami': 'MIA',
+  };
+  for (const [k, v] of Object.entries(map)) {
+    if (name.startsWith(k)) return v;
+  }
+  return name.substring(0, 3).toUpperCase();
+}
+
+/* ── Pick-circle colour by pick number ── */
+function pickColor(n) {
+  if (n === 1)  return { bg: '#3d2200', fg: '#fb923c', border: '#b45309' };  // amber  — #1
+  if (n <= 3)   return { bg: '#0f2a1a', fg: '#4ade80', border: '#2a6640' };  // green  — 2–3
+  if (n <= 8)   return { bg: '#001a2a', fg: '#60a5fa', border: '#1e4060' };  // blue   — 4–8
+  if (n <= 14)  return { bg: '#1a0808', fg: '#f87171', border: '#6a2020' };  // red    — 9–14
+  return         { bg: '#1a1a1a', fg: '#666',     border: '#333'   };        // grey   — 15+
+}
+
+/* ── Chip bar colour by rank among lottery ── */
+function chipBarColor(rank, total) {
+  if (rank <= 3)               return '#4ade80';
+  if (rank >= total - 2)       return '#f87171';
+  return '#60a5fa';
+}
+
+/* ── Chips from trajectory (0-indexed gameIdx) ── */
+function chipsAt(team, gameIdx) {
+  if (!team.in_chip_pool) return null;
+  const t = team.chip_trajectory;
+  if (!t || t.length === 0) return team.chips_start ?? 60;
+  return t[Math.min(gameIdx, t.length - 1)];
+}
+
+/* ── Ranked lottery teams at a given game ── */
+function lotteryRanked(gameIdx) {
+  return lbData.teams
+    .filter(t => t.status === 'Lottery')
+    .map(t => ({ ...t, _chips: chipsAt(t, gameIdx) }))
+    .sort((a, b) => {
+      if (b._chips !== a._chips) return b._chips - a._chips;          // chips DESC
+      if (a.wins_60 !== b.wins_60) return a.wins_60 - b.wins_60;     // worse record first
+      if (a.losses_60 !== b.losses_60) return b.losses_60 - a.losses_60; // more losses first
+      return a.id - b.id;                                              // stable fallback
+    });
+}
+
+/* ── Find tonight's matchup for a team ── */
+function tonightMatchup(teamId, nightIdx) {
+  if (!lbData || nightIdx < 0 || nightIdx >= lbData.schedule.length) return null;
+  return lbData.schedule[nightIdx].find(m => m.home_id === teamId || m.away_id === teamId) || null;
+}
+
+/* ── Single-game chip swing (tonight's result) ── */
+function trendArrow(team, gameIdx) {
+  if (!team.in_chip_pool) return '<span class="trend-flat">–</span>';
+  const now  = chipsAt(team, gameIdx);
+  const prev = gameIdx === 0
+    ? (team.chips_start ?? 60)
+    : chipsAt(team, gameIdx - 1);
+  const delta = now - prev;
+  if (Math.abs(delta) < 0.05) return '<span class="trend-flat" style="font-size:10px;color:var(--fg-faint)">—</span>';
+  const sign = delta > 0 ? '+' : '';
+  const col  = delta > 0 ? 'var(--green)' : 'var(--red)';
+  return `<span style="font-size:10px;font-weight:700;color:${col}">${sign}${delta.toFixed(1)}</span>`;
+}
+
+/* ═══════════════════════════════════════
+   TAB SWITCHING
+═══════════════════════════════════════ */
+function switchTab(tab) {
+  activeTab = tab;
+  ['standings','tonight','projection'].forEach(id => {
+    document.getElementById('tab-' + id).style.display = id === tab ? 'block' : 'none';
+    document.getElementById('tab-btn-' + id).classList.toggle('active', id === tab);
+  });
+}
+
+/* ═══════════════════════════════════════
+   MASTER RENDER
+═══════════════════════════════════════ */
+function renderAll(game) {
+  curGame = game;
+  const gameIdx  = game - 1;   // 0-indexed
+  const gameNum  = 60 + game;
+  const nightIdx = game - 1;
+
+  document.getElementById('game-badge').textContent = 'Game ' + gameNum + ' of 82';
+  document.getElementById('game-sub').textContent =
+    game === 22 ? '· Final standings' : '· ' + (22 - game) + ' games remaining';
+
+  if (!lbData) return;
+
+  renderStandings(gameIdx, nightIdx);
+  renderTonight(nightIdx);
+  renderProjection(gameIdx);
+  renderTraj(gameIdx);
+}
+
+/* ── Chip window record for a team up to a given night ── */
+function chipWindowRecord(teamId, nightIdx) {
+  let wins = 0, losses = 0;
+  for (let ni = 0; ni <= nightIdx; ni++) {
+    const night = (lbData.schedule || [])[ni] || [];
+    const m = night.find(g => g.home_id === teamId || g.away_id === teamId);
+    if (!m || m.home_won == null) continue;
+    const won = (m.home_id === teamId) ? m.home_won : !m.home_won;
+    if (won) wins++; else losses++;
+  }
+  return { wins, losses };
+}
+
+/* ═══════════════════════════════════════
+   TAB 1 — CHIP STANDINGS
+   Two states:
+   • During window (30 teams, chip-sorted):
+       – Divider fires at the FIRST Safe Playoff team.
+       – Lottery + Play-In teams above AND below divider are full opacity
+         (they're all in the draft race; some just have fewer chips than
+         certain playoff teams right now).
+       – Safe Playoff teams are dimmed — they're context, not contestants.
+       – Rank assigned to all 18 non-safe-playoff teams (Lottery + Play-In).
+   • Final (game 82): 14 confirmed lottery teams only = draft order.
+═══════════════════════════════════════ */
+function renderStandings(gameIdx, nightIdx) {
+  const isFinal = gameIdx >= 21;
+
+  const chipSort = (a, b) => {
+    if (b._chips !== a._chips) return b._chips - a._chips;
+    if (a.final_wins !== b.final_wins) return a.final_wins - b.final_wins;
+    if (b.final_losses !== a.final_losses) return b.final_losses - a.final_losses;
+    return a.id - b.id;
+  };
+
+  const mapped = lbData.teams.map(t => {
+    const chips = chipsAt(t, gameIdx);
+    const prev  = gameIdx === 0 ? (t.chips_start ?? 60) : chipsAt(t, gameIdx - 1);
+    const cwr   = chipWindowRecord(t.id, nightIdx);
+    return { ...t, _chips: chips, _delta: chips - prev, _cwW: cwr.wins, _cwL: cwr.losses };
+  });
+
+  /* Split into two groups — non-playoff competitors first, then safe playoff teams.
+     Each group is chip-sorted internally so the divider always separates the sections. */
+  const nonPlayoff  = mapped.filter(t => t.status !== 'Safe Playoff').sort(chipSort);
+  const safePlayoff = mapped.filter(t => t.status === 'Safe Playoff').sort(chipSort);
+  const allTeams    = [...nonPlayoff, ...safePlayoff];
+
+  let chipRankCounter = 0;
+  allTeams.forEach(t => {
+    if (isFinal) {
+      // Final view: only lottery teams compete for picks 1-14
+      t._chipRank = t.status === 'Lottery' ? ++chipRankCounter : null;
+    } else {
+      // Window view: all non-safe-playoff teams (Lottery + Play-In) get a rank
+      t._chipRank = t.status !== 'Safe Playoff' ? ++chipRankCounter : null;
+    }
+  });
+
+  const stateHdr = document.getElementById('st-state-header');
+  const ctxNote  = document.getElementById('st-playoff-context');
+  if (isFinal) {
+    stateHdr.textContent = 'CONFIRMED DRAFT ORDER — FINAL';
+    stateHdr.style.color = 'var(--accent)';
+    if (ctxNote) ctxNote.style.display = 'none';
+  } else {
+    const gamesLeft = 22 - (gameIdx + 1);
+    stateHdr.textContent = 'CHIP STANDINGS — ' + gamesLeft + ' GAME' + (gamesLeft !== 1 ? 'S' : '') + ' REMAINING';
+    stateHdr.style.color = '';
+    if (ctxNote) ctxNote.style.display = 'none';
+  }
+
+  const rows = isFinal ? allTeams.filter(t => t.status === 'Lottery') : allTeams;
+  const leaderChips = rows[0]?._chips ?? 0;
+
+  const container = document.getElementById('st-all-rows');
+  container.innerHTML = '';
+
+  /* ── Build <table> ── */
+  const wrap = document.createElement('div');
+  wrap.className = 'lb-table-wrap';
+
+  const table = document.createElement('table');
+  table.className = 'lb-table';
+
+  const thead = document.createElement('thead');
+  thead.innerHTML = `<tr class="lb-thead-row">
+    <th class="lb-th" style="width:130px;text-align:left">TEAM</th>
+    <th class="lb-th" style="width:58px;text-align:right">OVERALL</th>
+    <th class="lb-th col-window" style="width:54px;text-align:right">WINDOW</th>
+    <th class="lb-th" style="width:52px;text-align:right">CHIPS</th>
+    <th class="lb-th col-behind" style="width:52px;text-align:right">BEHIND</th>
+    <th class="lb-th col-tonight" style="width:110px;text-align:left">TONIGHT</th>
+    <th class="lb-th" style="width:44px;text-align:center">PICK</th>
+  </tr>`;
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  let dividerInserted = false;
+
+  rows.forEach(t => {
+    const isSafePlayoff = t.status === 'Safe Playoff';
+
+    /* Playoff divider — fires before first Safe Playoff team */
+    if (!isFinal && !dividerInserted && isSafePlayoff) {
+      dividerInserted = true;
+      const divRow = document.createElement('tr');
+      divRow.className = 'lb-divider-row';
+      divRow.innerHTML = `<td colspan="7" class="lb-divider-cell">PLAYOFF LINE \u2014 AS OF TODAY<span class="lb-divider-sub">currently in playoff position \u00b7 chips shown for swap tracking</span></td>`;
+      tbody.appendChild(divRow);
+    }
+
+    /* Overall record */
+    const overallHtml = `${t.final_wins}\u2013${t.final_losses}`;
+
+    /* Window record */
+    const cwColor = t._cwW > t._cwL ? '#1D9E75' : t._cwL > t._cwW ? '#E24B4A' : 'var(--fg-dim)';
+    const windowHtml = `<span style="color:${cwColor};font-weight:600">${t._cwW}\u2013${t._cwL}</span>`;
+
+    /* Chips */
+    const floorBadge = t._chips <= 10
+      ? `<span style="font-size:9px;color:var(--fg-faint);margin-left:3px">floor</span>` : '';
+    const chipsHtml = `<span style="font-weight:600">${Math.round(t._chips)}</span>${floorBadge}`;
+
+    /* Behind */
+    const behind = leaderChips - t._chips;
+    const behindHtml = behind < 0.05
+      ? `<span style="color:var(--fg-faint)">\u2014</span>`
+      : `<span style="color:var(--fg-dim)">${Math.round(behind)}</span>`;
+
+    /* Tonight's wager */
+    const m      = tonightMatchup(t.id, nightIdx);
+    const isHome = m ? m.home_id === t.id : false;
+    const opp    = m ? (isHome ? m.away_name : m.home_name) : null;
+    const wager  = m ? (isHome ? m.home_wager : m.away_wager) : null;
+    const isDbl  = m && (isHome ? m.home_double : m.away_double);
+    let tonightHtml;
+    if (opp) {
+      const at  = isHome ? 'vs' : '@';
+      const dbl = isDbl ? `<span class="lb-double-badge">2\u00d7</span>` : '';
+      tonightHtml = `<span>${Math.round(wager)} ${at} ${teamAbbr(opp)}</span>${dbl}`;
+    } else {
+      tonightHtml = `<span style="color:var(--fg-faint);font-size:11px">off</span>`;
+    }
+
+    /* Proj pick — use dark-themed pickColor() */
+    let pickHtml;
+    if (t._chipRank != null) {
+      const pc = pickColor(t._chipRank);
+      pickHtml = `<div class="lb-pick-circle" style="background:${pc.bg};color:${pc.fg};border:1px solid ${pc.border}">${t._chipRank}</div>`;
+    } else {
+      pickHtml = `<span style="color:var(--fg-faint);font-size:11px">\u2014</span>`;
+    }
+
+    const tr = document.createElement('tr');
+    tr.className = 'lb-row' + (isSafePlayoff ? ' lb-row-playoff' : '');
+    tr.addEventListener('click', () => openTeamDetail(t));
+    tr.innerHTML = `
+      <td class="lb-td lb-td-team">${t.name}</td>
+      <td class="lb-td" style="text-align:right;font-size:11px;color:var(--fg-dim)">${overallHtml}</td>
+      <td class="lb-td col-window" style="text-align:right">${windowHtml}</td>
+      <td class="lb-td" style="text-align:right">${chipsHtml}</td>
+      <td class="lb-td col-behind" style="text-align:right">${behindHtml}</td>
+      <td class="lb-td col-tonight">${tonightHtml}</td>
+      <td class="lb-td" style="text-align:center">${pickHtml}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  container.appendChild(wrap);
+}
+
+/* ═══════════════════════════════════════
+   TAB 2 — TONIGHT'S GAMES
+═══════════════════════════════════════ */
+function renderTonight(nightIdx) {
+  if (!lbData) return;
+  const night = lbData.schedule[nightIdx] || [];
+
+  // Lottery matchups: at least one lottery team
+  const lotteryGames  = night.filter(m =>
+    m.home_status === 'Lottery' || m.away_status === 'Lottery');
+  // Playoff stake games: at least one safe playoff team (includes lottery vs playoff)
+  const playoffGames  = night.filter(m =>
+    m.home_status === 'Safe Playoff' || m.away_status === 'Safe Playoff');
+
+  /* Footnote */
+  document.getElementById('tonight-footnote').textContent =
+    `Game ${60 + nightIdx + 1} of 82 · ${lotteryGames.length} lottery matchup${lotteryGames.length !== 1 ? 's' : ''} · ${night.length} total`;
+
+  /* Lottery matchup cards */
+  const lEl = document.getElementById('tonight-lottery');
+  lEl.innerHTML = '';
+  if (lotteryGames.length === 0) {
+    lEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--fg-faint);font-size:12px">No lottery matchups this night</div>';
+  } else {
+    lotteryGames.forEach(m => {
+      const isDoubleGame = m.home_double || m.away_double;
+      const card = document.createElement('div');
+      card.className = 'game-card';
+      card.style.borderColor = isDoubleGame ? '#ccaa44' : 'var(--border)';
+
+      const homeFloor = m.home_chips_before <= 20;
+      const awayFloor = m.away_chips_before <= 20;
+      const homePill  = statusPill(m.home_status);
+      const awayPill  = statusPill(m.away_status);
+
+      // Variance badges
+      const homeHotBadge    = m.home_hot_streak ? '<span style="font-size:9px;background:#d4380d;color:#fff;padding:1px 4px;border-radius:3px;margin-left:4px">HOT</span>' : '';
+      const awayHotBadge    = m.away_hot_streak ? '<span style="font-size:9px;background:#d4380d;color:#fff;padding:1px 4px;border-radius:3px;margin-left:4px">HOT</span>' : '';
+      const homeRallyBadge  = m.home_rally ? '<span style="font-size:9px;background:#1677ff;color:#fff;padding:1px 4px;border-radius:3px;margin-left:4px">RALLY</span>' : '';
+      const awayRallyBadge  = m.away_rally ? '<span style="font-size:9px;background:#1677ff;color:#fff;padding:1px 4px;border-radius:3px;margin-left:4px">RALLY</span>' : '';
+      const homeFatigueBadge = m.home_fatigue ? '<span style="font-size:9px;background:#595959;color:#fff;padding:1px 4px;border-radius:3px;margin-left:4px">[REST]</span>' : '';
+      const awayFatigueBadge = m.away_fatigue ? '<span style="font-size:9px;background:#595959;color:#fff;padding:1px 4px;border-radius:3px;margin-left:4px">[REST]</span>' : '';
+
+      card.innerHTML = `
+        <div class="game-card-teams">
+          <div class="gc-team">
+            <div class="gc-team-name">
+              ${m.home_name}${m.home_double ? ' <span class="doubled-badge-sm">2×</span>' : ''}${homeHotBadge}${homeRallyBadge}${homeFatigueBadge}
+            </div>
+            <div class="gc-chips">
+              ${homePill} ${m.home_chips_before.toFixed(1)} chips${homeFloor ? ' <span style="color:var(--fg-faint)">[floor]</span>' : ''}
+            </div>
+          </div>
+          <div>
+            <div class="gc-wager">${m.home_wager.toFixed(1)}</div>
+            <div class="gc-vs">vs</div>
+            <div class="gc-wager" style="font-size:13px;color:var(--fg-dim)">${m.away_wager.toFixed(1)}</div>
+            <span class="gc-wager-label">wagers</span>
+          </div>
+          <div class="gc-team gc-right">
+            <div class="gc-team-name">
+              ${m.away_double ? '<span class="doubled-badge-sm">2×</span> ' : ''}${m.away_name}${awayHotBadge}${awayRallyBadge}${awayFatigueBadge}
+            </div>
+            <div class="gc-chips">
+              ${awayPill} ${m.away_chips_before.toFixed(1)} chips${awayFloor ? ' <span style="color:var(--fg-faint)">[floor]</span>' : ''}
+            </div>
+          </div>
+        </div>
+        <div class="gc-pot">
+          <span class="wager-dot"></span>Pot: <b>${m.pot.toFixed(1)} chips</b>
+          ${isDoubleGame ? ` &nbsp;<span style="font-size:9px;color:#ccaa44;font-weight:700">2× night — winner earns double</span>` : ''}
+          ${m.upset_bonus > 0 ? ` &nbsp;<span style="font-size:9px;color:#f5c518;font-weight:700">⚡ Upset Bonus: +${m.upset_bonus} chips to winner</span>` : ''}
+        </div>
+        <div class="gc-narrative">${m.narrative}</div>
+        <div class="gc-meta">${m.tip_time} · ${m.home_name} home</div>
+      `;
+      lEl.appendChild(card);
+    });
+  }
+
+  /* Playoff stake rows */
+  const pEl = document.getElementById('tonight-playoff');
+  pEl.innerHTML = '';
+  if (playoffGames.length === 0) {
+    pEl.innerHTML = '<div style="padding:14px;text-align:center;color:var(--fg-faint);font-size:11px">No playoff-only matchups this night</div>';
+  } else {
+    playoffGames.forEach(m => {
+      const div = document.createElement('div');
+      div.className = 'playoff-card';
+      div.innerHTML = `
+        <span>${m.home_name} vs ${m.away_name}</span>
+        <span style="color:var(--fg-faint)">·</span>
+        <span>Pot: ${m.pot.toFixed(1)} chips</span>
+        <span style="margin-left:auto;font-size:10px;color:var(--fg-faint)">${m.tip_time}</span>
+      `;
+      pEl.appendChild(div);
+    });
+  }
+}
+
+function statusPill(status) {
+  if (status === 'Safe Playoff') return '<span class="lb-status-pill pill-safe">PO</span>';
+  if (status === 'Play-In')      return '<span class="lb-status-pill pill-playin">PI</span>';
+  return '<span class="lb-status-pill pill-lottery">LT</span>';
+}
+
+/* ═══════════════════════════════════════
+   TAB 3 — DRAFT PROJECTION
+═══════════════════════════════════════ */
+function renderProjection(gameIdx) {
+  const gamesLeft = 22 - (gameIdx + 1);
+  const ranked    = lotteryRanked(gameIdx);
+
+  document.getElementById('proj-header').innerHTML = `
+    Projected draft order based on chip standings through game ${60 + gameIdx + 1}.
+    <b>${gamesLeft}</b> game${gamesLeft !== 1 ? 's' : ''} remaining — positions are still moveable.
+  `;
+
+  const el = document.getElementById('proj-rows');
+  el.innerHTML = '';
+
+  ranked.forEach((t, i) => {
+    const pick = i + 1;
+    const pc   = pickColor(pick);
+    const above = i > 0 ? ranked[i - 1] : null;
+    const below = i < ranked.length - 1 ? ranked[i + 1] : null;
+    const gapUp = above ? (above._chips - t._chips).toFixed(1) : null;
+    const gapDn = below ? (t._chips - below._chips).toFixed(1) : null;
+
+    const row = document.createElement('div');
+    row.className = 'proj-row';
+    row.innerHTML = `
+      <div style="text-align:center">
+        <div class="pick-circle" style="background:${pc.bg};color:${pc.fg};border-color:${pc.border}">
+          ${pick}
+        </div>
+      </div>
+      <div>
+        <div class="team-name">${t.name}</div>
+        <div class="team-sub"><span class="lb-status-pill pill-lottery">${t.strategy}</span></div>
+      </div>
+      <div class="rec-cell">${t.final_wins}–${t.final_losses}</div>
+      <div class="chips-num ${t._chips < 0 ? 'chips-neg' : ''}" style="padding-left:4px">
+        ${t._chips.toFixed(1)}
+      </div>
+      <div class="gap-up-cell col-gap-up" style="padding-left:8px">
+        ${gapUp !== null
+          ? `<span style="color:var(--fg-dim)">+${gapUp}</span> to pass <span style="color:var(--fg)">${above.name}</span>`
+          : '<span style="color:var(--fg-faint)">— already #1</span>'}
+      </div>
+      <div class="gap-dn-cell col-gap-dn" style="padding-left:8px">
+        ${gapDn !== null
+          ? `<span style="color:var(--fg)">${below.name}</span> needs <span style="color:var(--red)">+${gapDn}</span>`
+          : '<span style="color:var(--fg-faint)">— none below</span>'}
+      </div>
+    `;
+    el.appendChild(row);
+  });
+}
+
+/* ═══════════════════════════════════════
+   TRAJECTORY CHART
+═══════════════════════════════════════ */
+const TRAJ_W = 900, TRAJ_H = 200;
+const PAD_L = 30, PAD_R = 10, PAD_T = 10, PAD_B = 24;
+
+function trajX(gi) { return PAD_L + (gi / (GAMES - 1)) * (TRAJ_W - PAD_L - PAD_R); }
+function trajY(c, minC, maxC) {
+  const span = maxC - minC || 1;
+  return PAD_T + (1 - (c - minC) / span) * (TRAJ_H - PAD_T - PAD_B);
+}
+
+function renderTraj(highlightIdx) {
+  const svg = document.getElementById('traj-svg');
+  svg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+
+  const pool = lbData ? lbData.teams.filter(t => t.in_chip_pool) : [];
+  const allVals = pool.flatMap(t => t.chip_trajectory);
+  const minC = Math.min(...allVals, 0) - 5;
+  const maxC = Math.max(...allVals, 200) + 5;
+
+  /* Grid lines */
+  const gridVals = [0, 50, 100, 150, 200];
+  gridVals.forEach(v => {
+    const y = trajY(v, minC, maxC);
+    const l = document.createElementNS(ns, 'line');
+    l.setAttribute('x1', PAD_L); l.setAttribute('x2', TRAJ_W - PAD_R);
+    l.setAttribute('y1', y);     l.setAttribute('y2', y);
+    l.setAttribute('stroke', 'var(--border)'); l.setAttribute('stroke-width', '0.5');
+    svg.appendChild(l);
+    const lbl = document.createElementNS(ns, 'text');
+    lbl.setAttribute('x', PAD_L - 4); lbl.setAttribute('y', y + 3);
+    lbl.setAttribute('text-anchor', 'end'); lbl.setAttribute('fill', 'var(--fg-faint)');
+    lbl.setAttribute('font-size', '9'); lbl.textContent = v;
+    svg.appendChild(lbl);
+  });
+
+  /* Double-threshold reference */
+  const dY = trajY(DOUBLE_THRESH, minC, maxC);
+  const dLine = document.createElementNS(ns, 'line');
+  dLine.setAttribute('x1', PAD_L); dLine.setAttribute('x2', TRAJ_W - PAD_R);
+  dLine.setAttribute('y1', dY);    dLine.setAttribute('y2', dY);
+  dLine.setAttribute('stroke', '#ccaa44'); dLine.setAttribute('stroke-width', '1');
+  dLine.setAttribute('stroke-dasharray', '4,3'); dLine.setAttribute('opacity', '0.4');
+  svg.appendChild(dLine);
+
+  /* X labels */
+  for (let g = 0; g <= GAMES; g += 5) {
+    const x = trajX(Math.min(g, GAMES - 1));
+    const lbl = document.createElementNS(ns, 'text');
+    lbl.setAttribute('x', x); lbl.setAttribute('y', TRAJ_H - 6);
+    lbl.setAttribute('text-anchor', 'middle'); lbl.setAttribute('fill', 'var(--fg-faint)');
+    lbl.setAttribute('font-size', '9'); lbl.textContent = 'G' + (60 + Math.min(g, GAMES));
+    svg.appendChild(lbl);
+  }
+
+  /* Team paths — styled by bidding personality */
+  const colors = ['#ff8c00','#60a5fa','#f5c518','#4ade80','#f87171','#c084fc','#22d3ee',
+                   '#fb923c','#a3e635','#e879f9','#34d399','#fbbf24','#818cf8','#f472b6',
+                   '#6ee7b7','#fca5a5','#a5b4fc','#93c5fd'];
+  pool.forEach((t, i) => {
+    const traj = t.chip_trajectory;
+    if (!traj || traj.length === 0) return;
+    const color = colors[i % colors.length];
+    const ps = trajPersonalityStyle(t.bidding_personality || 'standard');
+
+    /* Only draw up to the highlighted game */
+    const drawTo = Math.min(highlightIdx + 1, traj.length);
+    let d = '';
+    for (let gi = 0; gi < drawTo; gi++) {
+      const x = trajX(gi), y = trajY(traj[gi], minC, maxC);
+      d += (gi === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
+    }
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d); path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', ps.width);
+    path.setAttribute('opacity', ps.opacity);
+    if (ps.dash) path.setAttribute('stroke-dasharray', ps.dash);
+    svg.appendChild(path);
+
+    /* Endpoint dot at current game */
+    if (drawTo > 0) {
+      const ex = trajX(drawTo - 1), ey = trajY(traj[drawTo - 1], minC, maxC);
+      const dot = document.createElementNS(ns, 'circle');
+      dot.setAttribute('cx', ex); dot.setAttribute('cy', ey); dot.setAttribute('r', '3');
+      dot.setAttribute('fill', color); dot.setAttribute('opacity', '0.9');
+      svg.appendChild(dot);
+    }
+  });
+
+  /* Highlight current-game marker */
+  if (highlightIdx >= 0 && highlightIdx < GAMES) {
+    const hx = trajX(highlightIdx);
+    const vl = document.createElementNS(ns, 'line');
+    vl.setAttribute('x1', hx); vl.setAttribute('x2', hx);
+    vl.setAttribute('y1', PAD_T); vl.setAttribute('y2', TRAJ_H - PAD_B);
+    vl.setAttribute('stroke', 'var(--accent)'); vl.setAttribute('stroke-width', '1.5');
+    vl.setAttribute('stroke-dasharray', '4,3'); vl.setAttribute('opacity', '0.8');
+    svg.appendChild(vl);
+  }
+
+  /* Legend — shows team name + personality pill */
+  const legend = document.getElementById('traj-legend');
+  legend.innerHTML = '';
+  pool.forEach((t, i) => {
+    const color = colors[i % colors.length];
+    const pm = personalityMeta(t.bidding_personality || 'standard');
+    const ps = trajPersonalityStyle(t.bidding_personality || 'standard');
+    const el = document.createElement('div');
+    el.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:10px;color:var(--fg-dim);cursor:pointer';
+    el.title = 'Click for details';
+    el.innerHTML = `
+      <span style="display:inline-block;width:16px;height:${parseFloat(ps.width) > 1.5 ? 3 : 2}px;
+        background:${color};border-radius:1px;${ps.dash ? 'border-top:2px dashed '+color+';background:none;height:0;' : ''}"></span>
+      ${t.name}
+      <span class="lb-status-pill ${pm.pillCls}" style="font-size:8px">${pm.label}</span>
+    `;
+    el.addEventListener('click', () => openTeamDetail(t));
+    legend.appendChild(el);
+  });
+
+  /* Personality style legend */
+  const persLegend = document.getElementById('traj-pers-legend');
+  if (persLegend) {
+    persLegend.innerHTML = `
+      <span style="font-size:9px;color:var(--fg-faint);margin-right:6px">Line style:</span>
+      <span style="font-size:9px;color:var(--fg-dim)"><b>Bold</b> = thick</span>
+      <span style="font-size:9px;color:var(--fg-faint);margin:0 4px">·</span>
+      <span style="font-size:9px;color:var(--fg-dim)"><b>Cautious</b> = thin</span>
+      <span style="font-size:9px;color:var(--fg-faint);margin:0 4px">·</span>
+      <span style="font-size:9px;color:var(--fg-dim)"><b>Volatile</b> = dashed</span>
+      <span style="font-size:9px;color:var(--fg-faint);margin:0 4px">·</span>
+      <span style="font-size:9px;color:var(--fg-dim)"><b>Standard</b> = normal</span>
+    `;
+  }
+}
+
+/* ═══════════════════════════════════════
+   SWING STATS — biggest gain & worst loss
+═══════════════════════════════════════ */
+function swingStats(traj) {
+  if (!traj || traj.length < 2) {
+    return { bestGain: null, worstLoss: null, bestIdx: -1, worstIdx: -1 };
+  }
+  let bestGain = -Infinity, worstLoss = Infinity;
+  let bestIdx  = -1,        worstIdx  = -1;
+  for (let i = 1; i < traj.length; i++) {
+    const delta = traj[i] - traj[i - 1];
+    if (delta > bestGain)  { bestGain  = delta; bestIdx  = i; }
+    if (delta < worstLoss) { worstLoss = delta; worstIdx = i; }
+  }
+  return { bestGain, worstLoss, bestIdx, worstIdx };
+}
+
+/* ═══════════════════════════════════════
+   TEAM DETAIL PANEL
+═══════════════════════════════════════ */
+function openTeamDetail(team) {
+  const pm = personalityMeta(team.bidding_personality || 'standard');
+  const gameIdx = curGame - 1;
+  const chips   = chipsAt(team, gameIdx);
+
+  document.getElementById('tdp-name').textContent   = team.name;
+  document.getElementById('tdp-record').textContent =
+    team.final_wins + '–' + team.final_losses + ' · ' + (team.status || '');
+
+  document.getElementById('tdp-pers-pill').innerHTML =
+    `<span class="lb-status-pill ${pm.pillCls}" style="font-size:12px;padding:3px 8px">${pm.label}</span>`;
+  document.getElementById('tdp-pers-desc').textContent = pm.desc;
+  document.getElementById('tdp-personality').style.borderLeft = '3px solid ' + pm.color;
+
+  /* Swing stats */
+  const sw = swingStats(team.chip_trajectory);
+
+  /* Stats row */
+  const chipWins  = team.chip_wins  != null ? team.chip_wins  : '—';
+  const chipLoss  = team.chip_losses != null ? team.chip_losses : '—';
+  const bestSign   = sw.bestGain  != null && sw.bestGain  >= 0 ? '+' : '';
+  const worstSign  = sw.worstLoss != null && sw.worstLoss >= 0 ? '+' : '';
+  const bestNight  = sw.bestGain  !== null && sw.bestIdx  >= 0
+    ? `<span style="color:var(--green)">${bestSign}${sw.bestGain.toFixed(1)}</span> <span style="font-size:9px;color:var(--fg-faint)">(G${60 + sw.bestIdx + 1})</span>`
+    : '—';
+  const worstNight = sw.worstLoss !== null && sw.worstIdx >= 0
+    ? `<span style="color:var(--red)">${worstSign}${sw.worstLoss.toFixed(1)}</span> <span style="font-size:9px;color:var(--fg-faint)">(G${60 + sw.worstIdx + 1})</span>`
+    : '—';
+  document.getElementById('tdp-stats').innerHTML = `
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Chips (now)</div>
+      <div class="tdp-stat-value" style="color:${chips >= (team.chips_start ?? 100) ? 'var(--green)' : 'var(--red)'}">${chips != null ? chips.toFixed(1) : '—'}</div>
+    </div>
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Strategy</div>
+      <div class="tdp-stat-value" style="font-size:12px">${team.strategy || '—'}</div>
+    </div>
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Chip W–L</div>
+      <div class="tdp-stat-value" style="font-size:12px">${chipWins}–${chipLoss}</div>
+    </div>
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Best Night</div>
+      <div class="tdp-stat-value" style="font-size:12px">${bestNight}</div>
+    </div>
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Worst Night</div>
+      <div class="tdp-stat-value" style="font-size:12px">${worstNight}</div>
+    </div>
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Upset Bonus</div>
+      <div class="tdp-stat-value" style="font-size:12px;color:${(team.total_upset_bonus ?? 0) > 0 ? '#f5c518' : 'var(--fg-faint)'}">
+        ${(team.total_upset_bonus ?? 0) > 0 ? '⚡ +' + (team.total_upset_bonus ?? 0).toFixed(1) : '—'}
+      </div>
+    </div>
+    ${team.status === 'Lottery' ? `
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Draft Pick</div>
+      <div class="tdp-stat-value" style="font-size:12px">${team.chip_pick != null ? '#' + team.chip_pick : '—'}</div>
+    </div>` : ''}
+    ${team.doubled ? `
+    <div class="tdp-stat">
+      <div class="tdp-stat-label">Doubled</div>
+      <div class="tdp-stat-value" style="font-size:12px">Night ${team.double_night}</div>
+    </div>` : ''}
+  `;
+
+  /* Mini sparkline */
+  renderDetailSparkline(team, pm.color, sw);
+
+  const overlay = document.getElementById('team-detail-overlay');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => overlay.classList.add('open'));
+}
+
+function renderDetailSparkline(team, color, sw) {
+  const svg = document.getElementById('tdp-sparkline');
+  svg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+  const W = 480, H = 70, PL = 28, PR = 8, PT = 6, PB = 18;
+  const traj = team.chip_trajectory;
+  if (!traj || traj.length === 0) return;
+
+  const allVals = lbData ? lbData.teams.filter(t => t.in_chip_pool).flatMap(t => t.chip_trajectory) : traj;
+  const minC = Math.min(...allVals, 0) - 5;
+  const maxC = Math.max(...allVals, 200) + 5;
+  const sx  = gi => PL + (gi / (GAMES - 1)) * (W - PL - PR);
+  const sy  = c  => PT + (1 - (c - minC) / (maxC - minC || 1)) * (H - PT - PB);
+
+  /* Baseline at team's starting chips */
+  const by = sy(team.chips_start ?? 100);
+  const bl = document.createElementNS(ns, 'line');
+  bl.setAttribute('x1', PL); bl.setAttribute('x2', W - PR);
+  bl.setAttribute('y1', by); bl.setAttribute('y2', by);
+  bl.setAttribute('stroke', '#ccaa44'); bl.setAttribute('stroke-width', '0.8');
+  bl.setAttribute('stroke-dasharray', '3,3'); bl.setAttribute('opacity', '0.4');
+  svg.appendChild(bl);
+
+  /* X-axis labels */
+  [0, 5, 10, 15, 21].forEach(gi => {
+    const lbl = document.createElementNS(ns, 'text');
+    lbl.setAttribute('x', sx(gi)); lbl.setAttribute('y', H - 4);
+    lbl.setAttribute('text-anchor', 'middle'); lbl.setAttribute('fill', '#555');
+    lbl.setAttribute('font-size', '8'); lbl.textContent = 'G' + (60 + gi + 1);
+    svg.appendChild(lbl);
+  });
+
+  /* Chip trajectory path */
+  const ps = trajPersonalityStyle(team.bidding_personality || 'standard');
+  let d = '';
+  traj.forEach((c, gi) => {
+    d += (gi === 0 ? 'M' : 'L') + sx(gi).toFixed(1) + ',' + sy(c).toFixed(1);
+  });
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute('d', d); path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', color);
+  path.setAttribute('stroke-width', parseFloat(ps.width) > 1.5 ? '2' : ps.width);
+  path.setAttribute('opacity', '0.9');
+  if (ps.dash) path.setAttribute('stroke-dasharray', ps.dash);
+  svg.appendChild(path);
+
+  /* Swing markers — best night (green ▲) and worst night (red ▼) */
+  if (sw) {
+    if (sw.bestIdx >= 0 && sw.bestIdx < traj.length) {
+      const bx = sx(sw.bestIdx), by2 = sy(traj[sw.bestIdx]);
+      const tri = document.createElementNS(ns, 'polygon');
+      const r = 4;
+      tri.setAttribute('points', `${bx},${by2 - r} ${bx - r},${by2 + r} ${bx + r},${by2 + r}`);
+      tri.setAttribute('fill', '#4ade80'); tri.setAttribute('opacity', '0.95');
+      svg.appendChild(tri);
+    }
+    if (sw.worstIdx >= 0 && sw.worstIdx < traj.length) {
+      const wx = sx(sw.worstIdx), wy = sy(traj[sw.worstIdx]);
+      const tri = document.createElementNS(ns, 'polygon');
+      const r = 4;
+      tri.setAttribute('points', `${wx},${wy + r} ${wx - r},${wy - r} ${wx + r},${wy - r}`);
+      tri.setAttribute('fill', '#f87171'); tri.setAttribute('opacity', '0.95');
+      svg.appendChild(tri);
+    }
+  }
+
+  /* Current-game marker */
+  const gi = curGame - 1;
+  if (gi >= 0 && gi < traj.length) {
+    const mx = sx(gi), my = sy(traj[gi]);
+    const dot = document.createElementNS(ns, 'circle');
+    dot.setAttribute('cx', mx); dot.setAttribute('cy', my); dot.setAttribute('r', '4');
+    dot.setAttribute('fill', color); dot.setAttribute('opacity', '1');
+    svg.appendChild(dot);
+    const vl = document.createElementNS(ns, 'line');
+    vl.setAttribute('x1', mx); vl.setAttribute('x2', mx);
+    vl.setAttribute('y1', PT); vl.setAttribute('y2', H - PB);
+    vl.setAttribute('stroke', 'var(--accent)'); vl.setAttribute('stroke-width', '1');
+    vl.setAttribute('stroke-dasharray', '3,2'); vl.setAttribute('opacity', '0.6');
+    svg.appendChild(vl);
+  }
+
+  /* Sparkline legend for swing markers */
+  const wrap = svg.parentElement;
+  let swLegend = wrap.querySelector('.sw-legend');
+  if (!swLegend) {
+    swLegend = document.createElement('div');
+    swLegend.className = 'sw-legend';
+    swLegend.style.cssText = 'display:flex;gap:12px;margin-top:5px;font-size:10px;color:var(--fg-dim)';
+    wrap.appendChild(swLegend);
+  }
+  swLegend.innerHTML = sw && sw.bestIdx >= 0
+    ? `<span style="color:#4ade80">▲ Best Night</span> <span style="color:#f87171">▼ Worst Night</span>`
+    : '';
+}
+
+function closeTeamDetail(event) {
+  if (event && event.target !== document.getElementById('team-detail-overlay')) return;
+  const overlay = document.getElementById('team-detail-overlay');
+  overlay.classList.remove('open');
+  setTimeout(() => { overlay.style.display = 'none'; }, 220);
+}
+
+/* ═══════════════════════════════════════
+   CSV EXPORT
+═══════════════════════════════════════ */
+function exportCsv() {
+  if (!lbData) return;
+  const gameIdx = curGame - 1;
+  const ranked  = lotteryRanked(gameIdx);
+  const rows = [['Pick','Team','Status','Strategy','Bidding Personality','Record','Chips',
+                  'Hot Streak','Rally Mode','Doubled',
+                  "Tonight's Opponent","Tonight's Pot"]];
+  ranked.forEach((t, i) => {
+    const m = tonightMatchup(t.id, gameIdx);
+    const isHome    = m ? m.home_id === t.id : false;
+    const oppName   = m ? (isHome ? m.away_name : m.home_name) : '';
+    const pot       = m ? m.pot.toFixed(1) : '';
+    rows.push([
+      i + 1, t.name, t.status, t.strategy,
+      t.bidding_personality || 'standard',
+      `${t.final_wins}-${t.final_losses}`,
+      t._chips.toFixed(1),
+      t.has_hot_streak ? 'Yes' : 'No',
+      t.rally_mode ? 'Yes' : 'No',
+      t.doubled ? 'Yes' : 'No',
+      oppName, pot,
+    ]);
+  });
+  const csv  = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `chip_window_2025-26_seed${lbData._seed}_g${60 + curGame}.csv`;
+  a.click();
+}
+
+/* ═══════════════════════════════════════
+   SIM RUNNER
+═══════════════════════════════════════ */
+async function runSim(seed) {
+  document.getElementById('loading-state').style.display = 'flex';
+  document.getElementById('main-content').style.display = 'none';
+  document.getElementById('bottom-bar').style.display   = 'none';
+  document.getElementById('game-slider').disabled = true;
+  document.getElementById('export-btn').disabled  = true;
+
+  const body = new URLSearchParams();
+  body.append('seasons', '1');
+  body.append('strategy', 'standard');
+  if (seed != null) body.append('seed', String(seed));
+
+  try {
+    const resp = await fetch('/chip-window/run', { method: 'POST', body });
+    if (!resp.ok) throw new Error('Server error ' + resp.status);
+    const json = await resp.json();
+
+    lbData        = json.seasons[0];
+    lbData._seed  = json.seed;
+
+    document.getElementById('hero-seed').textContent  = 'Seed #' + json.seed;
+    document.getElementById('bottom-seed').textContent = 'Seed #' + json.seed;
+    document.getElementById('game-slider').disabled = false;
+    document.getElementById('export-btn').disabled  = false;
+
+    curGame = 22;
+    document.getElementById('game-slider').value = 22;
+
+    renderAll(22);
+
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('main-content').style.display  = 'block';
+    document.getElementById('bottom-bar').style.display    = 'flex';
+  } catch (e) {
+    document.getElementById('loading-state').innerHTML =
+      '<span style="color:var(--red)">Failed to load simulation: ' + e.message + '</span>';
+  }
+}
+
+function rerunSim() { runSim(null); }
+function onSlide(val) { renderAll(parseInt(val)); }
+
+window.addEventListener('DOMContentLoaded', () => { runSim(null); });
+</script>
+{% endblock %}

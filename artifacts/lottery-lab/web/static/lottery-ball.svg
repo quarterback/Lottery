@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Lottery ball">
+  <defs>
+    <!-- Radial gradient: lighter at top-left for 3-D feel -->
+    <radialGradient id="g" cx="36%" cy="30%" r="70%">
+      <stop offset="0%"   stop-color="#ffb84d"/>
+      <stop offset="100%" stop-color="#c06000"/>
+    </radialGradient>
+    <!-- Clip to the circle so seams don't bleed out -->
+    <clipPath id="c">
+      <circle cx="12" cy="12" r="11.5"/>
+    </clipPath>
+  </defs>
+
+  <!-- Ball body -->
+  <circle cx="12" cy="12" r="11.5" fill="url(#g)"/>
+
+  <!-- Basketball seam curves, clipped -->
+  <g clip-path="url(#c)" stroke="rgba(0,0,0,0.22)" stroke-width="1" fill="none" stroke-linecap="round">
+    <!-- Horizontal seam top arc -->
+    <path d="M .5 12 C 4 4 20 4 23.5 12"/>
+    <!-- Horizontal seam bottom arc -->
+    <path d="M .5 12 C 4 20 20 20 23.5 12"/>
+    <!-- Vertical seam -->
+    <line x1="12" y1=".5" x2="12" y2="23.5"/>
+  </g>
+
+  <!-- Specular highlight (top-left) -->
+  <ellipse cx="8.5" cy="7" rx="3" ry="2" fill="rgba(255,255,255,0.28)" transform="rotate(-20,8.5,7)"/>
+
+  <!-- Number band: subtle dark disc -->
+  <circle cx="12" cy="12" r="5.2" fill="rgba(0,0,0,0.18)" clip-path="url(#c)"/>
+
+  <!-- Pick number "1" -->
+  <text x="12" y="15.5"
+        text-anchor="middle"
+        font-size="7.5"
+        font-weight="700"
+        font-family="'IBM Plex Mono', 'SF Mono', monospace"
+        fill="rgba(255,255,255,0.95)"
+        letter-spacing="-0.5">1</text>
+</svg>

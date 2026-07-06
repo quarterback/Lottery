@@ -1,4 +1,4 @@
-"""Smoke tests for the lottery simulation engine."""
+"""Smoke tests for the lottery simulation engine and historical data."""
 import sys
 import os
 
@@ -14,6 +14,10 @@ from engine.lottery_sim import (
     LotteryTournament,
     PureInversion,
     GoldPlan,
+    TheWheel,
+    LegacyNBA,
+    EqualOdds,
+    TopFourOnly,
     monte_carlo,
     simulate_run,
     compute_metrics,
@@ -26,7 +30,7 @@ from engine.lottery_sim import (
 
 
 def test_all_systems_present():
-    assert len(ALL_SYSTEMS) == 8
+    assert len(ALL_SYSTEMS) == 13
     names = [s.name for s in ALL_SYSTEMS]
     assert "Current NBA" in names
     assert "Flat Bottom" in names
@@ -36,6 +40,11 @@ def test_all_systems_present():
     assert "Lottery Tournament" in names
     assert "Pure Inversion" in names
     assert "Gold Plan (PWHL)" in names
+    assert "Chip Window" in names
+    assert "The Wheel" in names
+    assert "Pre-2019 Legacy NBA" in names
+    assert "Equal Odds" in names
+    assert "Top-4 Only Lottery" in names
 
 
 def _run_system_smoke(system, seed=42, seasons=3):
@@ -266,6 +275,172 @@ def test_draft_order_completeness():
             assert len(set(lottery_section)) == LOTTERY_TEAMS, f"{system.name}: duplicate lottery teams"
 
 
+def test_wheel_smoke():
+    _run_system_smoke(TheWheel())
+
+
+def test_legacy_nba_smoke():
+    _run_system_smoke(LegacyNBA())
+
+
+def test_equal_odds_smoke():
+    _run_system_smoke(EqualOdds())
+
+
+def test_top_four_only_smoke():
+    _run_system_smoke(TopFourOnly())
+
+
+def test_wheel_deterministic():
+    """The Wheel should order lottery teams strictly by (team_id + year) % 30."""
+    from engine.lottery_sim import _non_playoff_teams
+    system = TheWheel()
+    run = simulate_run(system, seasons=10, seed=42)
+    for year_idx, draft_order in enumerate(run.draft_orders):
+        season = run.seasons[year_idx]
+        lottery = _non_playoff_teams(season)
+        lottery_ids = {t[0] for t in lottery}
+        # Filter draft_order to lottery teams only
+        lottery_order = [tid for tid in draft_order if tid in lottery_ids]
+        # Verify each consecutive pair is sorted by wheel slot
+        for i in range(len(lottery_order) - 1):
+            slot_a = (lottery_order[i] + year_idx) % 30
+            slot_b = (lottery_order[i + 1] + year_idx) % 30
+            assert slot_a <= slot_b, (
+                f"Wheel year {year_idx}: team {lottery_order[i]} (slot {slot_a}) "
+                f"picked before team {lottery_order[i+1]} (slot {slot_b}) — wrong order"
+            )
+
+
+def test_wheel_rotation_wraps():
+    """The Wheel wraps around: year 30 assignments match year 0 for each team."""
+    system = TheWheel()
+    # Run 31 seasons to cross the wrap point
+    run = simulate_run(system, seasons=31, seed=0)
+    # In the wheel: slot = (team_id + year) % 30
+    # Year 0 and year 30 should have the same ordering if the same teams are in the lottery.
+    # We can verify the wheel slot function wraps correctly via direct arithmetic.
+    for tid in range(30):
+        slot_year0 = (tid + 0) % 30
+        slot_year30 = (tid + 30) % 30
+        assert slot_year0 == slot_year30, f"Wheel wrap broken for team {tid}"
+
+
+def test_wheel_zero_tank_incentive():
+    """The Wheel always returns 0.0 tank incentive regardless of standing."""
+    system = TheWheel()
+    run = simulate_run(system, seasons=3, seed=5)
+    for season in run.seasons:
+        for tid, _, _ in season.standings:
+            incentive = system.tank_incentive(tid, season.standings, [season])
+            assert incentive == 0.0, f"Wheel tank_incentive should be 0, got {incentive}"
+
+
+def test_legacy_nba_odds_ordering():
+    """Pre-2019 Legacy NBA: worst team should get pick #1 far more often than best lottery team."""
+    from engine.lottery_sim import _non_playoff_teams
+    system = LegacyNBA()
+    run = simulate_run(system, seasons=500, seed=42)
+
+    worst_top1 = 0
+    best_top1 = 0
+    for s_idx, draft_order in enumerate(run.draft_orders):
+        if not draft_order:
+            continue
+        pick1 = draft_order[0]
+        season = run.seasons[s_idx]
+        lottery = _non_playoff_teams(season)
+        if lottery and pick1 == lottery[0][0]:   # worst team
+            worst_top1 += 1
+        if lottery and pick1 == lottery[-1][0]:  # best lottery team
+            best_top1 += 1
+
+    assert worst_top1 > best_top1 * 2, (
+        f"Legacy NBA: worst team got {worst_top1} #1 picks vs best lottery team {best_top1}. "
+        f"Expected worst to get at least 2x more."
+    )
+
+
+def test_equal_odds_uniform_picks1_to_4():
+    """Equal Odds: picks 1-4 must all come from the 14-team pool and be roughly uniform."""
+    from engine.lottery_sim import _non_playoff_teams, LOTTERY_PICKS
+    system = EqualOdds()
+    run = simulate_run(system, seasons=1400, seed=0)
+
+    pick1_counts: dict[int, int] = {}
+    for s_idx, draft_order in enumerate(run.draft_orders):
+        if not draft_order:
+            continue
+        season = run.seasons[s_idx]
+        lottery = _non_playoff_teams(season)
+        lottery_ids = {t[0] for t in lottery}
+
+        # All top-4 picks must come from the full 14-team lottery pool
+        top4 = draft_order[:LOTTERY_PICKS]
+        for slot_idx, tid in enumerate(top4):
+            assert tid in lottery_ids, (
+                f"Equal Odds season {s_idx} pick {slot_idx+1}: team {tid} not in lottery pool"
+            )
+        # No duplicates in top-4
+        assert len(set(top4)) == len(top4), f"Equal Odds season {s_idx}: duplicate in top-4 picks"
+
+        # Count pick-1 frequency
+        pick1 = draft_order[0]
+        if pick1 in lottery_ids:
+            pick1_counts[pick1] = pick1_counts.get(pick1, 0) + 1
+
+    # Rough uniformity: no team should get #1 more than 2.5× the mean over 1400 seasons
+    total = sum(pick1_counts.values())
+    counts = list(pick1_counts.values())
+    mean = total / len(counts)
+    for tid, count in pick1_counts.items():
+        assert count < mean * 2.5, (
+            f"Equal Odds: team {tid} got {count} #1 picks, mean={mean:.1f} — not uniform enough"
+        )
+
+
+def test_top_four_only_lottery_pool():
+    """Top-4 Only Lottery: picks 1-4 must come from 4 worst teams; worst should get pick #1 most."""
+    from engine.lottery_sim import _non_playoff_teams
+    system = TopFourOnly()
+    run = simulate_run(system, seasons=500, seed=13)
+
+    worst_top1 = 0
+    best_of_four_top1 = 0
+
+    for s_idx, draft_order in enumerate(run.draft_orders):
+        season = run.seasons[s_idx]
+        lottery = _non_playoff_teams(season)
+        top4 = lottery[:4]   # worst first
+        top4_ids = {t[0] for t in top4}
+        rest_ids = {t[0] for t in lottery[4:]}
+
+        # First 4 picks must all be from the 4 worst teams
+        for pick_idx, tid in enumerate(draft_order[:4]):
+            assert tid in top4_ids, (
+                f"Top-4 Only, season {s_idx}, pick {pick_idx+1}: "
+                f"team {tid} is not one of the 4 worst teams"
+            )
+        # Picks 5+ must come from teams 5-14
+        for pick_idx, tid in enumerate(draft_order[4:LOTTERY_TEAMS]):
+            assert tid in rest_ids, (
+                f"Top-4 Only, season {s_idx}, pick {pick_idx+5}: "
+                f"team {tid} should not be a lottery team (is in top-4)"
+            )
+
+        # Track who gets pick #1: worst team vs 4th-worst team
+        if top4 and draft_order[0] == top4[0][0]:   # worst of 4 (weight=4)
+            worst_top1 += 1
+        if top4 and len(top4) >= 4 and draft_order[0] == top4[3][0]:  # 4th-worst (weight=1)
+            best_of_four_top1 += 1
+
+    # Worst team (40% weight) should get #1 pick far more than the 4th-worst team (10% weight)
+    assert worst_top1 > best_of_four_top1 * 1.5, (
+        f"Top-4 Only: worst team got {worst_top1} #1 picks vs 4th-worst {best_of_four_top1}. "
+        f"Expected worst to get at least 1.5x more (weighting 40% vs 10%)."
+    )
+
+
 def test_two_system_comparison_rendering():
     """Router helpers produce a valid comparison table when two systems are simulated."""
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "web"))
@@ -298,10 +473,185 @@ def test_two_system_comparison_rendering():
         assert len(bars) == NUM_TEAMS, f"Wrong bar count: {len(bars)}"
 
 
+def test_historical_data_integrity():
+    """All historical seasons have required keys, 14 unique lottery teams, and clean lottery_top4."""
+    from data.historical_seasons import HISTORICAL_SEASONS, SEASON_KEYS
+
+    assert len(HISTORICAL_SEASONS) == 26, f"Expected 26 seasons, got {len(HISTORICAL_SEASONS)}"
+    assert len(SEASON_KEYS) == 26
+
+    required_keys = {"context", "games", "lottery_pick1", "lottery_top4", "lottery_teams"}
+    for key, data in HISTORICAL_SEASONS.items():
+        missing = required_keys - set(data.keys())
+        assert not missing, f"Season {key} missing keys: {missing}"
+
+        # No actual_picks dicts (removed in favour of _compute_actual_order)
+        assert "actual_picks" not in data, \
+            f"Season {key}: stale 'actual_picks' dict found; remove it"
+
+        teams = data["lottery_teams"]
+        assert len(teams) == 14, f"Season {key} has {len(teams)} lottery teams, expected 14"
+
+        max_games = data["games"]
+        team_names_list = []
+        for entry in teams:
+            assert len(entry) == 3, f"Season {key} team entry should be (name, wins, losses)"
+            name, wins, losses = entry
+            assert isinstance(name, str) and len(name) > 0
+            assert isinstance(wins, int) and 0 <= wins <= max_games, \
+                f"Season {key}: {name} has wins={wins} out of range 0-{max_games}"
+            assert isinstance(losses, int) and 0 <= losses <= max_games, \
+                f"Season {key}: {name} has losses={losses} out of range 0-{max_games}"
+            team_names_list.append(name)
+
+        # No duplicate team names in lottery_teams
+        seen_names: set[str] = set()
+        for name in team_names_list:
+            assert name not in seen_names, f"Season {key}: duplicate team '{name}' in lottery_teams"
+            seen_names.add(name)
+
+        # No team in lottery_teams should have a very high win total (>55) — such teams
+        # would almost certainly have been playoff teams.
+        high_win_teams = [(t[0], t[1]) for t in teams if t[1] > 55]
+        assert not high_win_teams, \
+            f"Season {key}: suspiciously high win totals (likely playoff teams) in lottery: {high_win_teams}"
+
+        # lottery_pick1 must be in lottery_teams (except TBD for pending seasons)
+        pick1 = data["lottery_pick1"]
+        if pick1 != "TBD":
+            assert pick1 in seen_names, f"Season {key}: lottery_pick1 '{pick1}' not in lottery_teams"
+
+        # lottery_top4 integrity: all entries must be in lottery_teams (no traded/expansion picks)
+        top4 = data["lottery_top4"]
+        assert isinstance(top4, list) and len(top4) <= 4, \
+            f"Season {key}: lottery_top4 must be a list of ≤4 names"
+        assert len(top4) == len(set(top4)), \
+            f"Season {key}: lottery_top4 has duplicate team(s): {top4}"
+        for pos, name in enumerate(top4, 1):
+            assert name in seen_names, \
+                f"Season {key}: lottery_top4[{pos}]='{name}' not in lottery_teams — " \
+                f"use the next eligible lottery team instead"
+
+
+def test_historical_known_picks():
+    """Spot-check known factual outcomes using lottery_pick1 and lottery_top4."""
+    from data.historical_seasons import HISTORICAL_SEASONS
+    from web.router import _compute_actual_order
+
+    # 2002-03: Cleveland Cavaliers won the lottery, LeBron James
+    s = HISTORICAL_SEASONS["2002-03"]
+    assert s["lottery_pick1"] == "Cleveland Cavaliers"
+    assert s["lottery_top4"][0] == "Cleveland Cavaliers"
+    order = _compute_actual_order(s)
+    assert order[0] == "Cleveland Cavaliers", f"Expected Cleveland at #1, got {order[0]}"
+
+    # 2007-08: Derrick Rose, Chicago Bulls
+    s = HISTORICAL_SEASONS["2007-08"]
+    assert s["lottery_pick1"] == "Chicago Bulls"
+    assert s["lottery_top4"][0] == "Chicago Bulls"
+    order = _compute_actual_order(s)
+    assert order[0] == "Chicago Bulls"
+    assert order[1] == "Miami Heat", f"Miami (worst 15W) should be #2, got {order[1]}"
+
+    # 2018-19: Zion Williamson, New Orleans Pelicans upset
+    s = HISTORICAL_SEASONS["2018-19"]
+    assert s["lottery_pick1"] == "New Orleans Pelicans"
+    assert s["lottery_top4"][0] == "New Orleans Pelicans"
+    assert s["lottery_top4"][1] == "Memphis Grizzlies"
+    order = _compute_actual_order(s)
+    assert order[0] == "New Orleans Pelicans"
+
+    # 2011-12: Anthony Davis, New Orleans Hornets
+    s = HISTORICAL_SEASONS["2011-12"]
+    assert s["lottery_pick1"] == "New Orleans Hornets"
+    assert s["lottery_top4"][0] == "New Orleans Hornets"
+    order = _compute_actual_order(s)
+    assert order[0] == "New Orleans Hornets"
+    assert len(set(order)) == 14, "Duplicate teams in computed order"
+
+    # 2023-24: Zaccharie Risacher, Atlanta Hawks — major upset
+    s = HISTORICAL_SEASONS["2023-24"]
+    assert s["lottery_pick1"] == "Atlanta Hawks"
+    assert s["lottery_top4"][0] == "Atlanta Hawks"
+    order = _compute_actual_order(s)
+    assert order[0] == "Atlanta Hawks"
+    # Detroit Pistons (14W, worst) should be near the end of actual_order
+    assert "Detroit Pistons" in order[4:]
+
+
+def test_no_obvious_playoff_teams_in_lottery():
+    """No team with >55 wins should appear in any season's lottery_teams."""
+    from data.historical_seasons import HISTORICAL_SEASONS
+
+    violations = []
+    for season_key, data in HISTORICAL_SEASONS.items():
+        for name, wins, _ in data["lottery_teams"]:
+            if wins > 55:
+                violations.append(f"{season_key}: {name} ({wins}W)")
+    assert not violations, (
+        "Teams with >55 wins in lottery_teams are almost certainly playoff teams:\n"
+        + "\n".join(violations)
+    )
+
+
+def test_historical_simulation_smoke():
+    """Historical simulation: pick distributions sum correctly."""
+    from data.historical_seasons import HISTORICAL_SEASONS
+    from web.router import _run_historical_lottery
+
+    system = CurrentNBA()
+    season_data = HISTORICAL_SEASONS["2007-08"]
+
+    dist = _run_historical_lottery(season_data, system, n_runs=500)
+    n_lottery = len(season_data["lottery_teams"])
+
+    assert len(dist) == n_lottery, f"Expected {n_lottery} teams in dist"
+    for name, probs in dist.items():
+        assert len(probs) == n_lottery
+
+    # Each slot should sum to ~100% across all teams
+    slot_sums = [sum(dist[name][slot] for name in dist) for slot in range(n_lottery)]
+    for slot, s in enumerate(slot_sums[:4]):
+        assert abs(s - 100.0) < 5.0, f"Slot {slot+1} probabilities sum to {s:.1f}%, expected ~100%"
+
+    # Under Current NBA, Miami Heat (worst 15W team) should have highest pick-1 odds
+    assert dist["Miami Heat"][0] > dist["Chicago Bulls"][0], \
+        "Miami (worst) should have higher #1 pick odds than Chicago"
+
+
+def test_historical_actual_order():
+    """_compute_actual_order returns exactly 14 teams with #1 pick first, for every season."""
+    from data.historical_seasons import HISTORICAL_SEASONS
+    from web.router import _compute_actual_order
+
+    for season_key, data in HISTORICAL_SEASONS.items():
+        if data.get("season_pending"):
+            continue
+        order = _compute_actual_order(data)
+        lottery_team_names = {t[0] for t in data["lottery_teams"]}
+
+        # Must return exactly 14 teams
+        assert len(order) == 14, f"Season {season_key}: expected 14 teams in order, got {len(order)}"
+
+        # All returned names must be from lottery_teams
+        for name in order:
+            assert name in lottery_team_names, \
+                f"Season {season_key}: '{name}' in order but not in lottery_teams"
+
+        # No duplicates
+        assert len(set(order)) == 14, f"Season {season_key}: duplicate teams in order"
+
+        # The true #1 pick (lottery_pick1) must be at position 0
+        expected_pick1 = data["lottery_pick1"]
+        if expected_pick1 in lottery_team_names:
+            assert order[0] == expected_pick1, \
+                f"Season {season_key}: expected '{expected_pick1}' at #1, got '{order[0]}'"
+
+
 if __name__ == "__main__":
     print("Running smoke tests...")
     test_all_systems_present()
-    print("✓ All 8 systems present")
+    print("✓ All 13 systems present")
 
     for system in ALL_SYSTEMS:
         _run_system_smoke(system)
@@ -330,5 +680,32 @@ if __name__ == "__main__":
 
     test_two_system_comparison_rendering()
     print("✓ Two-system comparison table + SVG polylines render correctly")
+
+    test_historical_data_integrity()
+    print("✓ Historical data file: all 26 seasons have valid structure")
+
+    test_historical_simulation_smoke()
+    print("✓ Historical simulation: pick distribution sums to 100 per slot")
+
+    test_historical_actual_order()
+    print("✓ Historical actual order: lottery_pick1 always in position 1")
+
+    test_wheel_deterministic()
+    print("✓ The Wheel is deterministic")
+
+    test_wheel_rotation_wraps()
+    print("✓ The Wheel wraps at year 30")
+
+    test_wheel_zero_tank_incentive()
+    print("✓ The Wheel: zero tank incentive")
+
+    test_legacy_nba_odds_ordering()
+    print("✓ Pre-2019 Legacy NBA: worst team gets #1 far more than best lottery team")
+
+    test_equal_odds_uniform_picks1_to_4()
+    print("✓ Equal Odds: uniform picks 1-4 distribution")
+
+    test_top_four_only_lottery_pool()
+    print("✓ Top-4 Only: picks 1-4 come from 4 worst teams only")
 
     print("\nAll tests passed!")

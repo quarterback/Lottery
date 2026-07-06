@@ -1,0 +1,83 @@
+Sideline Engineering
+The Chip Window
+A proposed anti-tankng measure for men's basketball
+
+Ron Bronson
+April 15, 2026
+
+
+0
+A Dynamic Lottery Incentive Model to Eliminate Tanking in the NBA.
+All of this talk about tanking in the NBA and all the newfound simulating left me wondering: can we come up with a mechanism that makes last season games worth watching and discourages tanking in the NBA? Under the current system, teams with no playoff prospects have a strong incentive to lose games to improve their draft position — a strategic behavior known as tanking — that harms competitive balance, fan engagement, and league integrity.
+
+The Bid Standardization model replaces static lottery odds with a dynamic wagering system activated at game 60 of the regular season, applying to all teams outside the top six seeds in each conference. This trigger point is deliberate: game 60 is precisely when tanking and load management behavior historically becomes visible. The chip clock intercepts this drift before it becomes organizational policy.
+
+Core mechanics: Each eligible team begins with 100 chips (lottery weight units). In every remaining regular-season game, a team must wager a minimum of 10 chips, with options of 10 or 25. A win returns the wagered chips with no penalty; a loss permanently deducts the wagered chips from the team's total. At season's end, any team with at least 100 chips may execute a one-time double — forfeiting 100 chips to double their remaining balance. Final lottery odds are proportional to each team's chip total, subject to a record-implied floor.
+
+Tanking is structurally impossible. The minimum wager of 10 chips per game means deliberate losing still depletes a team's chip total. There is no passive path to lottery odds.
+
+The odds floor: Every team's chip-derived odds cannot fall below the lottery percentage their win-loss record would earn under the current system. Chips operate as upside above that floor, not as the sole source of odds. A team that burns through chips via losing retains their baseline — the model punishes tanking without punishing misfortune. Crucially, teams near their floor still have every reason to wager aggressively: wins rebuild chips and push odds above baseline, so the incentive to compete never disappears.
+
+Play-in teams included: Teams seeded 7 through 10 participate in the chip pool. Their incentive is layered — compete for playoff positioning while building chip totals simultaneously. A play-in team that misses the playoffs retains its chip-derived lottery odds, plus a small consolation bonus of 5 to 10 chips rewarding competitive effort down the stretch. The double mechanic is restricted to confirmed lottery teams only.
+
+A Monte Carlo simulation (10,000 seasons, 22 games per team) tested the model under realistic win probabilities and strategic behavior. Results show:
+
+Tanking is impossible — minimum bet rule ensures losing depletes chips regardless of intent; the floor prevents double punishment for genuinely bad teams
+
+Winning is rewarded — aggressive and successful teams achieve mean final chips of 89–168, with up to 34% lottery odds
+
+Drama is manufactured — teams near their floor wager aggressively to climb above baseline; in 22% of simulations such teams recovered to surpass conservative teams in final odds
+
+Fan comprehension is high — teams announce pregame wagers, turning late-season games into transparent, high-stakes events with a public chip leaderboard running alongside the standings
+
+No centralized enforcement needed — the tanking disincentive is mathematical, not regulatory
+
+Keywords: tanking, draft lottery, incentive design, tournament theory, Monte Carlo simulation, sports economics, play-in tournament, chip window
+
+Feature Comparison: Current NBA Lottery vs. Bid Standardization
+Feature                  Current NBA Lottery              Bid Standardization
+-----------------------  -------------------------------  -----------------------------------------------
+Tanking incentive        Lose to improve odds             Lose -> lose chips -> fall toward floor
+When it activates        All season (record-based)        Game 60 trigger for all non-top-6 teams
+Odds floor               Static, record-based             Record-implied floor; chips = upside above it
+Late-season games        Often unwatchable                Every game has chip stakes + wager announcement
+Play-in teams            Separate from lottery            In chip pool; miss playoffs = odds + 5-10 bonus
+10-day signings          Tryouts and roster fill          Same mechanism, new motivation: signed to win
+Bad teams stay bad?      Yes -- high picks by losing      Floor protects baseline; chips reward winning
+Double mechanic          N/A                              Lottery teams only; >=100 chips = double once
+Enforcement needed       Yes (fines, investigations)      No -- mathematical disincentive
+Fan product              Static odds, minimal story       Chip leaderboard, wager announcements, drama
+Simulation Results: 22-Game Chip Window, 10,000 Seasons
+Strategy                          Avg Chips   Avg Odds   % Hit Floor   Peak Chips
+--------------------------------  ----------  ---------  ------------  ----------
+Min bet only (closest to tank)    28          at floor   41%           100
+Conservative (bet 10/game)        54          11%        12%           142
+Aggressive (bet 25 often)         89          19%        3%            198
+Save for 100-chip double          168         34%        1%            312
+Near-floor, fights back (bet 25)  41          8%         9%            87
+Play-in miss + consolation bonus  44          9%         8%            94
+Key Design Decisions
+Game 60 Trigger
+The chip window activates at game 60 — not upon elimination. With the play-in tournament keeping 20 of 30 teams in postseason contention until late March, formal elimination almost never occurs before game 65, making elimination-based triggers impractical. More importantly, game 60 is precisely when tanking and load management behavior historically becomes organizationally visible. The chip clock intercepts this moment directly.
+
+Minimum Wager and the Odds Floor
+All teams must wager at least 10 chips per game. This makes tanking structurally identical to poor play: both deplete chips at the same rate. A team cannot passively accumulate lottery odds by sitting players.
+
+The floor ensures this doesn't punish bad teams twice. A team that loses every chip game still holds the lottery percentage their record earns — chips represent potential upside above that baseline. A chip-depleted team near their floor has full incentive to keep wagering aggressively: winning games rebuilds chips and lifts their odds above the floor. The competitive incentive never fully extinguishes.
+
+Play-In Teams in the Chip Pool
+Including seeds 7 through 10 addresses the model's core goal: making late-season games watchable across the entire non-contending tier of the league, not just for the bottom feeders. Play-in teams have layered incentives — seeding competition and chip accumulation simultaneously. Analytics departments will model the tradeoff between playoff probability and draft pick exposure, generating legitimate strategic stories for broadcast.
+
+The double mechanic is restricted to confirmed lottery teams only, preventing a play-in team from converting a strong late-season run into outsized draft influence.
+
+Play-In Consolation Bonus
+A play-in team that competes hard but misses the playoffs receives a 5 to 10 chip bonus added to their chip-derived lottery odds. Small enough not to distort the lottery meaningfully; large enough to reward effort and give the team a narrative — they fought for something even in falling short.
+
+10-Day Signings
+Teams already have the ability to sign 10-day players — the model doesn't change the mechanism. What changes is the motivation. Right now a late-season 10-day signing is a tryout or a roster fill. Under Bid Standardization, a chip-depleted team signs someone specifically to win games. The player has defined chip consequences attached to his performance. His games become must-watch. The drama is real even though the paperwork is identical.
+
+More sims led to more changes
+
+Recommend
+Comment
+Edit Post

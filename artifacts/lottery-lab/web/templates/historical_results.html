@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% block title %}Lottery Lab — {{ season_key }} Historical Analysis{% endblock %}
+
+{% block content %}
+<div class="mt-24">
+
+  <!-- Back link -->
+  <div style="margin-bottom:20px">
+    <a href="/#historical" class="btn btn-secondary" style="font-size:var(--fs-sm);padding:6px 14px">← Back to Simulator</a>
+  </div>
+
+  <!-- Season header -->
+  <div class="results-header" style="flex-wrap:wrap;gap:12px">
+    <div>
+      <div class="results-title">{{ season_key }} NBA Lottery Analysis</div>
+      <div class="results-meta" style="margin-top:4px">
+        {% if is_pending %}
+          <span style="color:var(--warn-fg)">Season in progress — actual lottery results pending</span>
+        {% else %}
+          Lottery pick: <strong style="color:var(--accent)">{{ season_data.lottery_pick1 }}</strong>
+        {% endif %}
+      </div>
+    </div>
+    <div class="results-meta">
+      {{ n_runs }} simulated lotteries · {{ season_data.games }}-game season · {{ elapsed }}s
+    </div>
+  </div>
+
+  <!-- Context blurb -->
+  <div class="notice notice-info" style="margin-bottom:24px">
+    {{ season_data.context }}
+  </div>
+
+  {% if is_pending %}
+  <div class="notice notice-warn" style="margin-bottom:24px">
+    The 2025-26 lottery has not yet occurred (expected May 2026). The table below shows simulated pick probabilities for each system based on current standings. No actual pick comparison is shown.
+  </div>
+  {% endif %}
+
+  <!-- Disclaimer -->
+  <div style="font-size:var(--fs-sm);color:var(--fg-faint);margin-bottom:24px">
+    Records are approximate for some seasons. Lottery draw results (picks 1–4) reflect actual lottery outcomes; picks 5–14 reflect lottery-team pick order by record (traded and non-lottery picks not tracked). Both actuals and simulations use the same ordering convention.
+  </div>
+
+  <!-- Real standings overview -->
+  <div class="mb-32">
+    <div class="section-title">{{ season_key }} Lottery Teams — Real Standings</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left">Lottery Seed</th>
+            <th style="text-align:left">Team</th>
+            <th>W</th>
+            <th>L</th>
+            <th>Win%</th>
+            {% if not is_pending %}<th>Actual Pick</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for name, wins, losses in season_data.lottery_teams %}
+          {% set actual_pick_num = actual_order.index(name) + 1 if (not is_pending and name in actual_order) else 0 %}
+          <tr {% if actual_pick_num == 1 %}style="background:var(--accent-bg)"{% endif %}>
+            <td>{{ loop.index }}</td>
+            <td style="text-align:left;color:var(--fg);font-weight:{% if actual_pick_num == 1 %}700{% else %}400{% endif %}">
+              {{ name }}
+              {% if actual_pick_num == 1 %}<span style="color:var(--accent);margin-left:6px">★ #1 Pick</span>{% endif %}
+            </td>
+            <td>{{ wins }}</td>
+            <td>{{ losses }}</td>
+            <td>{{ "%.3f"|format(wins / (wins + losses)) }}</td>
+            {% if not is_pending %}
+            <td>
+              {% if actual_pick_num <= 4 %}
+                <span style="color:var(--accent);font-weight:700">#{{ actual_pick_num }}</span>
+              {% else %}
+                <span style="color:var(--fg-dim)">#{{ actual_pick_num }}</span>
+              {% endif %}
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Per-system simulated results -->
+  {% for sim in sim_results %}
+  <div class="mb-40">
+    <div class="section-title">
+      <span class="system-badge badge-{{ loop.index0 }}" style="margin-right:8px">{{ sim.system_name }}</span>
+      — Simulated Pick Probabilities vs Actual Results
+    </div>
+
+    {% if sim.explainer.desc %}
+    <div style="font-size:var(--fs-sm);color:var(--fg-dim);margin-bottom:14px;max-width:700px">
+      {{ sim.explainer.desc }}
+    </div>
+    {% endif %}
+
+    <!-- Legend -->
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:12px;font-size:var(--fs-sm);color:var(--fg-dim)">
+      <span><span style="color:var(--accent)">■</span> Lottery picks (1–4)</span>
+      <span><span style="color:var(--green)">▲</span> Actual pick better than simulated most-likely</span>
+      <span><span style="color:var(--red)">▼</span> Actual pick worse than simulated most-likely</span>
+      {% if is_pending %}<span style="color:var(--fg-faint)">No actual comparison — lottery pending</span>{% endif %}
+    </div>
+
+    <div class="table-wrap">
+      <table class="hist-table">
+        <thead>
+          <tr>
+            <th style="text-align:left">Team</th>
+            <th>W-L</th>
+            <th>Seed</th>
+            <th title="Most likely simulated pick">Sim Pick</th>
+            {% if not is_pending %}<th>Actual Pick</th><th>Delta</th>{% endif %}
+            <th title="Probability of getting pick #1">Pick 1%</th>
+            <th title="Probability of getting a top-4 pick">Top-4%</th>
+            <th colspan="4" style="text-align:center">Pick Distribution (1–4)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in sim.rows %}
+          {% set is_lottery_pick = (not is_pending) and (row.actual_pick is not none) and (row.actual_pick <= 4) %}
+          <tr {% if is_lottery_pick %}style="background:var(--accent-bg)"{% endif %}>
+            <td style="text-align:left;color:var(--fg);font-weight:{% if is_lottery_pick %}600{% else %}400{% endif %}">
+              {{ row.name }}
+            </td>
+            <td style="font-size:var(--fs-sm)">{{ row.wins }}-{{ row.losses }}</td>
+            <td>{{ row.lottery_seed }}</td>
+            <td style="color:var(--fg);font-weight:600">#{{ row.ml_pick }}</td>
+            {% if not is_pending %}
+            <td>
+              {% if row.actual_pick is not none %}
+                <span style="color:{% if row.actual_pick <= 4 %}var(--accent){% else %}var(--fg-dim){% endif %};font-weight:{% if row.actual_pick <= 4 %}700{% else %}400{% endif %}">#{{ row.actual_pick }}</span>
+              {% else %}
+                <span style="color:var(--fg-faint)">—</span>
+              {% endif %}
+            </td>
+            <td class="{{ row.delta_cls }}" style="font-weight:600">
+              {% if row.delta_cls == 'diff-better' %}▲{% elif row.delta_cls == 'diff-worse' %}▼{% endif %}
+              {{ row.delta_str }}
+            </td>
+            {% endif %}
+            <td style="color:{% if row.pick1_pct > 10 %}var(--accent){% else %}var(--fg){% endif %}">
+              {{ "%.1f"|format(row.pick1_pct) }}%
+            </td>
+            <td style="color:{% if row.top4_pct > 30 %}var(--green){% else %}var(--fg){% endif %}">
+              {{ "%.1f"|format(row.top4_pct) }}%
+            </td>
+            <!-- Pick distribution mini bars for picks 1-4 -->
+            {% for slot_idx in range(4) %}
+            {% set pct = row.dist[slot_idx] if slot_idx < row.dist|length else 0 %}
+            <td style="text-align:right;min-width:52px">
+              <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
+                <span style="font-size:10px;color:var(--fg-faint)">#{{ slot_idx + 1 }}</span>
+                <div style="background:var(--bg-2);border-radius:2px;width:40px;height:6px;overflow:hidden">
+                  <div style="background:{{ sim.color }};height:100%;width:{{ [pct, 100]|min|int }}%;opacity:0.85"></div>
+                </div>
+                <span style="font-size:10px;color:var(--fg-dim);min-width:28px;text-align:right">{{ "%.0f"|format(pct) }}%</span>
+              </div>
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Key insight: biggest jumps -->
+    {% if not is_pending %}
+    {% set biggest_winners = sim.rows | selectattr("delta_cls", "eq", "diff-better") | sort(attribute="delta") | list %}
+    {% set biggest_losers = sim.rows | selectattr("delta_cls", "eq", "diff-worse") | sort(attribute="delta", reverse=True) | list %}
+    {% if biggest_winners or biggest_losers %}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+      {% if biggest_winners %}
+      <div style="background:var(--green-bg);border:1px solid var(--green-border);border-radius:var(--radius);padding:12px 14px">
+        <div style="font-size:var(--fs-sm);color:var(--green);margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em">
+          Biggest Lottery Jumpers (Actual better than sim)
+        </div>
+        {% for r in biggest_winners[:3] %}
+        <div style="font-size:var(--fs-sm);color:var(--fg);margin-bottom:4px">
+          <span style="color:var(--green);font-weight:700">{{ r.delta_str }}</span>
+          {{ r.name }} — actual #{{ r.actual_pick }} vs sim #{{ r.ml_pick }}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if biggest_losers %}
+      <div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--radius);padding:12px 14px">
+        <div style="font-size:var(--fs-sm);color:var(--warn-fg);margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em">
+          Biggest Falls (Actual worse than sim)
+        </div>
+        {% for r in biggest_losers[:3] %}
+        <div style="font-size:var(--fs-sm);color:var(--fg);margin-bottom:4px">
+          <span style="color:var(--red);font-weight:700">{{ r.delta_str }}</span>
+          {{ r.name }} — actual #{{ r.actual_pick }} vs sim #{{ r.ml_pick }}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       CHIP WINDOW LEADERBOARD — only shown when Chip Window system is selected
+       ═══════════════════════════════════════════════════════════════════════ -->
+  {% if chip_lb %}
+  <div class="mb-40" style="margin-top:40px">
+    <div class="section-title" style="margin-bottom:4px">
+      Chip Window Leaderboard — {{ season_key }} Simulation
+    </div>
+    <div style="font-size:var(--fs-sm);color:var(--fg-dim);margin-bottom:16px">
+      600 randomized chip-window scenarios per team · Wins add chips, losses deduct · Double triggers when final chips &gt; 100
+    </div>
+
+    <!-- Leaderboard table -->
+    <div class="table-wrap">
+      <table class="hist-table" style="width:100%">
+        <thead>
+          <tr>
+            <th style="text-align:center;width:32px">#</th>
+            <th style="text-align:left">Team</th>
+            <th style="text-align:center">Win% in<br>Window</th>
+            <th style="text-align:center">Median<br>Chips</th>
+            <th style="text-align:left;min-width:160px">Chip Range (p25–p75)</th>
+            <th style="text-align:center">Peak</th>
+            <th style="text-align:center">Double<br>Chance</th>
+            <th style="text-align:center;min-width:130px">Median Trajectory</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set lb_max = [chip_lb | map(attribute="max_chips") | max, 200] | max %}
+          {% for row in chip_lb %}
+          {% set is_leader = loop.index == 1 %}
+          <tr style="{% if is_leader %}background:var(--accent-bg){% endif %}">
+            <td style="text-align:center;color:{% if is_leader %}var(--accent){% else %}var(--fg-faint){% endif %};font-weight:{% if is_leader %}700{% else %}400{% endif %}">
+              {% if is_leader %}★{% else %}{{ loop.index }}{% endif %}
+            </td>
+            <td style="font-weight:{% if is_leader %}700{% else %}400{% endif %}">
+              {{ row.name }}<br>
+              <span style="font-size:10px;color:var(--fg-faint)">{{ row.wins }}–{{ row.losses }}</span>
+            </td>
+            <td style="text-align:center;color:{% if row.win_pct >= 50 %}var(--green){% elif row.win_pct >= 35 %}var(--fg){% else %}var(--fg-dim){% endif %}">
+              {{ row.win_pct }}%
+            </td>
+            <td style="text-align:center;font-weight:700;color:{% if row.median_chips > 100 %}var(--accent){% else %}var(--fg){% endif %}">
+              {{ row.median_chips | int }}
+            </td>
+            <!-- Range bar: p25 to p75, median tick, scale 0–lb_max -->
+            <td>
+              {% set bar_w = 140 %}
+              {% set scale = lb_max %}
+              {% set p25x = (row.p25_chips / scale * bar_w) | int %}
+              {% set p75x = (row.p75_chips / scale * bar_w) | int %}
+              {% set medx = (row.median_chips / scale * bar_w) | int %}
+              <div style="position:relative;height:14px;width:{{ bar_w }}px;background:var(--bg-2);border-radius:2px;overflow:visible">
+                <!-- IQR fill -->
+                <div style="position:absolute;top:0;left:{{ p25x }}px;width:{{ [p75x - p25x, 2] | max }}px;height:100%;background:var(--accent);opacity:0.4;border-radius:1px"></div>
+                <!-- Median tick -->
+                <div style="position:absolute;top:-2px;left:{{ medx }}px;width:2px;height:18px;background:var(--accent);border-radius:1px"></div>
+                <!-- Labels -->
+                <span style="position:absolute;top:16px;left:0;font-size:9px;color:var(--fg-faint)">0</span>
+                <span style="position:absolute;top:16px;right:0;font-size:9px;color:var(--fg-faint)">{{ lb_max | int }}</span>
+              </div>
+              <div style="font-size:10px;color:var(--fg-faint);margin-top:22px">
+                {{ row.p25_chips | int }}–{{ row.p75_chips | int }} chips
+              </div>
+            </td>
+            <td style="text-align:center;font-size:var(--fs-sm);color:var(--fg-dim)">
+              {{ row.max_chips | int }}
+            </td>
+            <td style="text-align:center;color:{% if row.prob_double > 20 %}var(--green){% elif row.prob_double > 5 %}var(--fg){% else %}var(--fg-faint){% endif %}">
+              {{ row.prob_double }}%
+            </td>
+            <!-- Sparkline SVG of median trajectory -->
+            <td>
+              {% set traj = row.median_traj %}
+              {% set traj_max = [traj | max, 100] | max %}
+              {% set svg_w = 120 %}
+              {% set svg_h = 28 %}
+              {% set n_pts = traj | length %}
+              <svg width="{{ svg_w }}" height="{{ svg_h }}" style="display:block">
+                <!-- Baseline at 100-chip level -->
+                {% set base_y = svg_h - (100 / traj_max * (svg_h - 4) | int) - 2 %}
+                <line x1="0" y1="{{ base_y }}" x2="{{ svg_w }}" y2="{{ base_y }}"
+                      stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>
+                <!-- Trajectory polyline -->
+                <polyline
+                  fill="none"
+                  stroke="{% if row.median_chips > 100 %}var(--accent){% else %}var(--fg-dim){% endif %}"
+                  stroke-width="1.5"
+                  stroke-linejoin="round"
+                  points="{% for i in range(n_pts) %}{{ (i / (n_pts - 1) * svg_w) | int }},{{ (svg_h - (traj[i] / traj_max * (svg_h - 4)) - 2) | int }}{% if not loop.last %} {% endif %}{% endfor %}"
+                />
+                <!-- End-point dot -->
+                {% set last_x = svg_w - 1 %}
+                {% set last_y = (svg_h - (traj[-1] / traj_max * (svg_h - 4)) - 2) | int %}
+                <circle cx="{{ last_x }}" cy="{{ last_y }}" r="2.5"
+                        fill="{% if row.median_chips > 100 %}var(--accent){% else %}var(--fg-dim){% endif %}"/>
+              </svg>
+              <div style="font-size:9px;color:var(--fg-faint);display:flex;justify-content:space-between;width:120px">
+                <span>G60</span><span>G82</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Legend / explainer -->
+    <div style="margin-top:16px;display:flex;gap:20px;flex-wrap:wrap;font-size:var(--fs-sm);color:var(--fg-dim)">
+      <span><span style="display:inline-block;width:12px;height:12px;background:var(--accent);opacity:0.4;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Chip range (p25–p75 across 600 scenarios)</span>
+      <span><span style="display:inline-block;width:2px;height:14px;background:var(--accent);vertical-align:middle;margin-right:4px"></span>Median chips</span>
+      <span>Dashed line in sparkline = 100-chip baseline · Teams above baseline may trigger the double</span>
+    </div>
+    <div style="font-size:var(--fs-sm);color:var(--fg-faint);margin-top:8px">
+      Win% uses the team's full-season record as a proxy for their game 60–82 performance,
+      since game-by-game results are not stored. Each scenario randomizes game outcomes
+      within that win probability, producing the ranges shown above.
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Run another season -->
+  <div class="mt-32" style="border-top:1px solid var(--border);padding-top:24px">
+    <div class="section-title">Run Another Historical Season</div>
+    <form method="POST" action="/historical" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="flex:1;min-width:160px">
+        <label for="season_key2">Season</label>
+        <select id="season_key2" name="season_key">
+          {% for sk in season_keys %}
+          <option value="{{ sk }}" {% if sk == season_key %}selected{% endif %}>{{ sk }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field" style="flex:2;min-width:200px">
+        <label>Systems (check up to 2)</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          {% for sys in systems %}
+          <label style="display:flex;align-items:center;gap:4px;font-size:var(--fs-sm);cursor:pointer;padding:4px 8px;background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius)">
+            <input type="checkbox" name="systems" value="{{ sys }}"
+              {% if sys in selected_systems %}checked{% endif %}
+              onchange="limitHistChecks(this)">
+            {{ sys }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <button type="submit" class="btn btn-primary">Analyze →</button>
+      </div>
+    </form>
+  </div>
+
+</div>
+
+<script>
+function limitHistChecks(cb) {
+  const all = document.querySelectorAll('input[name="systems"]');
+  const checked = Array.from(all).filter(c => c.checked);
+  if (checked.length > 2) cb.checked = false;
+}
+</script>
+
+{% endblock %}
