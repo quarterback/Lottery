@@ -1,0 +1,198 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   caponomics — design tokens & base styles.
+   Polished modern SaaS (Linear / Stripe / Raycast), NOT a terminal.
+   Sans-serif everywhere; mono only for figures/JSON/ids. Brand accent #00B7E0.
+   Light default + dark via prefers-color-scheme and [data-theme].
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --font-sans: 'General Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Azeret Mono is the figures/mono face — a clean, readable monospace; JetBrains
+     Mono is a fallback for glyphs it lacks (e.g. CJK 억/万). */
+  --font-mono: 'Azeret Mono', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* Outfit for the "Cap Buffet" wordmark; General Sans for section headers. */
+  --font-wordmark: 'Outfit', var(--font-sans);
+  --font-display: var(--font-sans);
+
+  /* Spacing — 8px grid */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+
+  /* Radii */
+  --r-sm: 8px;
+  --r: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  /* Brand + semantics (stable across themes) — Lottery Lab palette:
+     flame-orange accent, black-cherry deep, lemon-chiffon warm highlight. */
+  --brand: #fe4e00; /* flame-orange */
+  --brand-2: #570000; /* black-cherry */
+  --flame: #fe4e00;
+  --cherry: #570000;
+  --chiffon: #faf0ca; /* lemon-chiffon */
+  --tangerine: #fe4e00;
+  --peach: #faf0ca;
+  --beige: #faf0ca;
+  --steel: #570000;
+  --baltic: #1a659e;
+
+  --transition: 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Light (default) ── */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #fbf7ee; /* warm paper (lemon-chiffon tint) */
+  --bg-grad: radial-gradient(1200px 600px at 100% -10%, rgba(254, 78, 0, 0.07), transparent 60%);
+  --surface: #fffdf8;
+  --surface-2: #f6efe0;
+  --surface-3: #efe6d3;
+  --border: rgba(87, 0, 0, 0.1);
+  --border-strong: rgba(87, 0, 0, 0.18);
+  --text: #2a1712;
+  --text-2: #6b5445;
+  --text-3: #9c8877;
+  --brand-ink: #c43e00; /* darker flame for text/links */
+  --success: #0f766e;
+  --success-bg: rgba(15, 118, 110, 0.1);
+  --warning: #b45309;
+  --warning-bg: rgba(180, 83, 9, 0.12);
+  --error: #b91c1c;
+  --error-bg: rgba(185, 28, 28, 0.1);
+  --series-1: #fe4e00;
+  --series-2: #7a1122;
+  --shadow-sm: 0 1px 2px rgba(87, 0, 0, 0.06), 0 1px 3px rgba(87, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(87, 0, 0, 0.08), 0 2px 4px rgba(87, 0, 0, 0.04);
+  --shadow-lg: 0 12px 32px rgba(87, 0, 0, 0.12);
+}
+
+/* ── Dark ── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #150809;
+    --bg-grad: radial-gradient(1200px 600px at 100% -10%, rgba(254, 78, 0, 0.12), transparent 60%);
+    --surface: #221113;
+    --surface-2: #1a0c0d;
+    --surface-3: #2e181a;
+    --border: rgba(250, 240, 202, 0.09);
+    --border-strong: rgba(250, 240, 202, 0.17);
+    --text: #f6ede0;
+    --text-2: #cbb6a8;
+    --text-3: #8f7a6d;
+    --brand-ink: #ff8a4d;
+    --success: #34d399;
+    --success-bg: rgba(52, 211, 153, 0.14);
+    --warning: #fbbf24;
+    --warning-bg: rgba(251, 191, 36, 0.14);
+    --error: #fb7185;
+    --error-bg: rgba(251, 113, 133, 0.14);
+    --series-1: #ff6a2e;
+    --series-2: #b8c4d6;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
+  }
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #150809;
+  --bg-grad: radial-gradient(1200px 600px at 100% -10%, rgba(254, 78, 0, 0.12), transparent 60%);
+  --surface: #221113;
+  --surface-2: #1a0c0d;
+  --surface-3: #2e181a;
+  --border: rgba(250, 240, 202, 0.09);
+  --border-strong: rgba(250, 240, 202, 0.17);
+  --text: #f6ede0;
+  --text-2: #cbb6a8;
+  --text-3: #8f7a6d;
+  --brand-ink: #ff8a4d;
+  --success: #34d399;
+  --success-bg: rgba(52, 211, 153, 0.14);
+  --warning: #fbbf24;
+  --warning-bg: rgba(251, 191, 36, 0.14);
+  --error: #fb7185;
+  --error-bg: rgba(251, 113, 133, 0.14);
+  --series-1: #ff6a2e;
+  --series-2: #b8c4d6;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
+/* Category accents (module chips / cards) */
+:root {
+  --cat-revenue: var(--baltic);
+  --cat-cap: var(--brand);
+  --cat-floor: var(--steel);
+  --cat-tax: var(--tangerine);
+  --cat-apron: #b45309;
+  --cat-contract: var(--success);
+  --cat-roster: #7c3aed;
+  --cat-penalty: var(--error);
+  --cat-exception: #0d9488;
+  --cat-misc: var(--text-3);
+
+  /* Expansion-draft rule categories */
+  --cat-protection: var(--steel);
+  --cat-exemption: var(--success);
+  --cat-exposure: var(--tangerine);
+  --cat-selection: var(--brand);
+  --cat-rounds: #7c3aed;
+  --cat-financial: var(--baltic);
+  --cat-special: var(--text-3);
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  /* Azeret Mono is a true fixed-width face, so decimals/symbols read with a lot
+     of air. Pull the tracking in so figures like $63.2M sit tighter. */
+  letter-spacing: -0.05em;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--r-pill);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

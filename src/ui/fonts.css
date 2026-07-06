@@ -1,0 +1,86 @@
+/* Self-hosted brand fonts (Fontshare, OFL/free-to-self-host).
+   General Sans = UI workhorse + section headers · Azeret Mono = figures/mono ·
+   Outfit = "Cap Buffet" wordmark. */
+
+/* ── General Sans — UI + section headers ── */
+@font-face {
+  font-family: 'General Sans';
+  src: url('./fonts/generalsans-regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'General Sans';
+  src: url('./fonts/generalsans-medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'General Sans';
+  src: url('./fonts/generalsans-semibold.otf') format('opentype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'General Sans';
+  src: url('./fonts/generalsans-bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Azeret Mono — figures, JSON, ids (a clean, readable monospace) ── */
+@font-face {
+  font-family: 'Azeret Mono';
+  src: url('./fonts/azeret-mono-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Azeret Mono';
+  src: url('./fonts/azeret-mono-medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Azeret Mono';
+  src: url('./fonts/azeret-mono-semibold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Outfit — the "Cap Buffet" wordmark only (used heavy) ── */
+@font-face {
+  font-family: 'Outfit';
+  src: url('./fonts/outfit-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Outfit';
+  src: url('./fonts/outfit-semibold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Outfit';
+  src: url('./fonts/outfit-bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Outfit';
+  src: url('./fonts/outfit-extrabold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}

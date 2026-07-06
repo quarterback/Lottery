@@ -1,0 +1,5 @@
+# The Python app under artifacts/ is kept in-repo only as the port reference.
+# Exclude it from the Vercel upload so its FastAPI main.py isn't auto-detected
+# as a backend entrypoint — this is a static Vite build.
+artifacts/
+docs/
